@@ -98,7 +98,7 @@ Error Socket::Create(unsigned short port) {
 
 Error Socket::Configure(SocketHandle handle) {
   // Set write buffer size.
-  int send_buf = 1024 * 1024;
+  int send_buf = 16 * 1024 * 1024;
   setsockopt(handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char*>(&send_buf),
       sizeof(send_buf));
 

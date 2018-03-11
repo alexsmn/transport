@@ -62,7 +62,7 @@ bool GetIPAddressFromSockAddr(const struct sockaddr* sock_addr,
     return true;
   }
 
-#if defined(OS_WIN)
+#if defined(OS_WIN) && (_WIN32_WINNT >= 0x0600)
   if (sock_addr->sa_family == AF_BTH) {
     if (sock_addr_len < static_cast<socklen_t>(sizeof(SOCKADDR_BTH)))
       return false;

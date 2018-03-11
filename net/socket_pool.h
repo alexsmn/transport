@@ -1,11 +1,12 @@
 #pragma once
 
 #include "base/memory/ref_counted.h"
+#include "base/threading/thread_collision_warner.h"
 #include "net/base/net_errors.h"
 #include "net/socket_handle.h"
 
-#include <set>
 #include <map>
+#include <set>
 
 namespace net {
 
@@ -19,7 +20,7 @@ class SocketPool : public base::RefCounted<SocketPool> {
 
   static SocketPool& get();
 
-private:
+ private:
   friend class SocketWindow;
   friend class Socket;
 
@@ -42,10 +43,12 @@ private:
   static SocketPool* instance_;
 
   // Socket after close posts WM_RESUME into message queue and its handle is
-  // stored in |suspened_handles_| set. All messages to these sockets shall be ignored
-  // until WM_RESUME will be received.
-  // Note there could be several WM_RESUME for same socket handle in queue.
-  std::multiset<SocketHandle>	suspended_handles_;
+  // stored in |suspened_handles_| set. All messages to these sockets shall be
+  // ignored until WM_RESUME will be received. Note there could be several
+  // WM_RESUME for same socket handle in queue.
+  std::multiset<SocketHandle> suspended_handles_;
+
+  base::ThreadCollisionWarner thread_collision_warner_;
 };
 
-} // namespace net
+}  // namespace net

@@ -17,10 +17,10 @@ namespace net {
 const size_t kMaxProtocolMessage = kMaxMessage - 64;
 // |kMaxSendingCount| * |MAX_MSG| must be less then size of socket send buffer.
 const size_t kMaxSendingCount = 50;
-const size_t kMaxAcknowledgeCount	= 8;
+const size_t kMaxAcknowledgeCount = 8;
 
 inline bool MessageIdLessEq(uint16_t left, uint16_t right) {
-  return (right - left) < static_cast<uint16_t>(-1)/2;
+  return (right - left) < static_cast<uint16_t>(-1) / 2;
 }
 
 inline bool MessageIdLess(uint16_t left, uint16_t right) {
@@ -55,7 +55,7 @@ Session::~Session() {
   Close();
 
   for (SessionMap::iterator i = accepted_sessions_.begin();
-                            i != accepted_sessions_.end(); ) {
+       i != accepted_sessions_.end();) {
     Session& session = *(i++)->second;
     session.OnClosed(ERR_CONNECTION_CLOSED);
   }
@@ -67,21 +67,22 @@ Session::~Session() {
 
   for (int i = 0; i < arraysize(send_queues_); ++i) {
     MessageQueue& send_queue = send_queues_[i];
-    for (MessageQueue::iterator i = send_queue.begin(); i != send_queue.end(); ++i)
+    for (MessageQueue::iterator i = send_queue.begin(); i != send_queue.end();
+         ++i)
       delete[] i->data;
     send_queue.clear();
   }
 
   for (SendingMessageQueue::iterator i = sending_messages_.begin();
-                                     i != sending_messages_.end(); ++i) {
+       i != sending_messages_.end(); ++i) {
     delete[] i->data;
   }
   sending_messages_.clear();
-  
+
   sequence_message_.clear();
 
   if (parent_session_) {
-    assert(parent_session_->child_sessions_.find(this) != 
+    assert(parent_session_->child_sessions_.find(this) !=
            parent_session_->child_sessions_.end());
 
     parent_session_->child_sessions_.erase(this);
@@ -90,10 +91,10 @@ Session::~Session() {
 
 void Session::Close() {
   if (state_ == OPENED && parent_session_) {
-    assert(parent_session_->accepted_sessions_.find(id_) != 
+    assert(parent_session_->accepted_sessions_.find(id_) !=
            parent_session_->accepted_sessions_.end());
     assert(parent_session_->accepted_sessions_.find(id_)->second == this);
-           
+
     parent_session_->accepted_sessions_.erase(id_);
   }
 
@@ -102,7 +103,8 @@ void Session::Close() {
 }
 
 void Session::CloseTransport() {
-  if (state_ != CLOSED && transport_.get() && transport_->IsActive() && transport_->IsConnected())
+  if (state_ != CLOSED && transport_.get() && transport_->IsActive() &&
+      transport_->IsConnected())
     SendClose();
 
   connecting_ = false;
@@ -149,7 +151,10 @@ std::unique_ptr<Transport> Session::DetachTransport() {
   return transport;
 }
 
-void Session::PostMessage(const void* data, size_t size, bool seq, int priority) {
+void Session::PostMessage(const void* data,
+                          size_t size,
+                          bool seq,
+                          int priority) {
   assert(size > 0);
   assert(size <= kMaxProtocolMessage);
 
@@ -196,7 +201,8 @@ void Session::Send(const void* data, size_t len, int priority) {
 }
 
 void Session::OnClosed(Error error) {
-  logger_->WriteF(LogSeverity::Warning, "Session fatal error %s", ErrorToString(error));
+  logger_->WriteF(LogSeverity::Warning, "Session fatal error %s",
+                  ErrorToString(error).c_str());
 
   Close();
 
@@ -214,7 +220,8 @@ void Session::OnSessionRestored() {
 }
 
 void Session::OnTransportError(Error error) {
-  logger_->WriteF(LogSeverity::Warning, "Session transport error - %s", ErrorToString(error));
+  logger_->WriteF(LogSeverity::Warning, "Session transport error - %s",
+                  ErrorToString(error).c_str());
 
   if (context_) {
     context_->Destroy();
@@ -262,7 +269,8 @@ void Session::StartConnecting() {
   assert(transport_.get());
   assert(!context_);
 
-  logger_->WriteF(LogSeverity::Normal, "Connecting to %s", transport_->GetName().c_str());
+  logger_->WriteF(LogSeverity::Normal, "Connecting to %s",
+                  transport_->GetName().c_str());
 
   connect_start_ticks_ = base::TimeTicks::Now();
   connecting_ = true;
@@ -285,7 +293,7 @@ void Session::SendQueuedMessage() {
   if (repeat_sending_messages_) {
     repeat_sending_messages_ = false;
     for (SendingMessageQueue::const_iterator i = sending_messages_.begin();
-                                             i != sending_messages_.end(); ++i) {
+         i != sending_messages_.end(); ++i) {
       const SendingMessage& message = *i;
       SendDataMessage(message);
       if (context->is_destroyed())
@@ -304,14 +312,14 @@ void Session::SendQueuedMessage() {
     }
     if (!send_queue)
       return;
-      
+
     SendingMessage message;
     static_cast<Message&>(message) = send_queue->front();
     message.send_id = send_id_++;
     sending_messages_.push_back(message);
 
     send_queue->pop_front();
-   
+
     // Sent message will be acknowledgement for all received messages.
     num_recv_ = 0;
 
@@ -322,7 +330,8 @@ void Session::SendQueuedMessage() {
 }
 
 void Session::ProcessSessionAck(uint16_t ack) {
-  while (!sending_messages_.empty() && MessageIdLess(sending_messages_.front().send_id, ack)) {
+  while (!sending_messages_.empty() &&
+         MessageIdLess(sending_messages_.front().send_id, ack)) {
     SendingMessage& message = sending_messages_.front();
     delete[] message.data;
     sending_messages_.pop_front();
@@ -331,7 +340,10 @@ void Session::ProcessSessionAck(uint16_t ack) {
   SendQueuedMessage();
 }
 
-void Session::ProcessSessionMessage(uint16_t id, bool seq, const void* data, size_t len) {
+void Session::ProcessSessionMessage(uint16_t id,
+                                    bool seq,
+                                    const void* data,
+                                    size_t len) {
   if (id != recv_id_)
     return;
 
@@ -344,13 +356,15 @@ void Session::ProcessSessionMessage(uint16_t id, bool seq, const void* data, siz
   if (seq) {
     // Sequence message.
     sequence_message_.insert(sequence_message_.end(),
-        static_cast<const char*>(data), static_cast<const char*>(data) + len);
-    
+                             static_cast<const char*>(data),
+                             static_cast<const char*>(data) + len);
+
   } else if (!sequence_message_.empty()) {
     // End of sequence.
     sequence_message_.insert(sequence_message_.end(),
-        static_cast<const char*>(data), static_cast<const char*>(data) + len);
-          
+                             static_cast<const char*>(data),
+                             static_cast<const char*>(data) + len);
+
     // Copy message to local to allow access to |sequence_message_| member
     // inside |Delegate::OnTransportMessageReceived()|.
     std::vector<char> sequence_message;
@@ -368,17 +382,18 @@ void Session::ProcessSessionMessage(uint16_t id, bool seq, const void* data, siz
     }
   }
 
-  // Acknowledgement goes on OnTimer() now to allow other tasks to be performed. 
+  // Acknowledgement goes on OnTimer() now to allow other tasks to be performed.
 }
 
 void Session::OnTransportOpened() {
   assert(connecting_);
   assert(transport());
 
-  logger_->WriteF(LogSeverity::Normal, "Transport opened. Name is %s", transport()->GetName().c_str());
+  logger_->WriteF(LogSeverity::Normal, "Transport opened. Name is %s",
+                  transport()->GetName().c_str());
 
   connecting_ = false;
-    
+
   if (!transport()->IsActive())
     return;
 
@@ -405,7 +420,9 @@ void Session::OnTimer() {
   assert(transport_.get());
 
   if (!transport_->IsConnected() && !connecting_ && state_ == OPENED &&
-      !accepted_ && (base::TimeTicks::Now() - connect_start_ticks_).InMilliseconds() >= reconnection_period_) {
+      !accepted_ &&
+      (base::TimeTicks::Now() - connect_start_ticks_).InMilliseconds() >=
+          reconnection_period_) {
     StartConnecting();
     return;
   }
@@ -415,7 +432,9 @@ void Session::OnTimer() {
 
   // Acknowledge received messages.
   if (num_recv_) {
-    if (num_recv_ >= kMaxAcknowledgeCount || base::TimeTicks::Now() - receive_time_ >= base::TimeDelta::FromSeconds(1)) {
+    if (num_recv_ >= kMaxAcknowledgeCount ||
+        base::TimeTicks::Now() - receive_time_ >=
+            base::TimeDelta::FromSeconds(1)) {
       receive_time_ = base::TimeTicks::Now();
       num_recv_ = 0;
       SendAck(recv_id_);
@@ -434,7 +453,8 @@ void Session::OnCreateResponse(const SessionID& session_id,
 }
 
 void Session::OnTransportClosed(Error error) {
-  logger_->WriteF(LogSeverity::Warning, "Transport closed with error %s", ErrorToString(error));
+  logger_->WriteF(LogSeverity::Warning, "Transport closed with error %s",
+                  ErrorToString(error).c_str());
 
   OnTransportError(error);
 }
@@ -456,7 +476,7 @@ void Session::OnTransportMessageReceived(const void* data, size_t size) {
 
 void Session::OnMessageReceived(const void* data, size_t size) {
   ByteMessage msg(const_cast<void*>(data), size, size);
-  
+
   unsigned fun = msg.ReadByte();
 
   switch (fun) {
@@ -479,7 +499,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       // Close session request.
       logger_->Write(LogSeverity::Warning, "Close Session request");
       // Don't respond on this type of message.
-      // Actual close. Assume current transport object may be deleted after next call.
+      // Actual close. Assume current transport object may be deleted after next
+      // call.
       OnClosed(OK);
       break;
     }
@@ -489,7 +510,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       // Parse
       Error error = static_cast<Error>(msg.ReadLong());
 
-      logger_->WriteF(LogSeverity::Normal, "Create session response - %s", ErrorToString(error));
+      logger_->WriteF(LogSeverity::Normal, "Create session response - %s",
+                      ErrorToString(error));
 
       // Check login is failed and throw session failure.
       if (error != OK) {
@@ -509,7 +531,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     case NETS_OPEN | NETS_RESPONSE: {
       Error error = static_cast<Error>(msg.ReadLong());
 
-      logger_->WriteF(LogSeverity::Normal, "Restore session response - %s", ErrorToString(error));
+      logger_->WriteF(LogSeverity::Normal, "Restore session response - %s",
+                      ErrorToString(error));
 
       if (error != OK) {
         OnClosed(error);
@@ -537,7 +560,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
         ProcessSessionAck(ack);
       break;
     }
-      
+
     case NETS_ACK: {
       uint16_t ack = msg.ReadWord();
       ProcessSessionAck(ack);
@@ -545,7 +568,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     }
 
     default:
-      logger_->WriteF(LogSeverity::Error, "Unknown session message %d", static_cast<int>(fun));
+      logger_->WriteF(LogSeverity::Error, "Unknown session message %d",
+                      static_cast<int>(fun));
       OnClosed(ERR_FAILED);
       break;
   }
@@ -557,7 +581,7 @@ void Session::SendInternal(const void* data, size_t size) {
 
   num_bytes_sent_ += size;
   num_messages_sent_++;
- 
+
   int res = transport()->Write(data, size);
   if (res < 0) {
     logger_->Write(LogSeverity::Error, "Transport write failed");
@@ -608,7 +632,7 @@ void Session::SendClose() {
 
   num_bytes_sent_ += msg.size;
   num_messages_sent_++;
- 
+
   transport_->Write(msg.data, msg.size);
 }
 
@@ -621,8 +645,8 @@ void Session::SendDataMessage(const SendingMessage& message) {
   // Send.
   ByteBuffer<kMaxMessage> msg;
   msg.WriteWord(5 + static_cast<uint16_t>(message.size));
-  msg.WriteByte(static_cast<uint8_t>(message.seq ? NETS_SEQUENCE :
-                                                   NETS_MESSAGE));
+  msg.WriteByte(
+      static_cast<uint8_t>(message.seq ? NETS_SEQUENCE : NETS_MESSAGE));
   msg.WriteWord(message.send_id);
   msg.WriteWord(recv_id_);
   msg.Write(message.data, message.size);
@@ -649,8 +673,9 @@ void Session::OnAccepted(std::unique_ptr<Transport> transport) {
 }
 
 void Session::OnCreate(const CreateSessionInfo& create_info) {
-  logger_->WriteF(LogSeverity::Normal, "Create Session request name=%s force=%d",
-      create_info.name.c_str(), create_info.force ? 1 : 0);
+  logger_->WriteF(LogSeverity::Normal,
+                  "Create Session request name=%s force=%d",
+                  create_info.name.c_str(), create_info.force ? 1 : 0);
 
   // process request
   SessionID session_id;
@@ -669,10 +694,11 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
     if (error == OK) {
       state_ = OPENED;
 
-      do {  
+      do {
         id_ = CreateSessionID();
-      } while (!parent_session_->accepted_sessions_.insert(
-          Session::SessionMap::value_type(id_, this)).second);
+      } while (!parent_session_->accepted_sessions_
+                    .insert(Session::SessionMap::value_type(id_, this))
+                    .second);
 
       session_id = id_;
       session_info = this->session_info();
@@ -682,9 +708,8 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
   // response
   {
     ByteBuffer<> msg;
-    msg.WriteWord(5 + sizeof(id_) +
-                      sizeof(session_info.user_id) +
-                      sizeof(session_info.user_rights));
+    msg.WriteWord(5 + sizeof(id_) + sizeof(session_info.user_id) +
+                  sizeof(session_info.user_rights));
     msg.WriteByte(NETS_CREATE | NETS_RESPONSE);
     msg.WriteLong(error);
     msg.WriteT(session_id);
@@ -759,4 +784,4 @@ void Session::OnRestore(const SessionID& session_id) {
     new_session->SendPossible();
 }
 
-} // namespace net
+}  // namespace net
