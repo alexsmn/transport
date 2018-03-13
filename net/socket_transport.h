@@ -4,16 +4,18 @@
 #include "net/socket_delegate.h"
 #include "net/transport.h"
 
+#include <boost/circular_buffer.hpp>
+
 namespace net {
 
-class NET_EXPORT SocketTransport : public Transport,
-                                   protected SocketDelegate {
+
+class NET_EXPORT SocketTransport : public Transport, protected SocketDelegate {
  public:
   SocketTransport();
   // Takes ownership on |socket|.
   explicit SocketTransport(std::unique_ptr<Socket> socket);
   virtual ~SocketTransport();
-  
+
   void set_active(bool active) { active_ = active; }
 
   // Transport overrides
@@ -35,11 +37,17 @@ class NET_EXPORT SocketTransport : public Transport,
   virtual void OnSocketAccepted(std::unique_ptr<Socket> socket) override;
   virtual void OnSocketClosed(Error error) override;
   virtual void OnSocketDataReceived() override;
+  virtual void OnSocketSendPossible() override;
 
  private:
+  void SendNext();
+
   std::unique_ptr<Socket> socket_;
   bool connected_ = false;
   bool active_ = true;
+
+  bool sending_ = false;
+  boost::circular_buffer<char> send_buffer_;
 };
 
-} // namespace net
+}  // namespace net

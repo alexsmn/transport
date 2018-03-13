@@ -97,11 +97,6 @@ Error Socket::Create(unsigned short port) {
 }
 
 Error Socket::Configure(SocketHandle handle) {
-  // Set write buffer size.
-  int send_buf = 16 * 1024 * 1024;
-  setsockopt(handle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char*>(&send_buf),
-      sizeof(send_buf));
-
   // Turn off send delay.
   BOOL delay = FALSE;
   if (setsockopt(handle, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char*>(&delay),
@@ -195,7 +190,7 @@ int Socket::Write(const void* data, size_t len) {
     return res;
 
   int os_error = WSAGetLastError();
-  return (os_error == WSAEWOULDBLOCK) ? OK : MapSystemError(os_error);
+  return MapSystemError(os_error);
 }
 
 void Socket::OnDataReceived() {

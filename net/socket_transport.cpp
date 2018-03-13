@@ -6,8 +6,7 @@
 
 namespace net {
 
-SocketTransport::SocketTransport() {
-}
+SocketTransport::SocketTransport() {}
 
 SocketTransport::SocketTransport(std::unique_ptr<Socket> socket)
     : socket_(std::move(socket)) {
@@ -16,8 +15,7 @@ SocketTransport::SocketTransport(std::unique_ptr<Socket> socket)
   socket_->set_delegate(this);
 }
 
-SocketTransport::~SocketTransport() {
-}
+SocketTransport::~SocketTransport() {}
 
 void SocketTransport::OnSocketConnected(Error error) {
   assert(active_);
@@ -26,10 +24,9 @@ void SocketTransport::OnSocketConnected(Error error) {
   if (error == OK) {
     connected_ = true;
     delegate_->OnTransportOpened();
-    
+
   } else {
-    connected_ = false;
-    socket_.reset();
+    Close();
 
     if (delegate_)
       delegate_->OnTransportClosed(error);
@@ -38,12 +35,13 @@ void SocketTransport::OnSocketConnected(Error error) {
 
 void SocketTransport::OnSocketAccepted(std::unique_ptr<Socket> socket) {
   assert(socket_.get());
-  delegate_->OnTransportAccepted(std::make_unique<SocketTransport>(std::move(socket)));
+  delegate_->OnTransportAccepted(
+      std::make_unique<SocketTransport>(std::move(socket)));
 }
 
 void SocketTransport::OnSocketClosed(Error error) {
-  connected_ = false;
-  socket_.reset();
+  Close();
+
   delegate_->OnTransportClosed(error);
 }
 
@@ -61,12 +59,23 @@ int SocketTransport::Write(const void* data, size_t len) {
   if (!socket_.get())
     return ERR_INVALID_HANDLE;
   assert(connected_);
-  return socket_->Write(data, len);
+
+  if (send_buffer_.capacity() < len)
+    send_buffer_.set_capacity(std::max(send_buffer_.capacity() * 2, len));
+
+  send_buffer_.insert(send_buffer_.end(), static_cast<const char*>(data),
+                      static_cast<const char*>(data) + len);
+
+  SendNext();
+
+  return len;
 }
 
 Error SocketTransport::Open() {
   assert(!connected_);
   assert(!socket_.get());
+  assert(!sending_);
+  assert(send_buffer_.empty());
 
   socket_.reset(new Socket(FROM_HERE, this));
 
@@ -80,23 +89,26 @@ Error SocketTransport::Open() {
     socket_.reset();
     return error;
   }
-    
+
   if (!active_) {
     connected_ = true;
     delegate_->OnTransportOpened();
   }
-  
+
   return error;
 }
 
 void SocketTransport::Close() {
   socket_.reset();
   connected_ = false;
+  send_buffer_.clear();
+  sending_ = false;
 }
 
 std::string SocketTransport::GetName() const {
   if (active_)
-    return base::StringPrintf("Active TCP %s:%d", host_.c_str(), static_cast<int>(port_));
+    return base::StringPrintf("Active TCP %s:%d", host_.c_str(),
+                              static_cast<int>(port_));
 
   unsigned ip;
   unsigned short port;
@@ -105,10 +117,43 @@ std::string SocketTransport::GetName() const {
 
   unsigned char* ipn = reinterpret_cast<unsigned char*>(&ip);
   return base::StringPrintf("TCP %d.%d.%d.%d:%d", static_cast<int>(ipn[0]),
-                                            static_cast<int>(ipn[1]),
-                                            static_cast<int>(ipn[2]),
-                                            static_cast<int>(ipn[3]),
-                                            static_cast<int>(port));
+                            static_cast<int>(ipn[1]), static_cast<int>(ipn[2]),
+                            static_cast<int>(ipn[3]), static_cast<int>(port));
 }
 
-} // namespace net
+void SocketTransport::OnSocketSendPossible() {
+  assert(connected_);
+
+  sending_ = false;
+  SendNext();
+}
+
+void SocketTransport::SendNext() {
+  if (sending_)
+    return;
+
+  if (send_buffer_.empty())
+    return;
+
+  sending_ = true;
+
+  while (!send_buffer_.empty()) {
+    auto [data, len] = send_buffer_.array_one();
+    assert(len != 0);
+
+    int res = socket_->Write(data, len);
+    if (res <= 0) {
+      if (res != net::ERR_IO_PENDING) {
+        // Can't close directly.
+        socket_->Shutdown();
+      }
+      return;
+    }
+
+    send_buffer_.erase_begin(res);
+  }
+
+  sending_ = false;
+}
+
+}  // namespace net
