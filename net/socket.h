@@ -7,6 +7,7 @@
 
 namespace net {
 
+class Logger;
 class SocketDelegate;
 class SocketPool;
 
@@ -16,7 +17,11 @@ class Socket {
          SocketDelegate* delegate);
   ~Socket();
 
+  Socket(const Socket&) = delete;
+  Socket& operator=(const Socket&) = delete;
+
   void set_delegate(SocketDelegate* delegate) { delegate_ = delegate; }
+  void set_logger(Logger* logger) { logger_ = logger; }
 
   bool is_closed() const { return state_ == CLOSED; }
   bool is_connected() const { return state_ == CONNECTED; }
@@ -72,16 +77,16 @@ private:
   static const char* FormatState(State state);
 
   scoped_refptr<SocketPool> pool_;
-  State state_;
+  State state_ = CLOSED;
   SocketDelegate* delegate_;
   SocketHandle handle_;
-  SocketResolveHandle resolve_;
+  SocketResolveHandle resolve_ = nullptr;
   std::vector<char> resolve_buffer_;
   unsigned short port_;
 
-  scoped_refptr<Context> context_;
+  Logger* logger_ = nullptr;
 
-  DISALLOW_COPY_AND_ASSIGN(Socket);
+  scoped_refptr<Context> context_;
 };
 
 } // namespace net

@@ -4,12 +4,13 @@
 
 #include <boost/asio.hpp>
 #include <boost/circular_buffer.hpp>
+#include <memory>
 
 namespace net {
 
 class AsioTcpTransport : public Transport {
  public:
-  explicit AsioTcpTransport(boost::asio::io_service& io_service);
+  explicit AsioTcpTransport(boost::asio::io_context& io_context);
   ~AsioTcpTransport();
 
   // Transport overrides
@@ -27,21 +28,9 @@ class AsioTcpTransport : public Transport {
   bool active = false;
 
  private:
-  using Resolver = boost::asio::ip::tcp::resolver;
-  using Socket = boost::asio::ip::tcp::socket;
+  class Core;
 
-  void StartReading();
-  
-  void ProcessError(const boost::system::error_code& ec);
-
-  Resolver resolver_;
-  Socket socket_;
-  bool connected_ = false;
-
-  boost::circular_buffer<char> read_buffer_{1024};
-
-  bool reading_ = false;
-  std::vector<char> reading_buffer_;
+  std::shared_ptr<Core> core_;
 };
 
 } // namespace net

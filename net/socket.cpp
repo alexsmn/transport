@@ -1,5 +1,6 @@
-#include "base/logging.h"
 #include "net/socket.h"
+
+#include "net/logger.h"
 #include "net/socket_delegate.h"
 #include "net/socket_pool.h"
 
@@ -9,13 +10,9 @@
 
 namespace net {
 
-Socket::Socket(const tracked_objects::Location& location, SocketDelegate* delegate)
-    : pool_(&SocketPool::get()),
-      delegate_(delegate),
-      state_(CLOSED),
-      handle_(INVALID_SOCKET),
-      resolve_(NULL) {
-}
+Socket::Socket(const tracked_objects::Location& location,
+               SocketDelegate* delegate)
+    : pool_(&SocketPool::get()), delegate_(delegate), handle_(INVALID_SOCKET) {}
 
 Socket::~Socket() {
   Close();
@@ -25,9 +22,9 @@ bool Socket::GetLocalAddress(unsigned& ip, unsigned short& port) const {
   assert(state_ != CLOSED);
   sockaddr_in addr;
   int len = sizeof(addr);
-  if (getsockname(handle_,(sockaddr*)&addr, &len) == SOCKET_ERROR)
+  if (getsockname(handle_, (sockaddr*)&addr, &len) == SOCKET_ERROR)
     return false;
-    
+
   ip = *reinterpret_cast<unsigned long*>(&addr.sin_addr);
   port = ntohs(addr.sin_port);
   return true;
@@ -37,9 +34,9 @@ bool Socket::GetPeerAddress(unsigned& ip, unsigned short& port) const {
   assert(state_ != CLOSED);
   sockaddr_in addr;
   int len = sizeof(addr);
-  if (getpeername(handle_,(sockaddr*)&addr, &len) == SOCKET_ERROR)
+  if (getpeername(handle_, (sockaddr*)&addr, &len) == SOCKET_ERROR)
     return false;
-    
+
   ip = *reinterpret_cast<unsigned long*>(&addr.sin_addr);
   port = ntohs(addr.sin_port);
   return true;
@@ -54,11 +51,15 @@ Error Socket::Create(unsigned short port) {
   if (socket == INVALID_SOCKET) {
     Error error = MapSystemError(WSAGetLastError());
     assert(error != OK);
-    LOG(WARNING) << "Socket creation error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning, "Socket creation error %s",
+                      ErrorToString(error).c_str());
+    }
     return error;
   }
 
-  LOG(INFO) << "Socket " << (unsigned)socket << " created";
+  if (logger_)
+    logger_->WriteF(LogSeverity::Normal, "Socket %u created", (unsigned)socket);
 
   // Bind.
   sockaddr_in local;
@@ -68,8 +69,10 @@ Error Socket::Create(unsigned short port) {
   if (bind(socket, (sockaddr*)&local, sizeof(local)) == SOCKET_ERROR) {
     Error error = MapSystemError(WSAGetLastError());
     closesocket(socket);
-    LOG(WARNING) << "Socket " << (unsigned)socket
-               << " bind error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u bind error %s",
+                      (unsigned)socket, ErrorToString(error).c_str());
+    }
     return error;
   }
 
@@ -85,8 +88,10 @@ Error Socket::Create(unsigned short port) {
   if (error != OK) {
     closesocket(handle_);
     handle_ = INVALID_SOCKET;
-    LOG(WARNING) << "Socket " << (unsigned)socket
-               << " select error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u select error %s",
+                      (unsigned)socket, ErrorToString(error).c_str());
+    }
     return error;
   }
 
@@ -97,22 +102,42 @@ Error Socket::Create(unsigned short port) {
 }
 
 Error Socket::Configure(SocketHandle handle) {
+  {
+    u_long non_blocking = 1;
+    auto error = MapSystemError(ioctlsocket(handle, FIONBIO, &non_blocking));
+    if (error != OK) {
+      if (logger_) {
+        logger_->WriteF(LogSeverity::Warning,
+                        "Socket %u ioctlsocket(FIONBIO) error %s",
+                        (unsigned)handle, ErrorToString(error).c_str());
+      }
+      return error;
+    }
+  }
+
   // Turn off send delay.
   BOOL delay = FALSE;
-  if (setsockopt(handle, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<char*>(&delay),
+  if (setsockopt(handle, IPPROTO_TCP, TCP_NODELAY,
+                 reinterpret_cast<char*>(&delay),
                  sizeof(delay)) == SOCKET_ERROR) {
     Error error = MapSystemError(WSAGetLastError());
-    LOG(WARNING) << "Socket " << (unsigned)handle
-                 << " setsockopt(TCP_NODELAY) error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning,
+                      "Socket %u setsockopt(TCP_NODELAY) error %s",
+                      (unsigned)handle, ErrorToString(error).c_str());
+    }
   }
 
   // Allow to transmit sent data on close.
-  linger l = { 1, 3 };
+  linger l = {1, 3};
   if (setsockopt(handle, SOL_SOCKET, SO_LINGER, reinterpret_cast<char*>(&l),
                  sizeof(l)) == SOCKET_ERROR) {
     Error error = MapSystemError(WSAGetLastError());
-    LOG(WARNING) << "Socket " << (unsigned)handle
-                 << " setsockopt(SO_LINGER) error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning,
+                      "Socket %u setsockopt(SO_LINGER) error %s",
+                      (unsigned)handle, ErrorToString(error).c_str());
+    }
   }
 
   return OK;
@@ -123,7 +148,10 @@ Error Socket::Attach(SocketHandle handle) {
   assert(handle_ == INVALID_SOCKET);
   assert(!context_);
 
-  LOG(INFO) << "socket attached [handle=" << (unsigned)handle << "]";
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u attached",
+                    (unsigned)handle);
+  }
 
   Error error = Configure(handle);
   if (error != OK)
@@ -134,8 +162,10 @@ Error Socket::Attach(SocketHandle handle) {
   error = pool_->BeginSelect(*this);
   if (error != OK) {
     handle_ = INVALID_SOCKET;
-    LOG(WARNING) << "Socket " << (unsigned)socket
-               << " select error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u select error %s",
+                      (unsigned)handle, ErrorToString(error).c_str());
+    }
     return error;
   }
 
@@ -159,7 +189,8 @@ void Socket::Close() {
   ::shutdown(handle_, SD_SEND);
   closesocket(handle_);
 
-  LOG(INFO) << "Socket " << (unsigned)handle_ << " closed";
+  if (logger_)
+    logger_->WriteF(LogSeverity::Normal, "Socket %u closed", (unsigned)handle_);
 
   handle_ = INVALID_SOCKET;
 
@@ -174,7 +205,14 @@ void Socket::Close() {
 int Socket::Read(void* data, size_t len) {
   assert(state_ == CONNECTED);
 
-  int res = recv(handle_, reinterpret_cast<char*>(data), static_cast<int>(len), 0);
+  int res =
+      recv(handle_, reinterpret_cast<char*>(data), static_cast<int>(len), 0);
+
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u read %Iu = %d",
+                    (unsigned)handle_, len, res);
+  }
+
   if (res >= 0)
     return res;
 
@@ -185,7 +223,14 @@ int Socket::Read(void* data, size_t len) {
 int Socket::Write(const void* data, size_t len) {
   assert(state_ == CONNECTED);
 
-  int res = send(handle_, reinterpret_cast<const char*>(data), static_cast<int>(len), 0);
+  int res = send(handle_, reinterpret_cast<const char*>(data),
+                 static_cast<int>(len), 0);
+
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u write %Iu = %d",
+                    (unsigned)handle_, len, res);
+  }
+
   if (res >= 0)
     return res;
 
@@ -194,11 +239,21 @@ int Socket::Write(const void* data, size_t len) {
 }
 
 void Socket::OnDataReceived() {
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Warning, "Socket %u data received",
+                    (unsigned)handle_);
+  }
+
   if (delegate_)
     delegate_->OnSocketDataReceived();
 }
 
 void Socket::OnSendPossible() {
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Warning, "Socket %u send possible",
+                    (unsigned)handle_);
+  }
+
   if (delegate_)
     delegate_->OnSocketSendPossible();
 }
@@ -211,13 +266,17 @@ Error Socket::Listen(unsigned short port) {
   if (::listen(handle_, SOMAXCONN) == SOCKET_ERROR) {
     Error error = MapSystemError(WSAGetLastError());
     assert(error == OK);
-    LOG(WARNING) << "Socket " << (unsigned)socket
-               << " listen error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u listen error %s",
+                      (unsigned)handle_, ErrorToString(error).c_str());
+    }
     return error;
   }
 
-  LOG(INFO) << "Socket " << (unsigned)handle_
-            << " is listening on port " << (unsigned)port;
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u is listening on port %u",
+                    (unsigned)handle_, (unsigned)port);
+  }
 
   set_state(LISTENING);
 
@@ -243,8 +302,10 @@ Error Socket::Connect(const char* host, unsigned short port) {
   if (error != OK)
     return error;
 
-  LOG(INFO) << "Socket " << (unsigned)handle_
-            << " is resolving host " << host;
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u is resolving host %s",
+                    (unsigned)handle_, host);
+  }
 
   set_state(RESOLVING);
 
@@ -265,12 +326,13 @@ Error Socket::ConnectToIP(unsigned long ip, unsigned short port) {
   memcpy(&remote.sin_addr, &ip, 4);
   remote.sin_port = htons(port);
 
-  const unsigned char* ips = (const unsigned char*)&ip;
-  LOG(INFO) << "Socket " << (unsigned)handle_
-            << " is connecting to "
-            << (unsigned)ips[0] << "." << (unsigned)ips[1] << "."
-            << (unsigned)ips[2] << "." << (unsigned)ips[3]
-            << ":" << (unsigned)port;
+  if (logger_) {
+    const unsigned char* ips = (const unsigned char*)&ip;
+    logger_->WriteF(LogSeverity::Normal,
+                    "Socket %u is connecting to %u.%u.%u.%u:%u",
+                    (unsigned)handle_, (unsigned)ips[0], (unsigned)ips[1],
+                    (unsigned)ips[2], (unsigned)ips[3], (unsigned)port);
+  }
 
   if (::connect(handle_, (sockaddr*)&remote, sizeof(remote)) == SOCKET_ERROR) {
     int os_error = WSAGetLastError();
@@ -278,8 +340,10 @@ Error Socket::ConnectToIP(unsigned long ip, unsigned short port) {
     if (os_error != WSAEWOULDBLOCK) {
       set_state(IDLE);
       Error error = MapSystemError(os_error);
-      LOG(WARNING) << "Socket " << (unsigned)socket
-                 << " connect error " << ErrorToString(error);
+      if (logger_) {
+        logger_->WriteF(LogSeverity::Warning, "Socket %u connect error %s",
+                        (unsigned)handle_, ErrorToString(error).c_str());
+      }
       return error;
     }
   }
@@ -294,11 +358,14 @@ void Socket::OnConnected(Error error) {
   assert(!context_->is_destroyed());
   assert(state_ == CONNECTING);
 
-  if (error == OK) {
-    LOG(INFO) << "Socket " << (unsigned)handle_ << " connected";
-  } else {
-    LOG(WARNING) << "Socket " << (unsigned)handle_
-               << " connect error " << ErrorToString(error);
+  if (logger_) {
+    if (error == OK) {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u connected",
+                      (unsigned)handle_);
+    } else {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u connect error %s",
+                      (unsigned)handle_, ErrorToString(error).c_str());
+    }
   }
 
   set_state((error == OK) ? CONNECTED : IDLE);
@@ -316,8 +383,10 @@ void Socket::OnResolved(Error error) {
   resolve_ = nullptr;
 
   if (error) {
-    LOG(WARNING) << "Socket " << (unsigned)handle_
-      << " resolution error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u resolution error %s",
+                      (unsigned)socket, ErrorToString(error).c_str());
+    }
 
     set_state(IDLE);
 
@@ -326,10 +395,14 @@ void Socket::OnResolved(Error error) {
     return;
   }
 
-  LOG(INFO) << "Socket " << (unsigned)handle_ << " resolved";
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u resolved",
+                    (unsigned)handle_);
+  }
 
   const hostent* ent = reinterpret_cast<const hostent*>(buffer.data());
-  unsigned long ip = *reinterpret_cast<const unsigned long*>(ent->h_addr_list[0]);
+  unsigned long ip =
+      *reinterpret_cast<const unsigned long*>(ent->h_addr_list[0]);
 
   error = ConnectToIP(ip, port_);
   if (error) {
@@ -350,8 +423,10 @@ void Socket::OnAccepted() {
   if (handle == INVALID_SOCKET)
     return;
 
-  LOG(INFO) << "socket accepted [handle=" << (unsigned)handle_
-            << " accepted=" << (unsigned)handle << "]";
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u accepted socket %u",
+                    (unsigned)handle_, (unsigned)handle);
+  }
 
   if (!delegate_) {
     closesocket(handle);
@@ -363,6 +438,8 @@ void Socket::OnAccepted() {
     closesocket(handle);
     return;
   }
+
+  socket->logger_ = logger_;
 
   delegate_->OnSocketAccepted(std::move(socket));
 }
@@ -387,15 +464,21 @@ void Socket::OnClosed(Error error) {
 
 Error Socket::Shutdown() {
   assert(state_ == CONNECTED);
-  
+
   Error error = MapSystemError(shutdown(handle_, SD_SEND));
   if (error != OK) {
-    LOG(WARNING) << "Socket " << (unsigned)handle_
-               << " shutdown error " << ErrorToString(error);
+    if (logger_) {
+      logger_->WriteF(LogSeverity::Warning, "Socket %u shutdown error %s",
+                      (unsigned)handle_, ErrorToString(error).c_str());
+    }
     return error;
   }
 
-  LOG(INFO) << "Socket " << (unsigned)handle_ << " is shutting down";
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal, "Socket %u is shutting down",
+                    (unsigned)handle_);
+  }
+
   return OK;
 }
 
@@ -403,18 +486,20 @@ void Socket::set_state(State state) {
   if (state_ == state)
     return;
 
-  LOG(INFO) << "Socket " << (unsigned)handle_
-            << " state changed from " << FormatState(state_)
-            << " to " << FormatState(state);
+  if (logger_) {
+    logger_->WriteF(LogSeverity::Normal,
+                    "Socket %u state changed from %s to %s", (unsigned)handle_,
+                    FormatState(state_), FormatState(state));
+  }
 
   state_ = state;
 }
 
 const char* Socket::FormatState(State state) {
-  static const char* strs[] = { "CLOSED", "IDLE", "RESOLVING", "CONNECTING",
-                                "CONNECTED", "LISTENING" };
+  static const char* strs[] = {"CLOSED",     "IDLE",      "RESOLVING",
+                               "CONNECTING", "CONNECTED", "LISTENING"};
   assert(static_cast<int>(state) < _countof(strs));
   return strs[static_cast<int>(state)];
 }
 
-} // namespace net
+}  // namespace net

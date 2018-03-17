@@ -35,8 +35,8 @@ void SocketTransport::OnSocketConnected(Error error) {
 
 void SocketTransport::OnSocketAccepted(std::unique_ptr<Socket> socket) {
   assert(socket_.get());
-  delegate_->OnTransportAccepted(
-      std::make_unique<SocketTransport>(std::move(socket)));
+  auto transport = std::make_unique<SocketTransport>(std::move(socket));
+  delegate_->OnTransportAccepted(std::move(transport));
 }
 
 void SocketTransport::OnSocketClosed(Error error) {
@@ -78,6 +78,7 @@ Error SocketTransport::Open() {
   assert(send_buffer_.empty());
 
   socket_.reset(new Socket(FROM_HERE, this));
+  socket_->set_logger(logger);
 
   Error error = OK;
   if (active_)

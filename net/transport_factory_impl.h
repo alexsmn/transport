@@ -12,7 +12,8 @@ class TransportFactoryImpl : public TransportFactory {
 
   // Returns nullptr if parameters are invalid.
   virtual std::unique_ptr<Transport> CreateTransport(
-      const TransportString& transport_string) override;
+      const TransportString& transport_string,
+      Logger* logger) override;
 
  private:
   boost::asio::io_service& io_service_;

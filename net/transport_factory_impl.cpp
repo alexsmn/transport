@@ -54,7 +54,8 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_service& io_service)
     : io_service_{io_service} {}
 
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
-    const TransportString& ts) {
+    const TransportString& ts,
+    Logger* logger) {
   auto protocol = ts.GetProtocol();
   bool active = ts.IsActive();
 
@@ -73,22 +74,24 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return NULL;
     }
 
-#ifdef OS_WIN
-    {
-      auto transport = std::make_unique<SocketTransport>();
-      transport->set_active(active);
-      transport->host_ = host;
-      transport->port_ = static_cast<unsigned short>(port);
-      return std::move(transport);
-    }
-#endif
-
     if (active) {
       auto transport = std::make_unique<AsioTcpTransport>(io_service_);
       transport->host = host;
       transport->service = std::to_string(port);
       return std::move(transport);
+
     } else {
+#ifdef OS_WIN
+      {
+        auto transport = std::make_unique<SocketTransport>();
+        transport->set_active(active);
+        transport->host_ = host;
+        transport->port_ = static_cast<unsigned short>(port);
+        transport->logger = logger;
+        return std::move(transport);
+      }
+#endif
+
       LOG(WARNING) << "Passive TCP transport is not supported";
       return nullptr;
     }

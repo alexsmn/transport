@@ -31,6 +31,8 @@ class NET_EXPORT SocketTransport : public Transport, protected SocketDelegate {
   std::string host_;
   unsigned short port_;
 
+  Logger* logger = nullptr;
+
  protected:
   // Socket::Delegate overrides
   virtual void OnSocketConnected(Error error) override;
