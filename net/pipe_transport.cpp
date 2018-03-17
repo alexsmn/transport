@@ -26,8 +26,10 @@ void PipeTransport::Init(const base::string16& name, bool server) {
   server_ = server;
 }
 
-Error PipeTransport::Open() {
+Error PipeTransport::Open(Transport::Delegate& delegate) {
   assert(handle_ == INVALID_HANDLE_VALUE);
+
+  delegate_ = &delegate;
 
   HANDLE handle;
   
@@ -69,6 +71,7 @@ void PipeTransport::Close() {
     CloseHandle(handle_);
     handle_ = INVALID_HANDLE_VALUE;
   }
+  delegate_ = nullptr;
 }
 
 int PipeTransport::Read(void* data, size_t len) {

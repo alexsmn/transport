@@ -28,12 +28,8 @@ class NET_EXPORT Transport {
   Transport(const Transport&) = delete;
   Transport& operator=(const Transport&) = delete;
 
-  void set_delegate(Delegate* delegate) { delegate_ = delegate; }
-
-  Delegate* delegate() const { return delegate_; }
-
   // Returns |net::Error| on failure.
-  virtual Error Open() = 0;
+  virtual Error Open(Delegate& delegate) = 0;
 
   virtual void Close() = 0;
 
@@ -52,9 +48,6 @@ class NET_EXPORT Transport {
   virtual bool IsConnected() const = 0;
 
   virtual bool IsActive() const = 0;
-
- protected:
-  Delegate* delegate_ = nullptr;
 };
 
 } // namespace net

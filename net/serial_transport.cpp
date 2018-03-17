@@ -18,8 +18,10 @@ int SerialTransport::Write(const void* data, size_t len) {
   return (res >= 0) ? res : ERR_FAILED;
 }
 
-Error SerialTransport::Open() {
+Error SerialTransport::Open(Transport::Delegate& delegate) {
   assert(!file_.is_opened());
+
+  delegate_ = &delegate;
 
   if (!file_.open(m_file_name.c_str()))
     return ERR_FAILED;
@@ -43,6 +45,7 @@ void SerialTransport::Close() {
 
   file_.close();
   connected_ = false;
+  delegate_ = nullptr;
 }
 
 void SerialTransport::OnTimer() {

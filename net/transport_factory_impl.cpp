@@ -65,8 +65,6 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
   if (protocol == TransportString::TCP) {
     // TCP;Active;Host=localhost;Port=3000
     auto host = ts.GetParamStr(TransportString::kParamHost);
-    if (host.empty())
-      host = "localhost";
 
     int port = ts.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
@@ -74,27 +72,11 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return NULL;
     }
 
-    if (active) {
-      auto transport = std::make_unique<AsioTcpTransport>(io_service_);
-      transport->host = host;
-      transport->service = std::to_string(port);
-      return std::move(transport);
-
-    } else {
-#ifdef OS_WIN
-      {
-        auto transport = std::make_unique<SocketTransport>();
-        transport->set_active(active);
-        transport->host_ = host;
-        transport->port_ = static_cast<unsigned short>(port);
-        transport->logger = logger;
-        return std::move(transport);
-      }
-#endif
-
-      LOG(WARNING) << "Passive TCP transport is not supported";
-      return nullptr;
-    }
+    auto transport = std::make_unique<AsioTcpTransport>(io_service_);
+    transport->host = host;
+    transport->service = std::to_string(port);
+    transport->active = active;
+    return std::move(transport);
 
   } else if (protocol == TransportString::SERIAL) {
 #ifdef OS_WIN

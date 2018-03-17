@@ -112,11 +112,8 @@ void Session::CloseTransport() {
   if (transport_.get())
     transport_->Close();
 
-  // WARNING: |context_| may become NULL inside |SendClose()| above.
-  if (context_) {
-    context_->Destroy();
-    context_ = NULL;
-  }
+  // WARNING: |context_| may become null inside |SendClose()| above.
+  cancelation_ = nullptr;
 }
 
 void Session::SetTransport(std::unique_ptr<Transport> transport) {
@@ -133,22 +130,24 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
   }
 
   transport_ = std::move(transport);
-  if (transport_)
-    transport_->set_delegate(this);
-
-  if (transport_->IsConnected())
-    context_ = new Context;
+  if (transport_) {
+    cancelation_ = std::make_shared<bool>(false);
+    transport_->Open(*this);
+  }
 }
 
 std::unique_ptr<Transport> Session::DetachTransport() {
-  std::unique_ptr<Transport> transport(std::move(transport_));
+  /*std::unique_ptr<Transport> transport(std::move(transport_));
   if (transport)
     transport->set_delegate(NULL);
 
   context_->Destroy();
   context_ = NULL;
 
-  return transport;
+  return transport;*/
+
+  assert(false);
+  return nullptr;
 }
 
 void Session::PostMessage(const void* data,
@@ -223,10 +222,7 @@ void Session::OnTransportError(Error error) {
   logger_->WriteF(LogSeverity::Warning, "Session transport error - %s",
                   ErrorToString(error).c_str());
 
-  if (context_) {
-    context_->Destroy();
-    context_ = NULL;
-  }
+  cancelation_ = nullptr;
 
   if (state_ == OPENED) {
     if (session_transport_observer_)
@@ -238,13 +234,14 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-Error Session::Open() {
+Error Session::Open(Transport::Delegate& delegate) {
   assert(transport_.get());
   assert(state_ == CLOSED);
-  assert(!context_);
+  assert(!cancelation_);
 
   logger_->Write(LogSeverity::Normal, "Opening session");
 
+  delegate_ = &delegate;
   state_ = OPENING;
   StartConnecting();
 
@@ -267,16 +264,16 @@ std::string Session::GetName() const {
 
 void Session::StartConnecting() {
   assert(transport_.get());
-  assert(!context_);
+  assert(!cancelation_);
 
   logger_->WriteF(LogSeverity::Normal, "Connecting to %s",
                   transport_->GetName().c_str());
 
   connect_start_ticks_ = base::TimeTicks::Now();
   connecting_ = true;
-  context_ = new Context;
+  cancelation_ = std::make_shared<bool>(false);
 
-  Error error = transport_->Open();
+  Error error = transport_->Open(*this);
   if (error != OK)
     OnTransportError(error);
 }
@@ -285,24 +282,23 @@ void Session::SendQueuedMessage() {
   if (!transport_.get() || !transport_->IsConnected())
     return;
 
-  scoped_refptr<Context> context(context_);
-  if (!context)
+  if (!cancelation_)
     return;
+
+  std::weak_ptr<bool> cancelation = cancelation_;
 
   // Repeat sending messages after reconnect.
   if (repeat_sending_messages_) {
     repeat_sending_messages_ = false;
-    for (SendingMessageQueue::const_iterator i = sending_messages_.begin();
-         i != sending_messages_.end(); ++i) {
+    for (auto i = sending_messages_.begin();
+         !cancelation.expired() && i != sending_messages_.end(); ++i) {
       const SendingMessage& message = *i;
       SendDataMessage(message);
-      if (context->is_destroyed())
-        return;
     }
   }
 
   // send
-  while (IsSendPossible()) {
+  while (!cancelation.expired() && IsSendPossible()) {
     MessageQueue* send_queue = NULL;
     for (int i = 0; i < arraysize(send_queues_); ++i) {
       if (!send_queues_[i].empty()) {
@@ -324,8 +320,6 @@ void Session::SendQueuedMessage() {
     num_recv_ = 0;
 
     SendDataMessage(message);
-    if (context->is_destroyed())
-      return;
   }
 }
 
@@ -552,11 +546,11 @@ void Session::OnMessageReceived(const void* data, size_t size) {
 
       // Save session context for case if session will be destroyed during
       // |ProcessSessionMessage()| call.
-      scoped_refptr<Context> context(context_);
+      std::weak_ptr<bool> cancelation = cancelation_;
 
       ProcessSessionMessage(id, seq, msg.ptr(), msg.max_read());
 
-      if (!context->is_destroyed())
+      if (!cancelation.expired())
         ProcessSessionAck(ack);
       break;
     }
@@ -664,12 +658,7 @@ net::Error Session::OnTransportAccepted(std::unique_ptr<Transport> transport) {
 }
 
 void Session::OnAccepted(std::unique_ptr<Transport> transport) {
-  assert(!transport_);
-  assert(!context_);
-
   SetTransport(std::move(transport));
-
-  context_ = new Context;
 }
 
 void Session::OnCreate(const CreateSessionInfo& create_info) {

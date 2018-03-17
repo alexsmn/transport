@@ -7,8 +7,7 @@ using namespace std::chrono_literals;
 namespace net {
 
 QueueTransport::QueueTransport(boost::asio::io_service& io_service)
-    : io_service_{io_service},
-      timer_{io_service} {
+    : io_service_{io_service}, timer_{io_service} {
   active_ = false;
 }
 
@@ -17,7 +16,9 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-Error QueueTransport::Open() {
+Error QueueTransport::Open(Transport::Delegate& delegate) {
+  delegate_ = &delegate;
+
   if (active_) {
     assert(peer_);
     peer_->OnAccept(*this);
@@ -76,13 +77,13 @@ void QueueTransport::OnMessage(const void* data, size_t size) {
   assert(connected_);
 
   if (delegate_)
-    delegate_->OnTransportMessageReceived(data, size);    
+    delegate_->OnTransportMessageReceived(data, size);
 }
 
 void QueueTransport::OnAccept(QueueTransport& transport) {
   assert(!peer_);
   assert(connected_);
-  
+
   if (!delegate_)
     return;
 
@@ -98,4 +99,4 @@ void QueueTransport::OnAccept(QueueTransport& transport) {
     transport.peer_ = tt;
 }
 
-} // namespace net
+}  // namespace net

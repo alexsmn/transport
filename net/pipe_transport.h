@@ -8,15 +8,15 @@
 
 namespace net {
 
-class NET_EXPORT PipeTransport : public Transport {
+class PipeTransport final : public Transport {
  public:
   explicit PipeTransport(boost::asio::io_service& io_service);
   virtual ~PipeTransport();
-  
+
   void Init(const base::string16& name, bool server);
- 
+
   // Transport overrides.
-  virtual Error Open() override;
+  virtual Error Open(Transport::Delegate& delegate) override;
   virtual void Close() override;
   virtual int Read(void* data, size_t len) override;
   virtual int Write(const void* data, size_t len) override;
@@ -26,14 +26,16 @@ class NET_EXPORT PipeTransport : public Transport {
   virtual bool IsActive() const override { return true; }
 
  private:
-	void OnTimer();
+  void OnTimer();
+
+  Transport::Delegate* delegate_ = nullptr;
 
   base::string16 name_;
   bool server_;
   HANDLE handle_;
-  
+
   Timer timer_;
   bool connected_ = false;
 };
 
-} // namespace net
+}  // namespace net

@@ -8,8 +8,7 @@
 
 namespace net {
 
-
-class NET_EXPORT SocketTransport : public Transport, protected SocketDelegate {
+class SocketTransport final : public Transport, protected SocketDelegate {
  public:
   SocketTransport();
   // Takes ownership on |socket|.
@@ -19,7 +18,7 @@ class NET_EXPORT SocketTransport : public Transport, protected SocketDelegate {
   void set_active(bool active) { active_ = active; }
 
   // Transport overrides
-  virtual Error Open() override;
+  virtual Error Open(Transport::Delegate& delegate) override;
   virtual void Close() override;
   virtual int Read(void* data, size_t len) override;
   virtual int Write(const void* data, size_t len) override;
@@ -43,6 +42,8 @@ class NET_EXPORT SocketTransport : public Transport, protected SocketDelegate {
 
  private:
   void SendNext();
+
+  Delegate* delegate_ = nullptr;
 
   std::unique_ptr<Socket> socket_;
   bool connected_ = false;

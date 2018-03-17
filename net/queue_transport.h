@@ -9,7 +9,7 @@
 
 namespace net {
 
-class NET_EXPORT QueueTransport : public Transport {
+class NET_EXPORT QueueTransport final : public Transport {
  public:
   explicit QueueTransport(boost::asio::io_service& io_service);
 
@@ -18,7 +18,7 @@ class NET_EXPORT QueueTransport : public Transport {
   void Exec();
 
   // Transport
-  virtual Error Open() override;
+  virtual Error Open(Transport::Delegate& delegate) override;
   virtual void Close() override;
   virtual int Read(void* data, size_t len) override;
   virtual int Write(const void* data, size_t len) override;
@@ -36,6 +36,8 @@ class NET_EXPORT QueueTransport : public Transport {
 
   boost::asio::io_service& io_service_;
 
+  Transport::Delegate* delegate_ = nullptr;
+
   MessageQueue read_queue_;
 
   // For active connection where to connect on |Open()|.
@@ -47,4 +49,4 @@ class NET_EXPORT QueueTransport : public Transport {
   bool active_ = true;
 };
 
-} // namespace net
+}  // namespace net

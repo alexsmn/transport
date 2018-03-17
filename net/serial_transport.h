@@ -4,25 +4,23 @@
 #include "net/timer.h"
 #include "net/transport.h"
 
+#include <windows.h>
 #include <cassert>
 #include <string>
-#include <windows.h>
 
 class SerialPort {
  public:
-  SerialPort() : file_(INVALID_HANDLE_VALUE) { }
+  SerialPort() : file_(INVALID_HANDLE_VALUE) {}
   ~SerialPort() { close(); }
 
-  bool open(const char* name)
-  {
+  bool open(const char* name) {
     assert(file_ == INVALID_HANDLE_VALUE);
-    file_ = CreateFileA(name, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 
-      FILE_ATTRIBUTE_NORMAL, NULL);
+    file_ = CreateFileA(name, GENERIC_READ | GENERIC_WRITE, 0, NULL,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     return file_ != INVALID_HANDLE_VALUE;
   }
 
-  void close()
-  {
+  void close() {
     if (file_ != INVALID_HANDLE_VALUE) {
       CloseHandle(file_);
       file_ = INVALID_HANDLE_VALUE;
@@ -31,10 +29,11 @@ class SerialPort {
 
   bool is_opened() const { return file_ != INVALID_HANDLE_VALUE; }
 
-  bool SetCommTimeouts(DWORD read_interval, DWORD read_total_multiplier,
-                       DWORD read_total_constant, DWORD write_total_multiplier,
-                       DWORD write_total_constant) const
-  {
+  bool SetCommTimeouts(DWORD read_interval,
+                       DWORD read_total_multiplier,
+                       DWORD read_total_constant,
+                       DWORD write_total_multiplier,
+                       DWORD write_total_constant) const {
     COMMTIMEOUTS timeouts;
     memset(&timeouts, 0, sizeof(timeouts));
     timeouts.ReadIntervalTimeout = read_interval;
@@ -49,9 +48,10 @@ class SerialPort {
     return ::SetCommState(file_, const_cast<DCB*>(&dcb)) != 0;
   }
 
-  bool SetCommState(DWORD baud_rate, BYTE byte_size, BYTE parity,
-                    BYTE stop_bits)
-  {
+  bool SetCommState(DWORD baud_rate,
+                    BYTE byte_size,
+                    BYTE parity,
+                    BYTE stop_bits) {
     DCB dcb;
     memset(&dcb, 0, sizeof(dcb));
     dcb.DCBlength = sizeof(dcb);
@@ -65,33 +65,31 @@ class SerialPort {
     return ::SetCommState(file_, &dcb) != 0;
   }
 
-  int read(void* buf, size_t len) const
-  {
+  int read(void* buf, size_t len) const {
     DWORD read;
     if (!ReadFile(file_, buf, static_cast<DWORD>(len), &read, NULL))
       return -1;
     return (int)read;
   }
 
-  int Write(const void* buf, size_t len) const
-  {
+  int Write(const void* buf, size_t len) const {
     DWORD written;
     if (!WriteFile(file_, buf, static_cast<DWORD>(len), &written, NULL))
       return -1;
     return (int)written;
   }
 
-  HANDLE	file_;
+  HANDLE file_;
 };
 
 namespace net {
 
-class NET_EXPORT SerialTransport : public Transport {
+class SerialTransport final : public Transport {
  public:
   explicit SerialTransport(boost::asio::io_service& io_service);
- 
+
   // Transport overrides
-  virtual Error Open() override;
+  virtual Error Open(Transport::Delegate& delegate) override;
   virtual void Close() override;
   virtual int Read(void* data, size_t len) override;
   virtual int Write(const void* data, size_t len) override;
@@ -102,15 +100,17 @@ class NET_EXPORT SerialTransport : public Transport {
 
   std::string m_file_name;
   DCB m_dcb;
-  
+
  private:
   void OnTimer();
 
+  Transport::Delegate* delegate_ = nullptr;
+
   SerialPort file_;
-  
+
   Timer timer_;
 
   bool connected_ = false;
 };
 
-} // namespace net
+}  // namespace net

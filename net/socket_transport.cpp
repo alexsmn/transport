@@ -34,7 +34,7 @@ void SocketTransport::OnSocketConnected(Error error) {
 }
 
 void SocketTransport::OnSocketAccepted(std::unique_ptr<Socket> socket) {
-  assert(socket_.get());
+  assert(socket_);
   auto transport = std::make_unique<SocketTransport>(std::move(socket));
   delegate_->OnTransportAccepted(std::move(transport));
 }
@@ -56,7 +56,7 @@ void SocketTransport::OnSocketDataReceived() {
 }
 
 int SocketTransport::Write(const void* data, size_t len) {
-  if (!socket_.get())
+  if (!socket_)
     return ERR_INVALID_HANDLE;
   assert(connected_);
 
@@ -71,11 +71,13 @@ int SocketTransport::Write(const void* data, size_t len) {
   return len;
 }
 
-Error SocketTransport::Open() {
+Error SocketTransport::Open(Transport::Delegate& delegate) {
   assert(!connected_);
-  assert(!socket_.get());
+  assert(!socket_);
   assert(!sending_);
   assert(send_buffer_.empty());
+
+  delegate_ = &delegate;
 
   socket_.reset(new Socket(FROM_HERE, this));
   socket_->set_logger(logger);
@@ -113,7 +115,7 @@ std::string SocketTransport::GetName() const {
 
   unsigned ip;
   unsigned short port;
-  if (!socket_.get() || !socket_->GetPeerAddress(ip, port))
+  if (!socket_ || !socket_->GetPeerAddress(ip, port))
     return "TCP";
 
   unsigned char* ipn = reinterpret_cast<unsigned char*>(&ip);

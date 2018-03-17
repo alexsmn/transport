@@ -12,12 +12,9 @@ MessageTransport::MessageTransport(
       message_reader_(std::move(message_reader)),
       max_message_size_(message_reader_->message().capacity),
       read_buffer_(max_message_size_) {
+  assert(child_transport_);
+  assert(!child_transport_->IsConnected());
   assert(!child_transport_->IsMessageOriented());
-  child_transport_->set_delegate(this);
-
-  // Child transport can be already connected.
-  if (child_transport_->IsConnected())
-    context_ = new Context;
 }
 
 MessageTransport::~MessageTransport() {
@@ -28,24 +25,24 @@ bool MessageTransport::IsMessageOriented() const {
   return true;
 }
 
-Error MessageTransport::Open() {
+Error MessageTransport::Open(Transport::Delegate& delegate) {
   assert(!child_transport_->IsConnected());
-  assert(!context_);
+  assert(!cancelation_);
 
-  context_ = new Context;
+  delegate_ = &delegate;
+  cancelation_ = std::make_shared<bool>(false);
 
-  return child_transport_->Open();
+  return child_transport_->Open(*this);
 }
 
 void MessageTransport::InternalClose() {
   if (!child_transport_->IsConnected())
     return;
 
+  delegate_ = nullptr;
+  cancelation_ = nullptr;
   child_transport_->Close();
   message_reader_->Reset();
-
-  context_->Destroy();
-  context_ = NULL;
 }
 
 void MessageTransport::Close() {
@@ -76,7 +73,7 @@ int MessageTransport::InternalRead(void* data, size_t len) {
 
     if (bytes_to_read == 0)
       break;
-      
+
     int res = child_transport_->Read(message_reader_->ptr(), bytes_to_read);
     if (res <= 0)
       return res;
@@ -117,16 +114,16 @@ void MessageTransport::OnTransportOpened() {
     delegate_->OnTransportOpened();
 }
 
-net::Error MessageTransport::OnTransportAccepted(std::unique_ptr<Transport> transport) {
+net::Error MessageTransport::OnTransportAccepted(
+    std::unique_ptr<Transport> transport) {
   return delegate_->OnTransportAccepted(std::move(transport));
 }
 
 void MessageTransport::OnTransportClosed(Error error) {
   assert(child_transport_);
-  assert(context_);
+  assert(cancelation_);
 
-  context_->Destroy();
-  context_ = NULL;
+  cancelation_ = nullptr;
 
   if (delegate_)
     delegate_->OnTransportClosed(error);
@@ -135,9 +132,8 @@ void MessageTransport::OnTransportClosed(Error error) {
 void MessageTransport::OnTransportDataReceived() {
   assert(child_transport_->IsConnected());
 
-  scoped_refptr<Context> context(context_);
-
-  while (!context->is_destroyed()) {
+  std::weak_ptr<bool> cancelation = cancelation_;
+  while (!cancelation.expired()) {
     int res = InternalRead(read_buffer_.data(), read_buffer_.size());
     if (res == 0)
       break;
@@ -146,8 +142,9 @@ void MessageTransport::OnTransportDataReceived() {
       break;
 
     if (delegate_)
-      delegate_->OnTransportMessageReceived(read_buffer_.data(), static_cast<size_t>(res));
+      delegate_->OnTransportMessageReceived(read_buffer_.data(),
+                                            static_cast<size_t>(res));
   }
 }
 
-} // namespace net
+}  // namespace net
