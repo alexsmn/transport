@@ -2,13 +2,15 @@
 
 #include "net/transport_factory.h"
 
-#include <boost/asio.hpp>
+namespace boost::asio {
+class io_context;
+}
 
 namespace net {
 
 class TransportFactoryImpl : public TransportFactory {
  public:
-  explicit TransportFactoryImpl(boost::asio::io_service& io_service);
+  explicit TransportFactoryImpl(boost::asio::io_context& io_context);
 
   // Returns nullptr if parameters are invalid.
   virtual std::unique_ptr<Transport> CreateTransport(
@@ -16,7 +18,7 @@ class TransportFactoryImpl : public TransportFactory {
       Logger* logger) override;
 
  private:
-  boost::asio::io_service& io_service_;
+  boost::asio::io_context& io_context_;
 };
 
 }  // namespace net

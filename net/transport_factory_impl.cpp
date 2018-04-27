@@ -50,8 +50,8 @@ static BYTE ParseStopBits(const std::string& str) {
 
 }  // namespace
 
-TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_service& io_service)
-    : io_service_{io_service} {}
+TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
+    : io_context_{io_context} {}
 
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const TransportString& ts,
@@ -72,7 +72,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return NULL;
     }
 
-    auto transport = std::make_unique<AsioTcpTransport>(io_service_);
+    auto transport = std::make_unique<AsioTcpTransport>(io_context_);
     transport->host = host;
     transport->service = std::to_string(port);
     transport->active = active;
@@ -88,7 +88,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return NULL;
     }
 
-    auto transport = std::make_unique<SerialTransport>(io_service_);
+    auto transport = std::make_unique<SerialTransport>(io_context_);
     transport->m_file_name = "\\\\.\\" + name;
 
     COMMCONFIG config = {sizeof(config)};
@@ -127,7 +127,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return NULL;
     }
 
-    auto transport = std::make_unique<PipeTransport>(io_service_);
+    auto transport = std::make_unique<PipeTransport>(io_context_);
     transport->Init(L"\\\\.\\pipe\\" + name, !active);
     return transport;
 
