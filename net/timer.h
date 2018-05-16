@@ -49,9 +49,8 @@ class Timer {
     }
 
     virtual void Start() override {
-      auto weak_core = std::weak_ptr<CoreImpl<kRepeating, Callback>>(shared_from_this());
       timer_.expires_from_now(period_);
-      timer_.async_wait([weak_core](boost::system::error_code ec) {
+      timer_.async_wait([weak_core = this->weak_from_this()](boost::system::error_code ec) {
         if (ec == boost::asio::error::operation_aborted)
           return;
         if (auto core = weak_core.lock())
