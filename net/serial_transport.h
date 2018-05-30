@@ -84,7 +84,7 @@ class SerialPort {
 
 namespace net {
 
-class SerialTransport final : public Transport {
+class NET_EXPORT SerialTransport final : public Transport {
  public:
   explicit SerialTransport(boost::asio::io_service& io_service);
 

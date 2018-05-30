@@ -8,7 +8,7 @@
 
 namespace net {
 
-class PipeTransport final : public Transport {
+class NET_EXPORT PipeTransport final : public Transport {
  public:
   explicit PipeTransport(boost::asio::io_service& io_service);
   virtual ~PipeTransport();

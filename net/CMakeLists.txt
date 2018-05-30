@@ -22,15 +22,6 @@ list(APPEND sources_win
   "pipe_transport.h"
   "serial_transport.cpp"
   "serial_transport.h"
-  "socket.cpp"
-  "socket.h"
-  "socket_delegate.h"
-  "socket_handle.h"
-  "socket_pool.cpp"
-  "socket_pool.h"
-  "socket_transport.cpp"
-  "socket_transport.h"
-  "socket_window.h"
 )
 
 file(GLOB net_sources_win_dir RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}

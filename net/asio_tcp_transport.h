@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/base/net_export.h"
 #include "net/transport.h"
 
 #include <boost/asio.hpp>
@@ -8,7 +9,7 @@
 
 namespace net {
 
-class AsioTcpTransport final : public Transport {
+class NET_EXPORT AsioTcpTransport final : public Transport {
  public:
   explicit AsioTcpTransport(boost::asio::io_context& io_context);
   AsioTcpTransport(boost::asio::io_context& io_context,
