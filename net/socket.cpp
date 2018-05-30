@@ -10,8 +10,7 @@
 
 namespace net {
 
-Socket::Socket(const tracked_objects::Location& location,
-               SocketDelegate* delegate)
+Socket::Socket(const base::Location& location, SocketDelegate* delegate)
     : pool_(&SocketPool::get()), delegate_(delegate), handle_(INVALID_SOCKET) {}
 
 Socket::~Socket() {

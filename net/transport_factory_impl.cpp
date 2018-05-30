@@ -7,7 +7,6 @@
 #if defined(OS_WIN)
 #include "net/pipe_transport.h"
 #include "net/serial_transport.h"
-#include "net/socket_transport.h"
 #endif
 
 #if defined(OS_WIN)

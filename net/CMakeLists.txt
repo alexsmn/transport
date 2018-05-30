@@ -66,6 +66,10 @@ endif()
 
 target_compile_definitions(net PRIVATE -DNET_IMPLEMENTATION)
 
+if(BUILD_SHARED_LIBS)
+  target_compile_definitions(net PUBLIC -DCOMPONENT_BUILD)
+endif()
+
 target_include_directories(net PUBLIC "..")
 
 target_link_libraries(net PUBLIC base Boost::boost Boost::system)

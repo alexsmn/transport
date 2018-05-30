@@ -1,7 +1,7 @@
 #pragma once
 
-#include "base/memory/ref_counted.h"
 #include "base/location.h"
+#include "base/memory/ref_counted.h"
 #include "net/base/net_errors.h"
 #include "net/socket_handle.h"
 
@@ -13,8 +13,7 @@ class SocketPool;
 
 class Socket {
  public:
-  Socket(const tracked_objects::Location& location,
-         SocketDelegate* delegate);
+  Socket(const base::Location& location, SocketDelegate* delegate);
   ~Socket();
 
   Socket(const Socket&) = delete;
@@ -25,7 +24,9 @@ class Socket {
 
   bool is_closed() const { return state_ == CLOSED; }
   bool is_connected() const { return state_ == CONNECTED; }
-  bool is_connecting() const { return state_ == RESOLVING || state_ == CONNECTING; }
+  bool is_connecting() const {
+    return state_ == RESOLVING || state_ == CONNECTING;
+  }
 
   Error Connect(const char* host, unsigned short port);
   Error Listen(unsigned short port);
@@ -39,13 +40,13 @@ class Socket {
   Error Shutdown();
   void Close();
 
-private:
+ private:
   friend class SocketPool;
 
   class Context : public base::RefCounted<Context> {
    public:
     Context() : destroyed_(false) {}
-    
+
     bool is_destroyed() const { return destroyed_; }
     void Destroyed() { destroyed_ = true; }
 
@@ -89,4 +90,4 @@ private:
   scoped_refptr<Context> context_;
 };
 
-} // namespace net
+}  // namespace net
