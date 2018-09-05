@@ -6,29 +6,29 @@ using namespace std::chrono_literals;
 
 namespace net {
 
-SerialTransport::SerialTransport(boost::asio::io_service& io_service)
-    : timer_{io_service} {}
+SerialTransport::SerialTransport(boost::asio::io_context& io_context)
+    : timer_{io_context} {}
 
 int SerialTransport::Read(void* data, size_t len) {
-  return file_.read(data, len);
+  return serial_port_.read(data, len);
 }
 
 int SerialTransport::Write(const void* data, size_t len) {
-  int res = file_.Write(data, len);
+  int res = serial_port_.Write(data, len);
   return (res >= 0) ? res : ERR_FAILED;
 }
 
 Error SerialTransport::Open(Transport::Delegate& delegate) {
-  assert(!file_.is_opened());
+  assert(!serial_port_.is_opened());
 
   delegate_ = &delegate;
 
-  if (!file_.open(m_file_name.c_str()))
+  if (!serial_port_.open(m_file_name.c_str()))
     return ERR_FAILED;
 
-  if (!file_.SetCommTimeouts(MAXDWORD, 0, 0, 0, 0) ||
-      !file_.SetCommState(m_dcb)) {
-    file_.close();
+  if (!serial_port_.SetCommTimeouts(MAXDWORD, 0, 0, 0, 0) ||
+      !serial_port_.SetCommState(m_dcb)) {
+    serial_port_.close();
     return ERR_FAILED;
   }
 
@@ -43,7 +43,7 @@ Error SerialTransport::Open(Transport::Delegate& delegate) {
 void SerialTransport::Close() {
   timer_.Stop();
 
-  file_.close();
+  serial_port_.close();
   connected_ = false;
   delegate_ = nullptr;
 }
