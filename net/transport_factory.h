@@ -1,6 +1,7 @@
 #pragma once
 
 #include "net/base/net_export.h"
+#include "net/transport.h"
 
 #include <memory>
 
