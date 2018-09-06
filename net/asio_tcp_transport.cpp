@@ -2,26 +2,10 @@
 
 namespace net {
 
-// AsioTcpTransport::Core
-
-class AsioTcpTransport::Core {
- public:
-  virtual ~Core() {}
-
-  virtual bool IsConnected() const = 0;
-
-  virtual void Open(Delegate& delegate) = 0;
-  virtual void Close() = 0;
-
-  virtual int Read(void* data, size_t len) = 0;
-  virtual int Write(const void* data, size_t len) = 0;
-};
-
 // AsioTcpTransport::ActiveCore
 
 class AsioTcpTransport::ActiveCore final
-    : public Core,
-      public std::enable_shared_from_this<Core> {
+    : public IoCore<boost::asio::ip::tcp::socket> {
  public:
   using Socket = boost::asio::ip::tcp::socket;
 
@@ -31,59 +15,33 @@ class AsioTcpTransport::ActiveCore final
   ActiveCore(boost::asio::io_context& io_context, Socket socket);
 
   // Core
-  virtual bool IsConnected() const override { return connected_; }
   virtual void Open(Delegate& delegate) override;
-  virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  void StartReading();
-  void StartWriting();
+  virtual void Cleanup() override;
 
-  void ProcessError(net::Error error);
-  void Cleanup();
-
-  boost::asio::io_context& io_context_;
   std::string host_;
   std::string service_;
-  Delegate* delegate_ = nullptr;
 
   Resolver resolver_;
-  Socket socket_;
-
-  bool connected_ = false;
-
-  boost::circular_buffer<char> read_buffer_{1024 * 1024};
-  std::vector<char> write_buffer_;
-
-  bool reading_ = false;
-  std::vector<char> reading_buffer_;
-
-  bool writing_ = false;
-  // The buffer being curently written with sync operation.
-  std::vector<char> writing_buffer_;
-
-  bool closed_ = false;
 };
 
 AsioTcpTransport::ActiveCore::ActiveCore(boost::asio::io_context& io_context,
                                          const std::string& host,
                                          const std::string& service)
-    : io_context_{io_context},
+    : IoCore{io_context},
       resolver_{io_context},
-      socket_{io_context},
       host_{host},
       service_{service} {}
 
 AsioTcpTransport::ActiveCore::ActiveCore(boost::asio::io_context& io_context,
                                          Socket socket)
-    : io_context_{io_context},
-      resolver_{io_context},
-      socket_{std::move(socket)},
-      connected_{true} {}
+    : IoCore{io_context}, resolver_{io_context} {
+  io_object_ = std::move(socket);
+  connected_ = true;
+}
 
 void AsioTcpTransport::ActiveCore::Open(Delegate& delegate) {
   delegate_ = &delegate;
@@ -107,7 +65,7 @@ void AsioTcpTransport::ActiveCore::Open(Delegate& delegate) {
     }
 
     boost::asio::async_connect(
-        socket_, iterator,
+        io_object_, iterator,
         [this, ref = shared_from_this()](const boost::system::error_code& error,
                                          Resolver::iterator iterator) {
           if (closed_)
@@ -132,115 +90,8 @@ void AsioTcpTransport::ActiveCore::Cleanup() {
   connected_ = false;
   resolver_.cancel();
   boost::system::error_code ec;
-  socket_.cancel(ec);
-}
-
-void AsioTcpTransport::ActiveCore::Close() {
-  Cleanup();
-  delegate_ = nullptr;
-}
-
-int AsioTcpTransport::ActiveCore::Read(void* data, size_t len) {
-  size_t count = std::min(len, read_buffer_.size());
-  std::copy(read_buffer_.begin(), read_buffer_.begin() + count,
-            reinterpret_cast<char*>(data));
-  read_buffer_.erase_begin(count);
-
-  StartReading();
-
-  return count;
-}
-
-int AsioTcpTransport::ActiveCore::Write(const void* data, size_t len) {
-  write_buffer_.insert(write_buffer_.end(), reinterpret_cast<const char*>(data),
-                       reinterpret_cast<const char*>(data) + len);
-
-  StartWriting();
-
-  return len;
-}
-
-void AsioTcpTransport::ActiveCore::StartReading() {
-  if (closed_ || reading_)
-    return;
-
-  assert(reading_buffer_.empty());
-
-  reading_buffer_.resize(read_buffer_.capacity() - read_buffer_.size());
-  if (reading_buffer_.empty())
-    return;
-
-  reading_ = true;
-  socket_.async_receive(
-      boost::asio::buffer(reading_buffer_),
-      [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                       std::size_t bytes_transferred) {
-        if (closed_)
-          return;
-
-        assert(reading_);
-        reading_ = false;
-
-        if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
-            ProcessError(net::MapSystemError(ec.value()));
-          return;
-        }
-
-        if (bytes_transferred == 0) {
-          ProcessError(net::OK);
-          return;
-        }
-
-        read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
-                            reading_buffer_.begin() + bytes_transferred);
-        reading_buffer_.clear();
-
-        StartReading();
-
-        delegate_->OnTransportDataReceived();
-      });
-}
-
-void AsioTcpTransport::ActiveCore::StartWriting() {
-  if (closed_ || writing_)
-    return;
-
-  assert(writing_buffer_.empty());
-
-  if (write_buffer_.empty())
-    return;
-
-  writing_ = true;
-  writing_buffer_.swap(write_buffer_);
-
-  boost::system::error_code ec;
-  boost::asio::async_write(
-      socket_, boost::asio::buffer(writing_buffer_),
-      [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                       std::size_t bytes_transferred) {
-        if (closed_)
-          return;
-
-        assert(writing_);
-        writing_ = false;
-
-        if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
-            ProcessError(net::MapSystemError(ec.value()));
-          return;
-        }
-
-        assert(bytes_transferred == writing_buffer_.size());
-        writing_buffer_.clear();
-
-        StartWriting();
-      });
-}
-
-void AsioTcpTransport::ActiveCore::ProcessError(net::Error error) {
-  Cleanup();
-  delegate_->OnTransportClosed(error);
+  io_object_.cancel(ec);
+  io_object_.close(ec);
 }
 
 // AsioTcpTransport::PassiveCore
@@ -377,12 +228,13 @@ void AsioTcpTransport::PassiveCore::ProcessError(
 // AsioTcpTransport
 
 AsioTcpTransport::AsioTcpTransport(boost::asio::io_context& io_context)
-    : io_context_{io_context} {}
+    : AsioTransport{io_context} {}
 
 AsioTcpTransport::AsioTcpTransport(boost::asio::io_context& io_context,
                                    boost::asio::ip::tcp::socket socket)
-    : io_context_{io_context},
-      core_{std::make_shared<ActiveCore>(io_context_, std::move(socket))} {}
+    : AsioTransport{io_context} {
+  core_ = std::make_shared<ActiveCore>(io_context_, std::move(socket));
+}
 
 AsioTcpTransport::~AsioTcpTransport() {
   if (core_)
@@ -400,29 +252,8 @@ Error AsioTcpTransport::Open(Transport::Delegate& delegate) {
   return net::OK;
 }
 
-void AsioTcpTransport::Close() {
-  core_->Close();
-  core_ = nullptr;
-}
-
-int AsioTcpTransport::Read(void* data, size_t len) {
-  return core_ ? core_->Read(data, len) : net::ERR_FAILED;
-}
-
-int AsioTcpTransport::Write(const void* data, size_t len) {
-  return core_ ? core_->Write(data, len) : net::ERR_FAILED;
-}
-
 std::string AsioTcpTransport::GetName() const {
   return "TCP";
-}
-
-bool AsioTcpTransport::IsMessageOriented() const {
-  return false;
-}
-
-bool AsioTcpTransport::IsConnected() const {
-  return core_ && core_->IsConnected();
 }
 
 }  // namespace net

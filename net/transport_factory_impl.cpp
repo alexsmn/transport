@@ -17,35 +17,29 @@ namespace net {
 
 namespace {
 
-#if defined(OS_WIN)
-
-static BYTE ParseParity(const std::string& str) {
+static boost::asio::serial_port::parity::type ParseParity(
+    const std::string& str) {
   if (_stricmp(str.c_str(), "No") == 0)
-    return NOPARITY;
+    return boost::asio::serial_port::parity::none;
   else if (_stricmp(str.c_str(), "Even") == 0)
-    return EVENPARITY;
+    return boost::asio::serial_port::parity::even;
   else if (_stricmp(str.c_str(), "Odd") == 0)
-    return ODDPARITY;
-  else if (_stricmp(str.c_str(), "Mark") == 0)
-    return MARKPARITY;
-  else if (_stricmp(str.c_str(), "Space") == 0)
-    return SPACEPARITY;
+    return boost::asio::serial_port::parity::odd;
   else
-    return NOPARITY;
+    return boost::asio::serial_port::parity::none;
 }
 
-static BYTE ParseStopBits(const std::string& str) {
+static boost::asio::serial_port::stop_bits::type ParseStopBits(
+    const std::string& str) {
   if (str == "1")
-    return ONESTOPBIT;
+    return boost::asio::serial_port::stop_bits::one;
   else if (str == "1.5")
-    return ONE5STOPBITS;
+    return boost::asio::serial_port::stop_bits::onepointfive;
   else if (str == "2")
-    return TWOSTOPBITS;
+    return boost::asio::serial_port::stop_bits::two;
   else
-    return ONESTOPBIT;
+    return boost::asio::serial_port::stop_bits::one;
 }
-
-#endif  // OS_WIN
 
 }  // namespace
 
@@ -78,42 +72,29 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     return std::move(transport);
 
   } else if (protocol == TransportString::SERIAL) {
-#ifdef OS_WIN
     // SERIAL;Name=COM2
 
-    auto name = ts.GetParamStr(TransportString::kParamName);
-    if (name.empty()) {
+    auto device = ts.GetParamStr(TransportString::kParamName);
+    if (device.empty()) {
       LOG(WARNING) << "Serial port name is not specified";
       return NULL;
     }
 
-    auto transport = std::make_unique<SerialTransport>(io_context_);
-    transport->m_file_name = "\\\\.\\" + name;
-
-    COMMCONFIG config = {sizeof(config)};
-    DWORD config_size = sizeof(config);
-    GetDefaultCommConfig(base::SysNativeMBToWide(name).c_str(), &config,
-                         &config_size);
-
-    DCB& dcb = config.dcb;
+    SerialTransport::Options options;
     if (ts.HasParam(TransportString::kParamBaudRate))
-      dcb.BaudRate = ts.GetParamInt(TransportString::kParamBaudRate);
+      options.baud_rate.emplace(
+          ts.GetParamInt(TransportString::kParamBaudRate));
     if (ts.HasParam(TransportString::kParamByteSize))
-      dcb.ByteSize =
-          static_cast<BYTE>(ts.GetParamInt(TransportString::kParamByteSize));
+      options.character_size.emplace(
+          ts.GetParamInt(TransportString::kParamByteSize));
     if (ts.HasParam(TransportString::kParamParity))
-      dcb.Parity = ParseParity(ts.GetParamStr(TransportString::kParamParity));
-    if (ts.HasParam(TransportString::kParamParity))
-      dcb.StopBits =
-          ParseStopBits(ts.GetParamStr(TransportString::kParamStopBits));
+      options.parity.emplace(
+          ParseParity(ts.GetParamStr(TransportString::kParamParity)));
+    if (ts.HasParam(TransportString::kParamStopBits))
+      options.stop_bits.emplace(
+          ParseStopBits(ts.GetParamStr(TransportString::kParamStopBits)));
 
-    transport->m_dcb = dcb;
-    return std::move(transport);
-
-#else
-    LOG(WARNING) << "Serial ports are not supported";
-    return nullptr;
-#endif
+    return std::make_unique<SerialTransport>(io_context_, device, options);
 
   } else if (protocol == TransportString::PIPE) {
 #ifdef OS_WIN

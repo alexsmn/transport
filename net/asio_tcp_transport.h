@@ -1,7 +1,7 @@
 #pragma once
 
 #include "net/base/net_export.h"
-#include "net/transport.h"
+#include "net/asio_transport.h"
 
 #include <boost/asio.hpp>
 #include <boost/circular_buffer.hpp>
@@ -9,7 +9,7 @@
 
 namespace net {
 
-class NET_EXPORT AsioTcpTransport final : public Transport {
+class NET_EXPORT AsioTcpTransport final : public AsioTransport {
  public:
   explicit AsioTcpTransport(boost::asio::io_context& io_context);
   AsioTcpTransport(boost::asio::io_context& io_context,
@@ -18,12 +18,7 @@ class NET_EXPORT AsioTcpTransport final : public Transport {
 
   // Transport overrides
   virtual Error Open(Transport::Delegate& delegate) override;
-  virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
   virtual std::string GetName() const override;
-  virtual bool IsMessageOriented() const override;
-  virtual bool IsConnected() const override;
   virtual bool IsActive() const override { return active; }
 
   std::string host;
@@ -31,12 +26,8 @@ class NET_EXPORT AsioTcpTransport final : public Transport {
   bool active = false;
 
  private:
-  class Core;
   class ActiveCore;
   class PassiveCore;
-
-  boost::asio::io_context& io_context_;
-  std::shared_ptr<Core> core_;
 };
 
 }  // namespace net

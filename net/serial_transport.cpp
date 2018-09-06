@@ -2,89 +2,102 @@
 
 #include "net/base/net_errors.h"
 
+#include <boost/asio/serial_port.hpp>
+
 using namespace std::chrono_literals;
 
 namespace net {
 
-SerialTransport::SerialTransport(boost::asio::io_context& io_context)
-    : timer_{io_context} {}
+namespace {
 
-int SerialTransport::Read(void* data, size_t len) {
-  return serial_port_.read(data, len);
+template <class T>
+inline bool SetOption(boost::asio::serial_port& serial_port,
+                      const std::optional<T>& option) {
+  if (!option.has_value())
+    return true;
+
+  boost::system::error_code ec;
+  serial_port.set_option(*option, ec);
+  return !ec;
 }
 
-int SerialTransport::Write(const void* data, size_t len) {
-  int res = serial_port_.Write(data, len);
-  return (res >= 0) ? res : ERR_FAILED;
-}
+}  // namespace
 
-Error SerialTransport::Open(Transport::Delegate& delegate) {
-  assert(!serial_port_.is_opened());
+class SerialTransport::SerialPortCore final
+    : public AsioTransport::IoCore<boost::asio::serial_port> {
+ public:
+  SerialPortCore(boost::asio::io_context& io_context,
+                 std::string device,
+                 const Options& options);
 
-  delegate_ = &delegate;
+  // Core
+  virtual void Open(Delegate& delegate) override;
 
-  if (!serial_port_.open(m_file_name.c_str()))
-    return ERR_FAILED;
+ protected:
+  virtual void Cleanup() override;
 
-  if (!serial_port_.SetCommTimeouts(MAXDWORD, 0, 0, 0, 0) ||
-      !serial_port_.SetCommState(m_dcb)) {
-    serial_port_.close();
-    return ERR_FAILED;
+  const std::string device_;
+  const Options options_;
+};
+
+SerialTransport::SerialPortCore::SerialPortCore(
+    boost::asio::io_context& io_context,
+    std::string device,
+    const Options& options)
+    : IoCore{io_context},
+      device_{std::move(device)},
+      options_{std::move(options)} {}
+
+void SerialTransport::SerialPortCore::Open(Transport::Delegate& delegate) {
+  boost::system::error_code ec;
+  io_object_.open(device_, ec);
+  if (ec) {
+    delegate.OnTransportClosed(net::ERR_FAILED);
+    return;
   }
 
-  // TODO: Fix ASAP.
-  timer_.StartRepeating(10ms, [this] { OnTimer(); });
+  if (!SetOption(io_object_, options_.baud_rate) ||
+      !SetOption(io_object_, options_.flow_control) ||
+      !SetOption(io_object_, options_.parity) ||
+      !SetOption(io_object_, options_.stop_bits) ||
+      !SetOption(io_object_, options_.character_size)) {
+    io_object_.close(ec);
+    delegate.OnTransportClosed(net::ERR_FAILED);
+    return;
+  }
 
   connected_ = true;
+
+  delegate_ = &delegate;
   delegate_->OnTransportOpened();
-  return OK;
+
+  StartReading();
 }
 
-void SerialTransport::Close() {
-  timer_.Stop();
+void SerialTransport::SerialPortCore::Cleanup() {
+  boost::system::error_code ec;
+  io_object_.cancel(ec);
+  io_object_.close(ec);
 
-  serial_port_.close();
   connected_ = false;
   delegate_ = nullptr;
 }
 
-void SerialTransport::OnTimer() {
-  assert(connected_);
+SerialTransport::SerialTransport(boost::asio::io_context& io_context,
+                                 std::string device,
+                                 const Options& options)
+    : AsioTransport{io_context},
+      device_{std::move(device)},
+      options_{options} {}
 
-  /*static clock_t time = clock();
-  static bool done = false;
-  if (!done && (clock() - time)/CLOCKS_PER_SEC >= 10) {
-    done = true;
-    {
-      char data[1024];
-      const char* str = "68 10 10 68 28 01 1E 01 03 01 01 00 01 5B 09 19 13 1B
-  02 09 04 16"; int len = parse_msg(str, data, sizeof(data)); recv_msg(data,
-  len);
-    }
-    // test for float format
-    {
-      char data[1024];
-      const char* str = "68 F5 F5 68 28 02 24 11 03 00 02 FD 03 1B 2F 9D 3F 00
-  8B 60 2C 0F 93 03 09 FE 03 39 B4 98 3F 00 8B 60 2C 0F 93 03 09 FF 03 48 B1 4D
-  44 00 C6 60 2C 0F 93 03 09 00 04 C3 F5 A2 C2 00 C6 60 2C 0F 93 03 09 08 04 00
-  00 A1 41 00 DE 60 2C 0F 93 03 09 18 04 00 B8 5F 43 00 EC 60 2C 0F 93 03 09 F1
-  03 CD CC 61 43 00 FE 60 2C 0F 93 03 09 F2 03 8F 82 64 43 00 FE 60 2C 0F 93 03
-  09 F3 03 29 DC 68 43 00 38 61 2C 0F 93 03 09 13 04 00 08 48 42 00 5F 61 2C 0F
-  93 03 09 F5 03 4E 62 80 3F 00 72 61 2C 0F 93 03 09 F7 03 0A 97 2C 44 00 AE 61
-  2C 0F 93 03 09 F8 03 5C 8F 96 42 00 AE 61 2C 0F 93 03 09 14 04 00 72 64 43 00
-  D6 61 2C 0F 93 03 09 F9 03 33 B3 61 43 00 E9 61 2C 0F 93 03 09 FA 03 7B 54 64
-  43 00 E9 61 2C 0F 93 03 09 FB 03 00 80 68 43 00 24 62 2C 0F 93 03 09 8C 16";
-      int len = parse_msg(str, data, sizeof(data));
-      recv_msg(data, len);
-    }
-  }*/
-
-  // read iec101 message
-  delegate_->OnTransportDataReceived();
+net::Error SerialTransport::Open(Transport::Delegate& delegate) {
+  core_ = std::make_shared<SerialPortCore>(io_context_, device_, options_);
+  core_->Open(delegate);
+  return net::OK;
 }
 
 std::string SerialTransport::GetName() const {
-  return "Serial";
+  return device_;
 }
 
 }  // namespace net
