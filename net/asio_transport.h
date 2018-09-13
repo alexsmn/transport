@@ -157,9 +157,9 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
                             reading_buffer_.begin() + bytes_transferred);
         reading_buffer_.clear();
 
-        StartReading();
-
         delegate_->OnTransportDataReceived();
+
+        StartReading();
       });
 }
 
