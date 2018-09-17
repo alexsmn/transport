@@ -70,8 +70,10 @@ class AsioTransport::IoCore : public Core,
 
   IoObject io_object_;
 
+  bool closed_ = false;
   bool connected_ = false;
 
+ private:
   boost::circular_buffer<char> read_buffer_{1024 * 1024};
   std::vector<char> write_buffer_;
 
@@ -81,8 +83,6 @@ class AsioTransport::IoCore : public Core,
   bool writing_ = false;
   // The buffer being curently written with sync operation.
   std::vector<char> writing_buffer_;
-
-  bool closed_ = false;
 };
 
 template <class IoObject>
@@ -92,8 +92,10 @@ inline AsioTransport::IoCore<IoObject>::IoCore(
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::Close() {
-  Cleanup();
+  closed_ = true;
   delegate_ = nullptr;
+
+  Cleanup();
 }
 
 template <class IoObject>
@@ -202,8 +204,13 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::ProcessError(net::Error error) {
+  auto* delegate = delegate_;
+  closed_ = true;
+  delegate_ = nullptr;
+
   Cleanup();
-  delegate_->OnTransportClosed(error);
+
+  delegate->OnTransportClosed(error);
 }
 
 // AsioTransport

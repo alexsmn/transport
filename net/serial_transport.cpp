@@ -75,12 +75,13 @@ void SerialTransport::SerialPortCore::Open(Transport::Delegate& delegate) {
 }
 
 void SerialTransport::SerialPortCore::Cleanup() {
+  assert(closed_);
+
+  connected_ = false;
+
   boost::system::error_code ec;
   io_object_.cancel(ec);
   io_object_.close(ec);
-
-  connected_ = false;
-  delegate_ = nullptr;
 }
 
 SerialTransport::SerialTransport(boost::asio::io_context& io_context,

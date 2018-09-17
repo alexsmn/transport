@@ -86,9 +86,12 @@ void AsioTcpTransport::ActiveCore::Open(Delegate& delegate) {
 }
 
 void AsioTcpTransport::ActiveCore::Cleanup() {
-  closed_ = true;
+  assert(closed_);
+
   connected_ = false;
+
   resolver_.cancel();
+
   boost::system::error_code ec;
   io_object_.cancel(ec);
   io_object_.close(ec);
