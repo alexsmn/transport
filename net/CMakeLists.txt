@@ -20,8 +20,6 @@ file(GLOB_RECURSE sources_win RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 list(APPEND sources_win
   "pipe_transport.cpp"
   "pipe_transport.h"
-  "serial_transport.cpp"
-  "serial_transport.h"
 )
 
 file(GLOB net_sources_win_dir RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
