@@ -13,7 +13,8 @@ MessageTransport::MessageTransport(
       max_message_size_(message_reader_->message().capacity),
       read_buffer_(max_message_size_) {
   assert(child_transport_);
-  assert(!child_transport_->IsConnected());
+  // Passive transport can be connected.
+  // assert(!child_transport_->IsConnected());
   assert(!child_transport_->IsMessageOriented());
 }
 
@@ -26,7 +27,8 @@ bool MessageTransport::IsMessageOriented() const {
 }
 
 Error MessageTransport::Open(Transport::Delegate& delegate) {
-  assert(!child_transport_->IsConnected());
+  // Passive transport can be connected.
+  // assert(!child_transport_->IsConnected());
   assert(!cancelation_);
 
   delegate_ = &delegate;
