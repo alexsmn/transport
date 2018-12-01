@@ -1,12 +1,13 @@
 #include "net/transport_factory_impl.h"
 
+#include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
+#include "net/serial_transport.h"
 #include "net/tcp_transport.h"
 #include "net/transport_string.h"
 
 #if defined(OS_WIN)
 #include "net/pipe_transport.h"
-#include "net/serial_transport.h"
 #endif
 
 #if defined(OS_WIN)
@@ -19,11 +20,11 @@ namespace {
 
 static boost::asio::serial_port::parity::type ParseParity(
     const std::string& str) {
-  if (_stricmp(str.c_str(), "No") == 0)
+  if (base::EqualsCaseInsensitiveASCII(str, "No"))
     return boost::asio::serial_port::parity::none;
-  else if (_stricmp(str.c_str(), "Even") == 0)
+  else if (base::EqualsCaseInsensitiveASCII(str, "Even"))
     return boost::asio::serial_port::parity::even;
-  else if (_stricmp(str.c_str(), "Odd") == 0)
+  else if (base::EqualsCaseInsensitiveASCII(str, "Odd"))
     return boost::asio::serial_port::parity::odd;
   else
     return boost::asio::serial_port::parity::none;
