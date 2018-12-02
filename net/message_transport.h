@@ -28,7 +28,9 @@ class NET_EXPORT MessageTransport : public Transport,
   virtual bool IsConnected() const override {
     return child_transport_->IsConnected();
   }
-  virtual bool IsActive() const { return child_transport_->IsActive(); }
+  virtual bool IsActive() const override {
+    return child_transport_->IsActive();
+  }
 
  private:
   int InternalRead(void* data, size_t len);

@@ -505,7 +505,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       Error error = static_cast<Error>(msg.ReadLong());
 
       logger_->WriteF(LogSeverity::Normal, "Create session response - %s",
-                      ErrorToString(error));
+                      ErrorToString(error).c_str());
 
       // Check login is failed and throw session failure.
       if (error != OK) {
@@ -526,7 +526,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       Error error = static_cast<Error>(msg.ReadLong());
 
       logger_->WriteF(LogSeverity::Normal, "Restore session response - %s",
-                      ErrorToString(error));
+                      ErrorToString(error).c_str());
 
       if (error != OK) {
         OnClosed(error);
