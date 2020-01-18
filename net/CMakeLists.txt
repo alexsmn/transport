@@ -49,10 +49,6 @@ endif()
 
 add_library(net ${sources})
 
-if(WIN32)
-  target_compile_options(net PUBLIC "/std:c++latest") 
-endif()
-
 target_compile_definitions(net PRIVATE -DNET_IMPLEMENTATION)
 
 if(BUILD_SHARED_LIBS)
