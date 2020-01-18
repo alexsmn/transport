@@ -18,20 +18,22 @@ namespace net {
 
 namespace {
 
-static boost::asio::serial_port::parity::type ParseParity(
-    const std::string& str) {
-  if (base::EqualsCaseInsensitiveASCII(str, "No"))
-    return boost::asio::serial_port::parity::none;
-  else if (base::EqualsCaseInsensitiveASCII(str, "Even"))
-    return boost::asio::serial_port::parity::even;
-  else if (base::EqualsCaseInsensitiveASCII(str, "Odd"))
-    return boost::asio::serial_port::parity::odd;
-  else
-    return boost::asio::serial_port::parity::none;
+inline constexpr base::StringPiece AsStringPiece(std::string_view str) {
+  return {str.data(), str.size()};
 }
 
-static boost::asio::serial_port::stop_bits::type ParseStopBits(
-    const std::string& str) {
+boost::asio::serial_port::parity::type ParseParity(std::string_view str) {
+  if (base::EqualsCaseInsensitiveASCII(AsStringPiece(str), "No"))
+    return boost::asio::serial_port::parity::none;
+  else if (base::EqualsCaseInsensitiveASCII(AsStringPiece(str), "Even"))
+    return boost::asio::serial_port::parity::even;
+  else if (base::EqualsCaseInsensitiveASCII(AsStringPiece(str), "Odd"))
+    return boost::asio::serial_port::parity::odd;
+  else
+    throw std::invalid_argument{"Wrong parity string"};
+}
+
+boost::asio::serial_port::stop_bits::type ParseStopBits(std::string_view str) {
   if (str == "1")
     return boost::asio::serial_port::stop_bits::one;
   else if (str == "1.5")
@@ -39,7 +41,19 @@ static boost::asio::serial_port::stop_bits::type ParseStopBits(
   else if (str == "2")
     return boost::asio::serial_port::stop_bits::two;
   else
-    return boost::asio::serial_port::stop_bits::one;
+    throw std::invalid_argument{"Wrong stop bits string"};
+}
+
+boost::asio::serial_port::flow_control::type ParseFlowControl(
+    std::string_view str) {
+  if (str == TransportString::kFlowControlNone)
+    return boost::asio::serial_port::flow_control::none;
+  else if (str == TransportString::kFlowControlSoftware)
+    return boost::asio::serial_port::flow_control::software;
+  else if (str == TransportString::kFlowControlHardware)
+    return boost::asio::serial_port::flow_control::hardware;
+  else
+    throw std::invalid_argument{"Wrong flow control string"};
 }
 
 }  // namespace
@@ -63,7 +77,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     int port = ts.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
       LOG(WARNING) << "TCP port is not specified";
-      return NULL;
+      return nullptr;
     }
 
     auto transport = std::make_unique<AsioTcpTransport>(io_context_);
@@ -75,37 +89,48 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
   } else if (protocol == TransportString::SERIAL) {
     // SERIAL;Name=COM2
 
-    auto device = ts.GetParamStr(TransportString::kParamName);
+    const std::string_view device = ts.GetParamStr(TransportString::kParamName);
     if (device.empty()) {
       LOG(WARNING) << "Serial port name is not specified";
-      return NULL;
+      return nullptr;
     }
 
     SerialTransport::Options options;
-    if (ts.HasParam(TransportString::kParamBaudRate))
-      options.baud_rate.emplace(
-          ts.GetParamInt(TransportString::kParamBaudRate));
-    if (ts.HasParam(TransportString::kParamByteSize))
-      options.character_size.emplace(
-          ts.GetParamInt(TransportString::kParamByteSize));
-    if (ts.HasParam(TransportString::kParamParity))
-      options.parity.emplace(
-          ParseParity(ts.GetParamStr(TransportString::kParamParity)));
-    if (ts.HasParam(TransportString::kParamStopBits))
-      options.stop_bits.emplace(
-          ParseStopBits(ts.GetParamStr(TransportString::kParamStopBits)));
 
-    return std::make_unique<SerialTransport>(io_context_, device, options);
+    try {
+      if (ts.HasParam(TransportString::kParamBaudRate))
+        options.baud_rate.emplace(
+            ts.GetParamInt(TransportString::kParamBaudRate));
+      if (ts.HasParam(TransportString::kParamByteSize))
+        options.character_size.emplace(
+            ts.GetParamInt(TransportString::kParamByteSize));
+      if (ts.HasParam(TransportString::kParamParity))
+        options.parity.emplace(
+            ParseParity(ts.GetParamStr(TransportString::kParamParity)));
+      if (ts.HasParam(TransportString::kParamStopBits))
+        options.stop_bits.emplace(
+            ParseStopBits(ts.GetParamStr(TransportString::kParamStopBits)));
+      if (ts.HasParam(TransportString::kParamFlowControl))
+        options.flow_control.emplace(ParseFlowControl(
+            ts.GetParamStr(TransportString::kParamFlowControl)));
+
+    } catch (const std::runtime_error& e) {
+      LOG(WARNING) << e.what();
+      return nullptr;
+    }
+
+    return std::make_unique<SerialTransport>(io_context_, std::string{device},
+                                             options);
 
   } else if (protocol == TransportString::PIPE) {
 #ifdef OS_WIN
     // Protocol=PIPE;Mode=Active;Name=mypipe
 
-    base::string16 name =
-        base::SysNativeMBToWide(ts.GetParamStr(TransportString::kParamName));
+    const auto& name = base::SysNativeMBToWide(
+        AsStringPiece(ts.GetParamStr(TransportString::kParamName)));
     if (name.empty()) {
       LOG(WARNING) << "Pipe name is not specified";
-      return NULL;
+      return nullptr;
     }
 
     auto transport = std::make_unique<PipeTransport>(io_context_);
@@ -118,7 +143,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 #endif
 
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
