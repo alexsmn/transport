@@ -119,7 +119,7 @@ std::string_view TransportString::GetParamStr(std::string_view name) const {
   if (i != param_map_.end())
     return i->second;
 
-  return std::string();
+  return {};
 }
 
 int TransportString::GetParamInt(std::string_view name) const {

@@ -13,7 +13,7 @@ class NET_EXPORT PipeTransport final : public Transport {
   explicit PipeTransport(boost::asio::io_service& io_service);
   virtual ~PipeTransport();
 
-  void Init(const base::string16& name, bool server);
+  void Init(const std::wstring& name, bool server);
 
   // Transport overrides.
   virtual Error Open(Transport::Delegate& delegate) override;
@@ -30,7 +30,7 @@ class NET_EXPORT PipeTransport final : public Transport {
 
   Transport::Delegate* delegate_ = nullptr;
 
-  base::string16 name_;
+  std::wstring name_;
   bool server_;
   HANDLE handle_;
 

@@ -1,6 +1,4 @@
-if(NOT BOOST_FOUND)
-  find_package(Boost REQUIRED COMPONENTS system)
-endif()
+find_package(Boost REQUIRED)
 
 file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
   "*.cc"
@@ -57,4 +55,5 @@ endif()
 
 target_include_directories(net PUBLIC "..")
 
-target_link_libraries(net PUBLIC base Boost::boost Boost::system)
+# TODO: Remove base
+target_link_libraries(net PUBLIC base Boost::boost)

@@ -5,6 +5,7 @@
 #include "net/serial_transport.h"
 #include "net/tcp_transport.h"
 #include "net/transport_string.h"
+#include "net/udp_transport.h"
 
 #if defined(OS_WIN)
 #include "net/pipe_transport.h"
@@ -81,6 +82,22 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     }
 
     auto transport = std::make_unique<AsioTcpTransport>(io_context_);
+    transport->host = host;
+    transport->service = std::to_string(port);
+    transport->active = active;
+    return std::move(transport);
+
+  } else if (protocol == TransportString::UDP) {
+    // UDP;Passive;Host=0.0.0.0;Port=3000
+    auto host = ts.GetParamStr(TransportString::kParamHost);
+
+    int port = ts.GetParamInt(TransportString::kParamPort);
+    if (port <= 0) {
+      LOG(WARNING) << "TCP port is not specified";
+      return nullptr;
+    }
+
+    auto transport = std::make_unique<AsioUdpTransport>(io_context_);
     transport->host = host;
     transport->service = std::to_string(port);
     transport->active = active;

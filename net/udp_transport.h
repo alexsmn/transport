@@ -1,29 +1,29 @@
 #pragma once
 
-#include "net/base/net_export.h"
 #include "net/asio_transport.h"
+#include "net/base/net_export.h"
 
 namespace net {
 
-class NET_EXPORT AsioTcpTransport final : public AsioTransport {
+class NET_EXPORT AsioUdpTransport final : public AsioTransport {
  public:
-  explicit AsioTcpTransport(boost::asio::io_context& io_context);
-  AsioTcpTransport(boost::asio::io_context& io_context,
-                   boost::asio::ip::tcp::socket socket);
-  ~AsioTcpTransport();
+  explicit AsioUdpTransport(boost::asio::io_context& io_context);
+  ~AsioUdpTransport();
 
   // Transport overrides
   virtual Error Open(Transport::Delegate& delegate) override;
   virtual std::string GetName() const override;
   virtual bool IsActive() const override { return active; }
+  virtual bool IsMessageOriented() const override { return true; }
 
   std::string host;
   std::string service;
   bool active = false;
 
  private:
-  class ActiveCore;
-  class PassiveCore;
+  class UdpCore;
+  class UdpPassiveCore;
+  class AcceptedTransport;
 };
 
 }  // namespace net

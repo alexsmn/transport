@@ -1,6 +1,7 @@
 #include "net/pipe_transport.h"
 
 #include "base/strings/stringprintf.h"
+#include "base/strings/sys_string_conversions.h"
 #include "net/base/net_errors.h"
 
 #include <cassert>
@@ -21,7 +22,7 @@ PipeTransport::~PipeTransport() {
     CloseHandle(handle_);
 }
 
-void PipeTransport::Init(const base::string16& name, bool server) {
+void PipeTransport::Init(const std::wstring& name, bool server) {
   name_ = name;
   server_ = server;
 }
@@ -97,7 +98,7 @@ void PipeTransport::OnTimer() {
 }
 
 std::string PipeTransport::GetName() const {
-  return base::StringPrintf("PIPE %s", name_.c_str());
+  return base::StringPrintf("PIPE %s", base::SysWideToNativeMB(name_).c_str());
 }
 
 } // namespace net
