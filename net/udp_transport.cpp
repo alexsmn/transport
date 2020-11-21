@@ -1,6 +1,6 @@
 #include "udp_transport.h"
 
-#include <queue>
+#include "udp_socket.h"
 
 namespace net {
 
@@ -22,199 +22,76 @@ class AsioUdpTransport::UdpCore : public Core,
   virtual int Write(const void* data, size_t len) override;
 
  private:
-  using Socket = boost::asio::ip::udp::socket;
-  using Resolver = boost::asio::ip::udp::resolver;
-  using Endpoint = Socket::endpoint_type;
-  using Datagram = std::vector<char>;
+  UdpSocketContext MakeUdpSocketContext(boost::asio::io_context& io_context,
+                                        const std::string& host,
+                                        const std::string& service,
+                                        bool active);
 
-  void StartReading();
-  void StartWriting();
+  const std::shared_ptr<UdpSocket> socket_;
 
-  void ProcessError(const boost::system::error_code& ec);
-
-  boost::asio::io_context& io_context_;
-
-  const std::string host_;
-  const std::string service_;
-  const bool active_;
   Delegate* delegate_ = nullptr;
 
-  Resolver resolver_{io_context_};
-  Endpoint peer_endpoint_;
-  Socket socket_{io_context_};
-
   bool connected_ = false;
-  bool closed_ = false;
-
-  Datagram read_buffer_;
-  bool reading_ = false;
-
-  std::queue<Datagram> write_queue_;
-  Datagram write_buffer_;
-  bool writing_ = false;
+  UdpSocketContext::Endpoint peer_endpoint_;
 };
 
 AsioUdpTransport::UdpCore::UdpCore(boost::asio::io_context& io_context,
                                    const std::string& host,
                                    const std::string& service,
                                    bool active)
-    : io_context_{io_context},
-      host_{host},
-      service_{service},
-      active_{active},
-      read_buffer_(1024 * 1024) {}
+    : socket_{std::make_shared<UdpSocket>(
+          MakeUdpSocketContext(io_context, host, service, active))} {}
 
 void AsioUdpTransport::UdpCore::Open(Delegate& delegate) {
   delegate_ = &delegate;
 
-  Resolver::query query{host_, service_};
-  resolver_.async_resolve(query, [this, ref = shared_from_this()](
-                                     const boost::system::error_code& error,
-                                     Resolver::iterator iterator) {
-    if (closed_)
-      return;
-
-    if (error) {
-      if (error != boost::asio::error::operation_aborted)
-        ProcessError(error);
-      return;
-    }
-
-    boost::system::error_code ec = boost::asio::error::fault;
-    for (Resolver::iterator end; iterator != end; ++iterator) {
-      socket_.open(iterator->endpoint().protocol(), ec);
-      if (ec)
-        continue;
-
-      if (active_) {
-        peer_endpoint_ = iterator->endpoint();
-        break;
-      }
-
-      socket_.set_option(Socket::reuse_address{true}, ec);
-      socket_.bind(iterator->endpoint(), ec);
-      if (!ec)
-        break;
-
-      socket_.close();
-    }
-
-    if (ec) {
-      ProcessError(ec);
-      return;
-    }
-
-    connected_ = true;
-    delegate_->OnTransportOpened();
-  });
+  socket_->Open();
 }
 
 void AsioUdpTransport::UdpCore::Close() {
-  if (closed_)
-    return;
-
-  closed_ = true;
   connected_ = false;
-  writing_ = false;
-  write_queue_ = {};
-  socket_.close();
+  socket_->Close();
 }
 
 int AsioUdpTransport::UdpCore::Read(void* data, size_t len) {
   assert(false);
+
   return net::ERR_FAILED;
 }
 
 int AsioUdpTransport::UdpCore::Write(const void* data, size_t len) {
   std::vector<char> datagram(len);
   memcpy(datagram.data(), data, len);
-  write_queue_.emplace(std::move(datagram));
 
-  StartWriting();
+  socket_->SendTo(peer_endpoint_, std::move(datagram));
 
   return static_cast<int>(len);
 }
 
-void AsioUdpTransport::UdpCore::StartReading() {
-  if (closed_)
-    return;
-
-  if (reading_)
-    return;
-
-  reading_ = true;
-
-  socket_.async_receive(
-      boost::asio::buffer(read_buffer_),
-      [this, ref = shared_from_this()](const boost::system::error_code& error,
-                                       std::size_t bytes_transferred) {
-        reading_ = false;
-
-        if (closed_)
-          return;
-
-        if (error) {
-          ProcessError(error);
-          return;
-        }
-
-        std::vector<char> datagram(read_buffer_.begin(),
-                                   read_buffer_.begin() + bytes_transferred);
+UdpSocketContext AsioUdpTransport::UdpCore::MakeUdpSocketContext(
+    boost::asio::io_context& io_context,
+    const std::string& host,
+    const std::string& service,
+    bool active) {
+  return {
+      io_context,
+      host,
+      service,
+      active,
+      [this](const UdpSocketContext::Endpoint& endpoint) {
+        peer_endpoint_ = endpoint;
+        connected_ = true;
+        delegate_->OnTransportOpened();
+      },
+      [this](const UdpSocketContext::Endpoint& endpoint,
+             const UdpSocketContext::Datagram&& datagram) {
         delegate_->OnTransportMessageReceived(datagram.data(), datagram.size());
-
-        StartReading();
-      });
-}
-
-void AsioUdpTransport::UdpCore::StartWriting() {
-  if (closed_)
-    return;
-
-  if (write_queue_.empty())
-    return;
-
-  if (writing_)
-    return;
-
-  writing_ = true;
-
-  write_buffer_ = std::move(write_queue_.front());
-  write_queue_.pop();
-
-  auto callback = [this, ref = shared_from_this()](
-                      const boost::system::error_code& error,
-                      std::size_t bytes_transferred) {
-    if (closed_)
-      return;
-
-    writing_ = false;
-    write_buffer_.clear();
-    write_buffer_.shrink_to_fit();
-
-    if (error) {
-      ProcessError(error);
-      return;
-    }
-
-    StartReading();
-    StartWriting();
+      },
+      [this](const UdpSocketContext::Error& error) {
+        connected_ = false;
+        delegate_->OnTransportClosed(net::MapSystemError(error.value()));
+      },
   };
-
-  if (active_) {
-    socket_.async_send_to(boost::asio::buffer(write_buffer_), peer_endpoint_,
-                          std::move(callback));
-  } else {
-    socket_.async_send(boost::asio::buffer(write_buffer_), std::move(callback));
-  }
-}
-
-void AsioUdpTransport::UdpCore::ProcessError(
-    const boost::system::error_code& ec) {
-  connected_ = false;
-  closed_ = true;
-  writing_ = false;
-  write_queue_ = {};
-  delegate_->OnTransportClosed(net::MapSystemError(ec.value()));
 }
 
 // AsioUdpTransport::AcceptedTransport
@@ -273,41 +150,24 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual int Write(const void* data, size_t len) override;
 
  private:
-  using Socket = boost::asio::ip::udp::socket;
-  using Resolver = boost::asio::ip::udp::resolver;
-  using Endpoint = Socket::endpoint_type;
-  using Datagram = std::vector<char>;
+  UdpSocketContext MakeUdpSocketContext(boost::asio::io_context& io_context,
+                                        const std::string& host,
+                                        const std::string& service);
 
-  void InternalWrite(const Endpoint& endpoint, Datagram&& datagram);
-  void RemoveAcceptedTransport(const Endpoint& endpoint);
+  void InternalWrite(const UdpSocket::Endpoint& endpoint,
+                     UdpSocket::Datagram&& datagram);
+  void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
   void CloseAllAcceptedTransports(Error error);
+  void ProcessDatagram(const UdpSocket::Endpoint& endpoint,
+                       UdpSocket::Datagram&& datagram);
 
-  void StartReading();
-  void StartWriting();
+  const std::shared_ptr<UdpSocket> socket_;
 
-  void ProcessDatagram(const Endpoint& endpoint, Datagram&& datagram);
-  void ProcessError(const boost::system::error_code& ec);
-
-  boost::asio::io_context& io_context_;
-
-  const std::string host_;
-  const std::string service_;
   Delegate* delegate_ = nullptr;
 
-  Resolver resolver_{io_context_};
-  Socket socket_{io_context_};
-
   bool connected_ = false;
-  bool closed_ = false;
-  bool writing_ = false;
 
-  Endpoint read_endpoint_;
-  std::vector<char> read_buffer_;
-
-  std::queue<std::pair<Endpoint, std::vector<char>>> write_queue_;
-  Datagram write_buffer_;
-
-  std::map<Endpoint, AcceptedTransport*> accepted_transports_;
+  std::map<UdpSocket::Endpoint, AcceptedTransport*> accepted_transports_;
 
   friend class AcceptedTransport;
 };
@@ -316,10 +176,8 @@ AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
     boost::asio::io_context& io_context,
     const std::string& host,
     const std::string& service)
-    : io_context_{io_context},
-      host_{host},
-      service_{service},
-      read_buffer_(1024 * 1024) {}
+    : socket_{std::make_shared<UdpSocket>(
+          MakeUdpSocketContext(io_context, host, service))} {}
 
 AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
@@ -328,144 +186,45 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
 void AsioUdpTransport::UdpPassiveCore::Open(Delegate& delegate) {
   delegate_ = &delegate;
 
-  Resolver::query query{host_, service_};
-  resolver_.async_resolve(query, [this, ref = shared_from_this()](
-                                     const boost::system::error_code& error,
-                                     Resolver::iterator iterator) {
-    if (closed_)
-      return;
-
-    if (error) {
-      if (error != boost::asio::error::operation_aborted)
-        ProcessError(error);
-      return;
-    }
-
-    boost::system::error_code ec = boost::asio::error::fault;
-    for (Resolver::iterator end; iterator != end; ++iterator) {
-      socket_.open(iterator->endpoint().protocol(), ec);
-      if (ec)
-        continue;
-
-      socket_.set_option(Socket::reuse_address{true}, ec);
-      socket_.bind(iterator->endpoint(), ec);
-      if (!ec)
-        break;
-
-      socket_.close();
-    }
-
-    if (ec) {
-      ProcessError(ec);
-      return;
-    }
-
-    connected_ = true;
-    delegate_->OnTransportOpened();
-
-    StartReading();
-  });
+  socket_->Open();
 }
 
 void AsioUdpTransport::UdpPassiveCore::Close() {
-  if (closed_)
-    return;
-
-  closed_ = true;
   connected_ = false;
-  writing_ = false;
-  write_queue_ = {};
-  socket_.close();
+
+  socket_->Close();
 
   CloseAllAcceptedTransports(OK);
 }
 
 int AsioUdpTransport::UdpPassiveCore::Read(void* data, size_t len) {
+  assert(false);
+
   return ERR_FAILED;
 }
 
 int AsioUdpTransport::UdpPassiveCore::Write(const void* data, size_t len) {
+  assert(false);
+
   return ERR_FAILED;
 }
 
-void AsioUdpTransport::UdpPassiveCore::InternalWrite(const Endpoint& endpoint,
-                                                     Datagram&& datagram) {
-  write_queue_.emplace(endpoint, std::move(datagram));
-
-  StartWriting();
+void AsioUdpTransport::UdpPassiveCore::InternalWrite(
+    const UdpSocket::Endpoint& endpoint,
+    UdpSocket::Datagram&& datagram) {
+  socket_->SendTo(endpoint, std::move(datagram));
 }
 
 void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
-    const Endpoint& endpoint) {
+    const UdpSocket::Endpoint& endpoint) {
   assert(accepted_transports_.find(endpoint) != accepted_transports_.end());
 
   accepted_transports_.erase(endpoint);
 }
 
-void AsioUdpTransport::UdpPassiveCore::StartReading() {
-  if (closed_)
-    return;
-
-  socket_.async_receive_from(
-      boost::asio::buffer(read_buffer_), read_endpoint_,
-      [this, ref = shared_from_this()](const boost::system::error_code& error,
-                                       std::size_t bytes_transferred) {
-        if (closed_)
-          return;
-
-        if (error) {
-          ProcessError(error);
-          return;
-        }
-
-        std::vector<char> datagram(read_buffer_.begin(),
-                                   read_buffer_.begin() + bytes_transferred);
-        ProcessDatagram(read_endpoint_, std::move(datagram));
-
-        StartReading();
-      });
-}
-
-void AsioUdpTransport::UdpPassiveCore::StartWriting() {
-  if (closed_)
-    return;
-
-  if (write_queue_.empty())
-    return;
-
-  if (writing_)
-    return;
-
-  writing_ = true;
-
-  auto [endpoint, datagram] = std::move(write_queue_.front());
-  write_queue_.pop();
-
-  write_buffer_ = std::move(datagram);
-
-  socket_.async_send_to(
-      boost::asio::buffer(write_buffer_), endpoint,
-      [this, ref = shared_from_this(), datagram = std::move(datagram)](
-          const boost::system::error_code& error,
-          std::size_t bytes_transferred) {
-        if (closed_)
-          return;
-
-        writing_ = false;
-        write_buffer_.clear();
-        write_buffer_.shrink_to_fit();
-
-        if (error) {
-          ProcessError(error);
-          return;
-        }
-
-        StartWriting();
-      });
-}
-
-void AsioUdpTransport::UdpPassiveCore::ProcessDatagram(const Endpoint& endpoint,
-                                                       Datagram&& datagram) {
+void AsioUdpTransport::UdpPassiveCore::ProcessDatagram(
+    const UdpSocket::Endpoint& endpoint,
+    UdpSocket::Datagram&& datagram) {
   {
     auto i = accepted_transports_.find(endpoint);
     if (i != accepted_transports_.end()) {
@@ -487,20 +246,6 @@ void AsioUdpTransport::UdpPassiveCore::ProcessDatagram(const Endpoint& endpoint,
   }
 }
 
-void AsioUdpTransport::UdpPassiveCore::ProcessError(
-    const boost::system::error_code& ec) {
-  connected_ = false;
-  closed_ = true;
-  writing_ = false;
-  write_queue_ = {};
-
-  auto error = net::MapSystemError(ec.value());
-
-  CloseAllAcceptedTransports(error);
-
-  delegate_->OnTransportClosed(error);
-}
-
 void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
   std::vector<AcceptedTransport*> accepted_transports;
   accepted_transports.reserve(accepted_transports_.size());
@@ -509,6 +254,32 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
                  [](auto& p) { return p.second; });
   for (auto* accepted_transport : accepted_transports)
     accepted_transport->ProcessError(error);
+}
+
+UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketContext(
+    boost::asio::io_context& io_context,
+    const std::string& host,
+    const std::string& service) {
+  return {
+      io_context,
+      host,
+      service,
+      false,
+      [this](const UdpSocketContext::Endpoint& endpoint) {
+        connected_ = true;
+        delegate_->OnTransportOpened();
+      },
+      [this](const UdpSocketContext::Endpoint& endpoint,
+             UdpSocketContext::Datagram&& datagram) {
+        ProcessDatagram(endpoint, std::move(datagram));
+      },
+      [this](const UdpSocketContext::Error& error) {
+        auto net_error = net::MapSystemError(error.value());
+        connected_ = false;
+        CloseAllAcceptedTransports(net_error);
+        delegate_->OnTransportClosed(net_error);
+      },
+  };
 }
 
 // AsioUdpTransport
@@ -522,12 +293,13 @@ AsioUdpTransport::~AsioUdpTransport() {
 }
 
 Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
-  if (!core_) {
-    if (active)
-      core_ = std::make_shared<UdpCore>(io_context_, host, service, active);
-    else
-      core_ = std::make_shared<UdpPassiveCore>(io_context_, host, service);
-  }
+  if (core_)
+    core_->Close();
+
+  if (active)
+    core_ = std::make_shared<UdpCore>(io_context_, host, service, active);
+  else
+    core_ = std::make_shared<UdpPassiveCore>(io_context_, host, service);
 
   core_->Open(delegate);
   return net::OK;
@@ -570,17 +342,7 @@ void AsioUdpTransport::AcceptedTransport::Close() {
 }
 
 int AsioUdpTransport::AcceptedTransport::Read(void* data, size_t len) {
-  /*if (read_queue_.empty())
-    return 0;
-
-  auto& datagram = read_queue_.front();
-  if (datagram.size() > len)
-    return net::ERR_SOCKET_RECEIVE_BUFFER_SIZE_UNCHANGEABLE;
-
-  memcpy(data, datagram.data(), len);
-  read_queue_.pop();
-
-  return static_cast<int>(len);*/
+  assert(false);
 
   return ERR_FAILED;
 }
