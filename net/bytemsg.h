@@ -8,6 +8,8 @@ namespace net {
 
 class ByteMessage {
  public:
+  ByteMessage() = default;
+
   ByteMessage(void* data, size_t capacity, size_t size = 0)
       : data(reinterpret_cast<uint8_t*>(data)),
         capacity(capacity),
@@ -85,10 +87,10 @@ class ByteMessage {
     this->pos = pos;
   }
 
-  size_t capacity;
-  size_t size;
-  size_t pos;
-  uint8_t* data;
+  size_t capacity = 0;
+  size_t size = 0;
+  size_t pos = 0;
+  uint8_t* data = nullptr;
 };
 
 } // namespace net

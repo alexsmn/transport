@@ -31,8 +31,8 @@ class NET_EXPORT PipeTransport final : public Transport {
   Transport::Delegate* delegate_ = nullptr;
 
   std::wstring name_;
-  bool server_;
-  HANDLE handle_;
+  bool server_ = false;
+  HANDLE handle_ = INVALID_HANDLE_VALUE;
 
   Timer timer_;
   bool connected_ = false;

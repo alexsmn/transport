@@ -2,8 +2,48 @@
 
 #include "net/base/net_errors.h"
 #include "net/message_reader.h"
+#include "net/span.h"
 
 namespace net {
+
+namespace {
+
+int ReadMessage(span<const char>& buffer,
+                MessageReader& message_reader,
+                ByteMessage& message) {
+  for (;;) {
+    size_t bytes_to_read = 0;
+    bool ok = message_reader.GetBytesToRead(bytes_to_read);
+    if (!ok) {
+      if (message_reader.has_error_correction()) {
+        message_reader.SkipFirstByte();
+        continue;
+      } else {
+        message_reader.Reset();
+        return ERR_FAILED;
+      }
+    }
+
+    if (bytes_to_read == 0)
+      break;
+
+    memcpy(message_reader.ptr(), buffer.data(), bytes_to_read);
+    message_reader.BytesRead(bytes_to_read);
+    buffer = buffer.subspan(bytes_to_read);
+  }
+
+  if (!message_reader.complete())
+    return 0;
+
+  // Message is complete.
+  message = message_reader.message();
+
+  // Clear buffer.
+  message_reader.Reset();
+  return static_cast<int>(message.size);
+}
+
+}  // namespace
 
 MessageTransport::MessageTransport(
     std::unique_ptr<Transport> child_transport,
@@ -15,7 +55,6 @@ MessageTransport::MessageTransport(
   assert(child_transport_);
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
-  assert(!child_transport_->IsMessageOriented());
 }
 
 MessageTransport::~MessageTransport() {
@@ -146,6 +185,26 @@ void MessageTransport::OnTransportDataReceived() {
     if (delegate_)
       delegate_->OnTransportMessageReceived(read_buffer_.data(),
                                             static_cast<size_t>(res));
+  }
+}
+
+void MessageTransport::OnTransportMessageReceived(const void* data,
+                                                  size_t size) {
+  assert(child_transport_->IsMessageOriented());
+
+  span<const char> buffer{static_cast<const char*>(data), size};
+
+  std::weak_ptr<bool> cancelation = cancelation_;
+  ByteMessage message;
+  while (!cancelation.expired() && !buffer.empty()) {
+    int res = ReadMessage(buffer, *message_reader_, message);
+    if (res > 0) {
+      delegate_->OnTransportMessageReceived(message.data, message.size);
+    } else if (res < 0) {
+      child_transport_->Close();
+      delegate_->OnTransportClosed(static_cast<Error>(res));
+      return;
+    }
   }
 }
 

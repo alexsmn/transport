@@ -178,7 +178,6 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
   writing_ = true;
   writing_buffer_.swap(write_buffer_);
 
-  boost::system::error_code ec;
   boost::asio::async_write(
       io_object_, boost::asio::buffer(writing_buffer_),
       [this, ref = shared_from_this()](const boost::system::error_code& ec,

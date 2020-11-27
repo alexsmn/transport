@@ -31,21 +31,6 @@ inline bool MessageIdLess(uint16_t left, uint16_t right) {
 
 Session::Session(boost::asio::io_service& io_service)
     : io_service_{io_service},
-      send_id_(0),
-      recv_id_(0),
-      num_recv_(0),
-      long_send_seq_(0),
-      state_(CLOSED),
-      repeat_sending_messages_(false),
-      accepted_(false),
-      connecting_(false),
-      parent_session_(NULL),
-      reconnection_period_(1000),
-      num_bytes_received_(0),
-      num_bytes_sent_(0),
-      num_messages_received_(0),
-      num_messages_sent_(0),
-      session_transport_observer_(NULL),
       logger_(NullLogger::GetInstance()),
       timer_{io_service} {
   timer_.StartRepeating(50ms, [this] { OnTimer(); });

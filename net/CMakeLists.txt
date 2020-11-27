@@ -6,7 +6,7 @@ file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
   "*.h"
 )
 
-file(GLOB_RECURSE net_unittests RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+file(GLOB_RECURSE SOURCES_UT RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
   "*_unittest*"
 )
 
@@ -36,7 +36,7 @@ file(GLOB_RECURSE sources_lin RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 list(REMOVE_ITEM sources
   ${sources_win}
   ${sources_lin}
-  ${net_unittests}
+  ${SOURCES_UT}
 )
 
 if(WIN32)
@@ -57,3 +57,9 @@ target_include_directories(net PUBLIC "..")
 
 # TODO: Remove base
 target_link_libraries(net PUBLIC base Boost::boost)
+
+# UTs
+
+add_executable(net_unittests ${SOURCES_UT})
+target_link_libraries(net_unittests PUBLIC net gmock_main)
+gtest_discover_tests(net_unittests)

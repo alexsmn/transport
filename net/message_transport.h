@@ -43,6 +43,8 @@ class NET_EXPORT MessageTransport : public Transport,
       std::unique_ptr<Transport> transport) override;
   virtual void OnTransportClosed(Error error) override;
   virtual void OnTransportDataReceived() override;
+  virtual void OnTransportMessageReceived(const void* data,
+                                          size_t size) override;
 
   std::unique_ptr<Transport> child_transport_;
 

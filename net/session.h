@@ -158,33 +158,35 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
 
   boost::asio::io_service& io_service_;
 
+  std::shared_ptr<const Logger> logger_;
+
   Transport::Delegate* delegate_ = nullptr;
 
   SessionID id_;
-  Session* parent_session_;
+  Session* parent_session_ = nullptr;
   CreateSessionInfo create_info_;
   SessionInfo session_info_;
   // Login is completed. If |parent_session_| is not NULL, this session is
   // contained inside |parent_session_->accepted_sessions_|.
   enum State { CLOSED, OPENING, OPENED };
-  State state_;
+  State state_ = CLOSED;
 
   // |transport_| exists during whole Session life-time from the moment of
   // |Open()|. It's not reset when underlaying transport disconnects.
   std::unique_ptr<Transport> transport_;
 
   // Id of next message to send.
-  uint16_t send_id_;
+  uint16_t send_id_ = 0;
   // Expected id of next received message.
-  uint16_t recv_id_;
+  uint16_t recv_id_ = 0;
   // Sequence id for long messages sending.
-  uint32_t long_send_seq_;
+  uint32_t long_send_seq_ = 0;
 
   // Time of first message of last unacked portion was received.
   base::TimeTicks receive_time_;
   base::TimeTicks connect_start_ticks_;
 
-  size_t num_recv_;
+  size_t num_recv_ = 0;
 
   // Messages waiting to be sent.
   MessageQueue send_queues_[2];
@@ -194,14 +196,14 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
 
   // Reconnection occured. All |sending_messages_| shall be resent on next
   // SendQueuedMessage().
-  bool repeat_sending_messages_;
+  bool repeat_sending_messages_ = false;
 
   std::vector<char> sequence_message_;
 
-  bool accepted_;
-  unsigned reconnection_period_;
+  bool accepted_ = false;
+  unsigned reconnection_period_ = 1000;
 
-  bool connecting_;
+  bool connecting_ = false;
 
   SessionMap accepted_sessions_;
 
@@ -210,15 +212,13 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
 
   Timer timer_;
 
-  SessionTransportObserver* session_transport_observer_;
+  SessionTransportObserver* session_transport_observer_ = nullptr;
 
   // Statistics.
-  size_t num_bytes_received_;
-  size_t num_bytes_sent_;
-  size_t num_messages_received_;
-  size_t num_messages_sent_;
-
-  std::shared_ptr<const Logger> logger_;
+  size_t num_bytes_received_ = 0;
+  size_t num_bytes_sent_ = 0;
+  size_t num_messages_received_ = 0;
+  size_t num_messages_sent_ = 0;
 
   std::shared_ptr<bool> cancelation_;
 };
