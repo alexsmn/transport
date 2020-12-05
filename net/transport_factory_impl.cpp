@@ -5,6 +5,7 @@
 #include "net/serial_transport.h"
 #include "net/tcp_transport.h"
 #include "net/transport_string.h"
+#include "net/udp_socket_impl.h"
 #include "net/udp_transport.h"
 
 #if defined(OS_WIN)
@@ -60,7 +61,12 @@ boost::asio::serial_port::flow_control::type ParseFlowControl(
 }  // namespace
 
 TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
-    : io_context_{io_context} {}
+    : io_context_{io_context} {
+  udp_socket_factory_ =
+      [](UdpSocketContext&& context) -> std::shared_ptr<UdpSocket> {
+    return std::make_shared<UdpSocketImpl>(std::move(context));
+  };
+}
 
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const TransportString& ts,
@@ -97,7 +103,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    auto transport = std::make_unique<AsioUdpTransport>(io_context_);
+    auto transport =
+        std::make_unique<AsioUdpTransport>(io_context_, udp_socket_factory_);
     transport->host = host;
     transport->service = std::to_string(port);
     transport->active = active;

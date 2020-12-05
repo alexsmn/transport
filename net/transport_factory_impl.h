@@ -2,6 +2,7 @@
 
 #include "net/base/net_export.h"
 #include "net/transport_factory.h"
+#include "net/udp_socket_factory.h"
 
 namespace boost::asio {
 class io_context;
@@ -20,6 +21,7 @@ class NET_EXPORT TransportFactoryImpl : public TransportFactory {
 
  private:
   boost::asio::io_context& io_context_;
+  UdpSocketFactory udp_socket_factory_;
 };
 
 }  // namespace net

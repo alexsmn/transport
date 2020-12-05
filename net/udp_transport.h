@@ -1,14 +1,14 @@
 #pragma once
 
 #include "net/asio_transport.h"
-#include "net/base/net_export.h"
+#include "net/udp_socket_factory.h"
 
 namespace net {
 
-class NET_EXPORT AsioUdpTransport final : public AsioTransport {
+class AsioUdpTransport final : public AsioTransport {
  public:
-  explicit AsioUdpTransport(boost::asio::io_context& io_context);
-  ~AsioUdpTransport();
+  explicit AsioUdpTransport(boost::asio::io_context& io_context,
+                            UdpSocketFactory udp_socket_factory);
 
   // Transport overrides
   virtual Error Open(Transport::Delegate& delegate) override;
@@ -21,6 +21,8 @@ class NET_EXPORT AsioUdpTransport final : public AsioTransport {
   bool active = false;
 
  private:
+  const UdpSocketFactory udp_socket_factory_;
+
   class UdpCore;
   class UdpPassiveCore;
   class AcceptedTransport;
