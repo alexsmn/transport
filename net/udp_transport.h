@@ -22,7 +22,7 @@ class AsioUdpTransport final : public AsioTransport {
  private:
   const UdpSocketFactory udp_socket_factory_;
 
-  class UdpCore;
+  class UdpActiveCore;
   class UdpPassiveCore;
   class AcceptedTransport;
 };
