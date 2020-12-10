@@ -43,8 +43,8 @@ class UdpSocketImpl : private UdpSocketContext,
   bool writing_ = false;
 };
 
-UdpSocketImpl::UdpSocketImpl(boost::asio::io_context& io_context,
-                             UdpSocketContext&& context)
+inline UdpSocketImpl::UdpSocketImpl(boost::asio::io_context& io_context,
+                                    UdpSocketContext&& context)
     : UdpSocketContext{std::move(context)},
       io_context_{io_context},
       read_buffer_(1024 * 1024) {}
