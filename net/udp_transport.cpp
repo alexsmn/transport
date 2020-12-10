@@ -24,6 +24,11 @@ class AsioUdpTransport::UdpActiveCore
  private:
   UdpSocketContext MakeUdpSocketImplContext();
 
+  void OnSocketOpened(const UdpSocket::Endpoint& endpoint);
+  void OnSocketMessage(const UdpSocket::Endpoint& endpoint,
+                       UdpSocket::Datagram&& datagram);
+  void OnSocketClosed(const UdpSocket::Error& error);
+
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
   const std::string service_;
@@ -71,33 +76,42 @@ int AsioUdpTransport::UdpActiveCore::Write(const void* data, size_t len) {
   return static_cast<int>(len);
 }
 
+void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
+    const UdpSocket::Endpoint& endpoint) {
+  peer_endpoint_ = endpoint;
+  connected_ = true;
+  delegate_->OnTransportOpened();
+}
+
+void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
+    const UdpSocket::Endpoint& endpoint,
+    UdpSocket::Datagram&& datagram) {
+  delegate_->OnTransportMessageReceived(datagram.data(), datagram.size());
+}
+
+void AsioUdpTransport::UdpActiveCore::OnSocketClosed(
+    const UdpSocket::Error& error) {
+  connected_ = false;
+  delegate_->OnTransportClosed(net::MapSystemError(error.value()));
+}
+
 UdpSocketContext AsioUdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
   return {
       host_,
       service_,
       true,
-      [this, weak_ptr = weak_from_this()](const UdpSocket::Endpoint& endpoint) {
-        auto ref = weak_ptr.lock();
-        if (!ref)
-          return;
-        peer_endpoint_ = endpoint;
-        connected_ = true;
-        delegate_->OnTransportOpened();
+      [weak_ptr = weak_from_this()](const UdpSocket::Endpoint& endpoint) {
+        if (auto ref = weak_ptr.lock())
+          ref->OnSocketOpened(endpoint);
       },
-      [this, weak_ptr = weak_from_this()](
-          const UdpSocket::Endpoint& endpoint,
-          const UdpSocket::Datagram&& datagram) {
-        auto ref = weak_ptr.lock();
-        if (!ref)
-          return;
-        delegate_->OnTransportMessageReceived(datagram.data(), datagram.size());
+      [weak_ptr = weak_from_this()](const UdpSocket::Endpoint& endpoint,
+                                    UdpSocket::Datagram&& datagram) {
+        if (auto ref = weak_ptr.lock())
+          ref->OnSocketMessage(endpoint, std::move(datagram));
       },
-      [this, weak_ptr = weak_from_this()](const UdpSocket::Error& error) {
-        auto ref = weak_ptr.lock();
-        if (!ref)
-          return;
-        connected_ = false;
-        delegate_->OnTransportClosed(net::MapSystemError(error.value()));
+      [weak_ptr = weak_from_this()](const UdpSocket::Error& error) {
+        if (auto ref = weak_ptr.lock())
+          ref->OnSocketClosed(error);
       },
   };
 }
@@ -160,12 +174,15 @@ class AsioUdpTransport::UdpPassiveCore final
  private:
   UdpSocketContext MakeUdpSocketImplContext();
 
+  void OnSocketOpened(const UdpSocket::Endpoint& endpoint);
+  void OnSocketMessage(const UdpSocket::Endpoint& endpoint,
+                       UdpSocket::Datagram&& datagram);
+  void OnSocketClosed(const UdpSocket::Error& error);
+
   void InternalWrite(const UdpSocket::Endpoint& endpoint,
                      UdpSocket::Datagram&& datagram);
   void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
   void CloseAllAcceptedTransports(Error error);
-  void ProcessDatagram(const UdpSocket::Endpoint& endpoint,
-                       UdpSocket::Datagram&& datagram);
 
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
@@ -234,7 +251,7 @@ void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
   accepted_transports_.erase(endpoint);
 }
 
-void AsioUdpTransport::UdpPassiveCore::ProcessDatagram(
+void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
   {
@@ -268,33 +285,37 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
     accepted_transport->ProcessError(error);
 }
 
+void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
+    const UdpSocket::Endpoint& endpoint) {
+  connected_ = true;
+  delegate_->OnTransportOpened();
+}
+
+void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
+    const UdpSocket::Error& error) {
+  auto net_error = net::MapSystemError(error.value());
+  connected_ = false;
+  CloseAllAcceptedTransports(net_error);
+  delegate_->OnTransportClosed(net_error);
+}
+
 UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
   return {
       host_,
       service_,
       false,
-      [this, weak_ptr = weak_from_this()](const UdpSocket::Endpoint& endpoint) {
-        auto ref = weak_ptr.lock();
-        if (!ref)
-          return;
-        connected_ = true;
-        delegate_->OnTransportOpened();
+      [weak_ptr = weak_from_this()](const UdpSocket::Endpoint& endpoint) {
+        if (auto ref = weak_ptr.lock())
+          ref->OnSocketOpened(endpoint);
       },
-      [this, weak_ptr = weak_from_this()](const UdpSocket::Endpoint& endpoint,
-                                          UdpSocket::Datagram&& datagram) {
-        auto ref = weak_ptr.lock();
-        if (!ref)
-          return;
-        ProcessDatagram(endpoint, std::move(datagram));
+      [weak_ptr = weak_from_this()](const UdpSocket::Endpoint& endpoint,
+                                    UdpSocket::Datagram&& datagram) {
+        if (auto ref = weak_ptr.lock())
+          ref->OnSocketMessage(endpoint, std::move(datagram));
       },
-      [this, weak_ptr = weak_from_this()](const UdpSocket::Error& error) {
-        auto ref = weak_ptr.lock();
-        if (!ref)
-          return;
-        auto net_error = net::MapSystemError(error.value());
-        connected_ = false;
-        CloseAllAcceptedTransports(net_error);
-        delegate_->OnTransportClosed(net_error);
+      [weak_ptr = weak_from_this()](const UdpSocket::Error& error) {
+        if (auto ref = weak_ptr.lock())
+          ref->OnSocketClosed(error);
       },
   };
 }
