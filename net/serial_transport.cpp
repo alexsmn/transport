@@ -87,9 +87,7 @@ void SerialTransport::SerialPortCore::Cleanup() {
 SerialTransport::SerialTransport(boost::asio::io_context& io_context,
                                  std::string device,
                                  const Options& options)
-    : AsioTransport{io_context},
-      device_{std::move(device)},
-      options_{options} {}
+    : io_context_{io_context}, device_{std::move(device)}, options_{options} {}
 
 net::Error SerialTransport::Open(Transport::Delegate& delegate) {
   core_ = std::make_shared<SerialPortCore>(io_context_, device_, options_);

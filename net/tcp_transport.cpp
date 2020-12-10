@@ -231,11 +231,11 @@ void AsioTcpTransport::PassiveCore::ProcessError(
 // AsioTcpTransport
 
 AsioTcpTransport::AsioTcpTransport(boost::asio::io_context& io_context)
-    : AsioTransport{io_context} {}
+    : io_context_{io_context} {}
 
 AsioTcpTransport::AsioTcpTransport(boost::asio::io_context& io_context,
                                    boost::asio::ip::tcp::socket socket)
-    : AsioTransport{io_context} {
+    : io_context_{io_context} {
   core_ = std::make_shared<ActiveCore>(io_context_, std::move(socket));
 }
 

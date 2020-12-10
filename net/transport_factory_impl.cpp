@@ -63,8 +63,8 @@ boost::asio::serial_port::flow_control::type ParseFlowControl(
 TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
     : io_context_{io_context} {
   udp_socket_factory_ =
-      [](UdpSocketContext&& context) -> std::shared_ptr<UdpSocket> {
-    return std::make_shared<UdpSocketImpl>(std::move(context));
+      [&io_context](UdpSocketContext&& context) -> std::shared_ptr<UdpSocket> {
+    return std::make_shared<UdpSocketImpl>(io_context, std::move(context));
   };
 }
 
@@ -103,8 +103,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    auto transport =
-        std::make_unique<AsioUdpTransport>(io_context_, udp_socket_factory_);
+    auto transport = std::make_unique<AsioUdpTransport>(udp_socket_factory_);
     transport->host = host;
     transport->service = std::to_string(port);
     transport->active = active;

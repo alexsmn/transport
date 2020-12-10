@@ -11,7 +11,8 @@ class UdpSocketImpl : private UdpSocketContext,
                       public UdpSocket,
                       public std::enable_shared_from_this<UdpSocketImpl> {
  public:
-  explicit UdpSocketImpl(UdpSocketContext&& context);
+  UdpSocketImpl(boost::asio::io_context& io_context,
+                UdpSocketContext&& context);
 
   // UdpSocket
   virtual void Open() override;
@@ -23,6 +24,8 @@ class UdpSocketImpl : private UdpSocketContext,
   void StartWriting();
 
   void ProcessError(const boost::system::error_code& ec);
+
+  boost::asio::io_context& io_context_;
 
   Resolver resolver_{io_context_};
   Socket socket_{io_context_};
@@ -40,8 +43,11 @@ class UdpSocketImpl : private UdpSocketContext,
   bool writing_ = false;
 };
 
-inline UdpSocketImpl::UdpSocketImpl(UdpSocketContext&& context)
-    : UdpSocketContext{std::move(context)}, read_buffer_(1024 * 1024) {}
+UdpSocketImpl::UdpSocketImpl(boost::asio::io_context& io_context,
+                             UdpSocketContext&& context)
+    : UdpSocketContext{std::move(context)},
+      io_context_{io_context},
+      read_buffer_(1024 * 1024) {}
 
 inline void UdpSocketImpl::Open() {
   Resolver::query query{host_, service_};

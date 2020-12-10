@@ -10,7 +10,6 @@ namespace net {
 
 class AsioTransport : public Transport {
  public:
-  explicit AsioTransport(boost::asio::io_context& io_context);
   ~AsioTransport();
 
   // Transport overrides
@@ -26,7 +25,6 @@ class AsioTransport : public Transport {
   template <class IoObject>
   class IoCore;
 
-  boost::asio::io_context& io_context_;
   std::shared_ptr<Core> core_;
 };
 
@@ -213,9 +211,6 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(net::Error error) {
 }
 
 // AsioTransport
-
-inline AsioTransport::AsioTransport(boost::asio::io_context& io_context)
-    : io_context_{io_context} {}
 
 inline AsioTransport::~AsioTransport() {
   if (core_)

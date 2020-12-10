@@ -1,7 +1,7 @@
 #pragma once
 
-#include "net/base/net_export.h"
 #include "net/asio_transport.h"
+#include "net/base/net_export.h"
 
 namespace net {
 
@@ -22,6 +22,8 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
   bool active = false;
 
  private:
+  boost::asio::io_context& io_context_;
+
   class ActiveCore;
   class PassiveCore;
 };

@@ -10,7 +10,6 @@ class AsioUdpTransport::UdpCore : public Core,
                                   public std::enable_shared_from_this<UdpCore> {
  public:
   UdpCore(const UdpSocketFactory& udp_socket_factory,
-          boost::asio::io_context& io_context,
           const std::string& host,
           const std::string& service,
           bool active);
@@ -23,8 +22,7 @@ class AsioUdpTransport::UdpCore : public Core,
   virtual int Write(const void* data, size_t len) override;
 
  private:
-  UdpSocketContext MakeUdpSocketImplContext(boost::asio::io_context& io_context,
-                                            const std::string& host,
+  UdpSocketContext MakeUdpSocketImplContext(const std::string& host,
                                             const std::string& service,
                                             bool active);
 
@@ -37,12 +35,11 @@ class AsioUdpTransport::UdpCore : public Core,
 };
 
 AsioUdpTransport::UdpCore::UdpCore(const UdpSocketFactory& udp_socket_factory,
-                                   boost::asio::io_context& io_context,
                                    const std::string& host,
                                    const std::string& service,
                                    bool active)
     : socket_{udp_socket_factory(
-          MakeUdpSocketImplContext(io_context, host, service, active))} {}
+          MakeUdpSocketImplContext(host, service, active))} {}
 
 void AsioUdpTransport::UdpCore::Open(Delegate& delegate) {
   delegate_ = &delegate;
@@ -71,12 +68,10 @@ int AsioUdpTransport::UdpCore::Write(const void* data, size_t len) {
 }
 
 UdpSocketContext AsioUdpTransport::UdpCore::MakeUdpSocketImplContext(
-    boost::asio::io_context& io_context,
     const std::string& host,
     const std::string& service,
     bool active) {
   return {
-      io_context,
       host,
       service,
       active,
@@ -140,7 +135,6 @@ class AsioUdpTransport::UdpPassiveCore final
       public std::enable_shared_from_this<UdpPassiveCore> {
  public:
   UdpPassiveCore(const UdpSocketFactory& udp_socket_factory,
-                 boost::asio::io_context& io_context,
                  const std::string& host,
                  const std::string& service);
   ~UdpPassiveCore();
@@ -153,8 +147,7 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual int Write(const void* data, size_t len) override;
 
  private:
-  UdpSocketContext MakeUdpSocketImplContext(boost::asio::io_context& io_context,
-                                            const std::string& host,
+  UdpSocketContext MakeUdpSocketImplContext(const std::string& host,
                                             const std::string& service);
 
   void InternalWrite(const UdpSocket::Endpoint& endpoint,
@@ -177,11 +170,9 @@ class AsioUdpTransport::UdpPassiveCore final
 
 AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
     const UdpSocketFactory& udp_socket_factory,
-    boost::asio::io_context& io_context,
     const std::string& host,
     const std::string& service)
-    : socket_{udp_socket_factory(
-          MakeUdpSocketImplContext(io_context, host, service))} {}
+    : socket_{udp_socket_factory(MakeUdpSocketImplContext(host, service))} {}
 
 AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
@@ -261,11 +252,9 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
 }
 
 UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext(
-    boost::asio::io_context& io_context,
     const std::string& host,
     const std::string& service) {
   return {
-      io_context,
       host,
       service,
       false,
@@ -288,21 +277,19 @@ UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext(
 
 // AsioUdpTransport
 
-AsioUdpTransport::AsioUdpTransport(boost::asio::io_context& io_context,
-                                   UdpSocketFactory udp_socket_factory)
-    : AsioTransport{io_context},
-      udp_socket_factory_{std::move(udp_socket_factory)} {}
+AsioUdpTransport::AsioUdpTransport(UdpSocketFactory udp_socket_factory)
+    : udp_socket_factory_{std::move(udp_socket_factory)} {}
 
 Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
   if (core_)
     core_->Close();
 
   if (active) {
-    core_ = std::make_shared<UdpCore>(udp_socket_factory_, io_context_, host,
-                                      service, active);
+    core_ =
+        std::make_shared<UdpCore>(udp_socket_factory_, host, service, active);
   } else {
-    core_ = std::make_shared<UdpPassiveCore>(udp_socket_factory_, io_context_,
-                                             host, service);
+    core_ =
+        std::make_shared<UdpPassiveCore>(udp_socket_factory_, host, service);
   }
 
   core_->Open(delegate);

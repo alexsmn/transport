@@ -21,8 +21,6 @@ class UdpSocket {
 };
 
 struct UdpSocketContext {
-  boost::asio::io_context& io_context_;
-
   const std::string host_;
   const std::string service_;
   const bool active_ = false;

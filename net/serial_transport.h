@@ -1,7 +1,7 @@
 #pragma once
 
-#include "net/base/net_export.h"
 #include "net/asio_transport.h"
+#include "net/base/net_export.h"
 
 #include <optional>
 
@@ -28,6 +28,8 @@ class NET_EXPORT SerialTransport final : public AsioTransport {
 
  private:
   class SerialPortCore;
+
+  boost::asio::io_context& io_context_;
 
   const std::string device_;
   const Options options_;

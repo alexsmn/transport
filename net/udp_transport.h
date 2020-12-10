@@ -7,8 +7,7 @@ namespace net {
 
 class AsioUdpTransport final : public AsioTransport {
  public:
-  explicit AsioUdpTransport(boost::asio::io_context& io_context,
-                            UdpSocketFactory udp_socket_factory);
+  explicit AsioUdpTransport(UdpSocketFactory udp_socket_factory);
 
   // Transport overrides
   virtual Error Open(Transport::Delegate& delegate) override;
