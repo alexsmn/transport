@@ -27,6 +27,9 @@ int ReadMessage(span<const char>& buffer,
     if (bytes_to_read == 0)
       break;
 
+    if (bytes_to_read > buffer.size())
+      return ERR_FAILED;
+
     memcpy(message_reader.ptr(), buffer.data(), bytes_to_read);
     message_reader.BytesRead(bytes_to_read);
     buffer = buffer.subspan(bytes_to_read);
