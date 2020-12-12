@@ -99,7 +99,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     int port = ts.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
-      LOG(WARNING) << "TCP port is not specified";
+      LOG(WARNING) << "UDP port is not specified";
       return nullptr;
     }
 
