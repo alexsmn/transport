@@ -148,6 +148,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   const Endpoint endpoint_;
 
   bool connected_ = false;
+
   Delegate* delegate_ = nullptr;
 
   friend class UdpPassiveCore;
@@ -198,6 +199,8 @@ class AsioUdpTransport::UdpPassiveCore final
 
   friend class AcceptedTransport;
 };
+
+// AsioUdpTransport::UdpPassiveCore
 
 AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
     UdpSocketFactory udp_socket_factory,
@@ -320,30 +323,6 @@ UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
   };
 }
 
-// AsioUdpTransport
-
-AsioUdpTransport::AsioUdpTransport(UdpSocketFactory udp_socket_factory)
-    : udp_socket_factory_{std::move(udp_socket_factory)} {}
-
-Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
-  if (core_)
-    core_->Close();
-
-  if (active) {
-    core_ = std::make_shared<UdpActiveCore>(udp_socket_factory_, host, service);
-  } else {
-    core_ =
-        std::make_shared<UdpPassiveCore>(udp_socket_factory_, host, service);
-  }
-
-  core_->Open(delegate);
-  return net::OK;
-}
-
-std::string AsioUdpTransport::GetName() const {
-  return "UDP";
-}
-
 // AsioUdpTransport::AcceptedTransport
 
 AsioUdpTransport::AcceptedTransport::AcceptedTransport(
@@ -361,6 +340,9 @@ AsioUdpTransport::AcceptedTransport::~AcceptedTransport() {
 Error AsioUdpTransport::AcceptedTransport::Open(Delegate& delegate) {
   assert(!connected_);
 
+  if (connected_ || !core_)
+    return ERR_FAILED;
+
   delegate_ = &delegate;
   connected_ = true;
 
@@ -369,10 +351,13 @@ Error AsioUdpTransport::AcceptedTransport::Open(Delegate& delegate) {
 
 void AsioUdpTransport::AcceptedTransport::Close() {
   assert(connected_);
-  assert(core_);
 
-  core_->RemoveAcceptedTransport(endpoint_);
-  core_ = nullptr;
+  if (core_) {
+    core_->RemoveAcceptedTransport(endpoint_);
+    core_ = nullptr;
+  }
+
+  delegate_ = nullptr;
   connected_ = false;
 }
 
@@ -384,7 +369,9 @@ int AsioUdpTransport::AcceptedTransport::Read(void* data, size_t len) {
 
 int AsioUdpTransport::AcceptedTransport::Write(const void* data, size_t len) {
   assert(connected_);
-  assert(core_);
+
+  if (!core_ || !connected_)
+    return ERR_FAILED;
 
   std::vector<char> datagram(len);
   memcpy(datagram.data(), data, len);
@@ -411,17 +398,50 @@ bool AsioUdpTransport::AcceptedTransport::IsActive() const {
 }
 
 void AsioUdpTransport::AcceptedTransport::ProcessDatagram(Datagram&& datagram) {
-  if (delegate_)
+  assert(core_);
+
+  if (connected_ && delegate_)
     delegate_->OnTransportMessageReceived(datagram.data(), datagram.size());
 }
 
 void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {
-  core_->RemoveAcceptedTransport(endpoint_);
-  core_ = nullptr;
-  connected_ = false;
+  assert(core_);
 
-  if (delegate_)
-    delegate_->OnTransportClosed(error);
+  if (core_) {
+    core_->RemoveAcceptedTransport(endpoint_);
+    core_ = nullptr;
+  }
+
+  if (connected_) {
+    connected_ = false;
+
+    if (delegate_)
+      delegate_->OnTransportClosed(error);
+  }
+}
+
+// AsioUdpTransport
+
+AsioUdpTransport::AsioUdpTransport(UdpSocketFactory udp_socket_factory)
+    : udp_socket_factory_{std::move(udp_socket_factory)} {}
+
+Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
+  if (core_)
+    core_->Close();
+
+  if (active) {
+    core_ = std::make_shared<UdpActiveCore>(udp_socket_factory_, host, service);
+  } else {
+    core_ =
+        std::make_shared<UdpPassiveCore>(udp_socket_factory_, host, service);
+  }
+
+  core_->Open(delegate);
+  return net::OK;
+}
+
+std::string AsioUdpTransport::GetName() const {
+  return "UDP";
 }
 
 }  // namespace net
