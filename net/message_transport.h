@@ -7,13 +7,15 @@
 
 namespace net {
 
+class Logger;
 class MessageReader;
 
 class NET_EXPORT MessageTransport : public Transport,
                                     private Transport::Delegate {
  public:
   MessageTransport(std::unique_ptr<Transport> child_transport,
-                   std::unique_ptr<MessageReader> message_reader);
+                   std::unique_ptr<MessageReader> message_reader,
+                   std::shared_ptr<const Logger> logger);
   virtual ~MessageTransport();
 
   MessageReader& message_reader() { return *message_reader_; }
@@ -49,6 +51,8 @@ class NET_EXPORT MessageTransport : public Transport,
   std::unique_ptr<Transport> child_transport_;
 
   std::unique_ptr<MessageReader> message_reader_;
+
+  const std::shared_ptr<const Logger> logger_;
 
   Transport::Delegate* delegate_ = nullptr;
 

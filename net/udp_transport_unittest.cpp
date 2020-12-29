@@ -1,5 +1,6 @@
 #include "net/udp_transport.h"
 
+#include "net/logger.h"
 #include "net/transport_delegate_mock.h"
 #include "net/udp_socket.h"
 
@@ -41,7 +42,7 @@ class AsioUdpTransportTest : public Test {
   };
 
   TransportDelegateMock delegate;
-  AsioUdpTransport transport{udp_socket_factory};
+  AsioUdpTransport transport{NullLogger::GetInstance(), udp_socket_factory};
 
   TransportDelegateMock accepted_delegate;
   std::unique_ptr<Transport> accepted_transport;

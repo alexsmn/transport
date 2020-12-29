@@ -17,7 +17,7 @@ class NET_EXPORT TransportFactoryImpl : public TransportFactory {
   // Returns nullptr if parameters are invalid.
   virtual std::unique_ptr<Transport> CreateTransport(
       const TransportString& transport_string,
-      Logger* logger) override;
+      std::shared_ptr<const Logger> logger) override;
 
  private:
   boost::asio::io_context& io_context_;

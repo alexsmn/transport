@@ -60,7 +60,8 @@ void MessageTransportTest::SetUp() {
 
   auto message_reader = std::make_unique<TestMessageReader>();
   message_transport_ = std::make_unique<MessageTransport>(
-      std::move(child_transport), std::move(message_reader));
+      std::move(child_transport), std::move(message_reader),
+      NullLogger::GetInstance());
 
   ASSERT_EQ(net::OK, message_transport_->Open(message_transport_delegate_));
   ASSERT_TRUE(child_transport_delegate_);

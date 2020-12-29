@@ -2,6 +2,7 @@
 
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
+#include "net/logger.h"
 #include "net/serial_transport.h"
 #include "net/tcp_transport.h"
 #include "net/transport_string.h"
@@ -70,7 +71,7 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
 
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const TransportString& ts,
-    Logger* logger) {
+    std::shared_ptr<const Logger> logger) {
   auto protocol = ts.GetProtocol();
   bool active = ts.IsActive();
 
@@ -103,7 +104,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    auto transport = std::make_unique<AsioUdpTransport>(udp_socket_factory_);
+    auto transport = std::make_unique<AsioUdpTransport>(std::move(logger),
+                                                        udp_socket_factory_);
     transport->host = host;
     transport->service = std::to_string(port);
     transport->active = active;

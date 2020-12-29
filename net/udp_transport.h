@@ -5,9 +5,12 @@
 
 namespace net {
 
+class Logger;
+
 class AsioUdpTransport final : public AsioTransport {
  public:
-  explicit AsioUdpTransport(UdpSocketFactory udp_socket_factory);
+  AsioUdpTransport(std::shared_ptr<const Logger> logger,
+                   UdpSocketFactory udp_socket_factory);
 
   // Transport overrides
   virtual Error Open(Transport::Delegate& delegate) override;
@@ -20,6 +23,7 @@ class AsioUdpTransport final : public AsioTransport {
   bool active = false;
 
  private:
+  const std::shared_ptr<const Logger> logger_;
   const UdpSocketFactory udp_socket_factory_;
 
   class UdpActiveCore;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdarg>
 #include <memory>
 
 namespace net {
@@ -14,18 +15,25 @@ enum class LogSeverity {
 
 class Logger {
  public:
-  virtual ~Logger() { }
- 
+  virtual ~Logger() {}
+
   virtual void Write(LogSeverity severity, const char* message) const = 0;
-  virtual void WriteV(LogSeverity severity, const char* format, va_list args) const = 0;
+  virtual void WriteV(LogSeverity severity,
+                      const char* format,
+                      va_list args) const = 0;
   virtual void WriteF(LogSeverity severity, const char* format, ...) const = 0;
 };
 
-class NullLogger : public Logger {
+class NullLogger final : public Logger {
  public:
-  virtual void Write(LogSeverity severity, const char* message) const final {}
-  virtual void WriteV(LogSeverity severity, const char* format, va_list args) const final {}
-  virtual void WriteF(LogSeverity severity, const char* format, ...) const final {}
+  virtual void Write(LogSeverity severity, const char* message) const override {
+  }
+  virtual void WriteV(LogSeverity severity,
+                      const char* format,
+                      va_list args) const override {}
+  virtual void WriteF(LogSeverity severity,
+                      const char* format,
+                      ...) const override {}
 
   static std::shared_ptr<NullLogger> GetInstance() {
     static auto logger = std::make_shared<NullLogger>();
@@ -33,4 +41,58 @@ class NullLogger : public Logger {
   }
 };
 
-} // namespace net
+class ProxyLogger final : public Logger {
+ public:
+  explicit ProxyLogger(std::shared_ptr<const Logger> underlying_logger,
+                       const char* channel = nullptr)
+      : underlying_logger_{underlying_logger}, prefix_{MakePrefix(channel)} {}
+
+  virtual void Write(LogSeverity severity, const char* message) const override {
+    if (!underlying_logger_)
+      return;
+
+    underlying_logger_->Write(severity, GetPrefixedMessage(message).c_str());
+  }
+
+  virtual void WriteV(LogSeverity severity,
+                      const char* format,
+                      va_list args) const override {
+    if (!underlying_logger_)
+      return;
+
+    underlying_logger_->WriteV(severity, GetPrefixedMessage(format).c_str(),
+                               args);
+  }
+
+  virtual void WriteF(LogSeverity severity,
+                      const char* format,
+                      ...) const override {
+    if (!underlying_logger_)
+      return;
+
+    va_list args;
+    va_start(args, format);
+    underlying_logger_->WriteV(severity, GetPrefixedMessage(format).c_str(),
+                               args);
+    va_end(args);
+  }
+
+ private:
+  static std::string MakePrefix(const char* channel) {
+    std::string prefix;
+    if (channel && channel[0]) {
+      prefix += channel;
+      prefix += ": ";
+    }
+    return prefix;
+  }
+
+  std::string GetPrefixedMessage(const char* message) const {
+    return prefix_ + message;
+  }
+
+  const std::shared_ptr<const Logger> underlying_logger_;
+  std::string prefix_;
+};
+
+}  // namespace net

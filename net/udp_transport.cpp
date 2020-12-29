@@ -1,6 +1,13 @@
 #include "udp_transport.h"
 
+#include "logger.h"
 #include "udp_socket_impl.h"
+
+std::string ToString(const net::UdpSocket::Endpoint& endpoint) {
+  std::stringstream stream;
+  stream << endpoint;
+  return stream.str();
+}
 
 namespace net {
 
@@ -160,7 +167,8 @@ class AsioUdpTransport::UdpPassiveCore final
     : public Core,
       public std::enable_shared_from_this<UdpPassiveCore> {
  public:
-  UdpPassiveCore(UdpSocketFactory udp_socket_factory,
+  UdpPassiveCore(std::shared_ptr<const Logger> logger,
+                 UdpSocketFactory udp_socket_factory,
                  std::string host,
                  std::string service);
   ~UdpPassiveCore();
@@ -185,6 +193,7 @@ class AsioUdpTransport::UdpPassiveCore final
   void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
   void CloseAllAcceptedTransports(Error error);
 
+  const std::shared_ptr<const Logger> logger_;
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
   const std::string service_;
@@ -203,10 +212,12 @@ class AsioUdpTransport::UdpPassiveCore final
 // AsioUdpTransport::UdpPassiveCore
 
 AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
+    std::shared_ptr<const Logger> logger,
     UdpSocketFactory udp_socket_factory,
     std::string host,
     std::string service)
-    : udp_socket_factory_{std::move(udp_socket_factory)},
+    : logger_{std::make_shared<ProxyLogger>(std::move(logger))},
+      udp_socket_factory_{std::move(udp_socket_factory)},
       host_{std::move(host)},
       service_{std::move(service)} {}
 
@@ -215,6 +226,8 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
 }
 
 void AsioUdpTransport::UdpPassiveCore::Open(Delegate& delegate) {
+  logger_->WriteF(LogSeverity::Normal, "Open");
+
   delegate_ = &delegate;
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
@@ -222,6 +235,8 @@ void AsioUdpTransport::UdpPassiveCore::Open(Delegate& delegate) {
 }
 
 void AsioUdpTransport::UdpPassiveCore::Close() {
+  logger_->Write(LogSeverity::Normal, "Close");
+
   connected_ = false;
 
   socket_->Close();
@@ -249,6 +264,9 @@ void AsioUdpTransport::UdpPassiveCore::InternalWrite(
 
 void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
     const UdpSocket::Endpoint& endpoint) {
+  logger_->WriteF(LogSeverity::Normal, "Remove transport from endpoint %s",
+                  ToString(endpoint).c_str());
+
   assert(accepted_transports_.find(endpoint) != accepted_transports_.end());
 
   accepted_transports_.erase(endpoint);
@@ -265,6 +283,9 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
     }
   }
 
+  logger_->WriteF(LogSeverity::Normal, "Accept new transport from endpoint %s",
+                  ToString(endpoint).c_str());
+
   auto accepted_transport =
       std::make_unique<AcceptedTransport>(shared_from_this(), endpoint);
   accepted_transports_.emplace(endpoint, accepted_transport.get());
@@ -279,23 +300,33 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
 }
 
 void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
+  logger_->WriteF(LogSeverity::Normal, "Close %d accepted transports - %s",
+                  static_cast<int>(accepted_transports_.size()),
+                  ErrorToString(error).c_str());
+
   std::vector<AcceptedTransport*> accepted_transports;
   accepted_transports.reserve(accepted_transports_.size());
   std::transform(accepted_transports_.begin(), accepted_transports_.end(),
                  std::back_inserter(accepted_transports),
                  [](auto& p) { return p.second; });
+
   for (auto* accepted_transport : accepted_transports)
     accepted_transport->ProcessError(error);
 }
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
+  logger_->WriteF(LogSeverity::Normal, "Opened with endpoint %s",
+                  ToString(endpoint));
+
   connected_ = true;
   delegate_->OnTransportOpened();
 }
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
+  logger_->WriteF(LogSeverity::Normal, "Closed - %s", error.message().c_str());
+
   auto net_error = net::MapSystemError(error.value());
   connected_ = false;
   CloseAllAcceptedTransports(net_error);
@@ -422,8 +453,10 @@ void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {
 
 // AsioUdpTransport
 
-AsioUdpTransport::AsioUdpTransport(UdpSocketFactory udp_socket_factory)
-    : udp_socket_factory_{std::move(udp_socket_factory)} {}
+AsioUdpTransport::AsioUdpTransport(std::shared_ptr<const Logger> logger,
+                                   UdpSocketFactory udp_socket_factory)
+    : logger_{std::move(logger)},
+      udp_socket_factory_{std::move(udp_socket_factory)} {}
 
 Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
   if (core_)
@@ -432,8 +465,8 @@ Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
   if (active) {
     core_ = std::make_shared<UdpActiveCore>(udp_socket_factory_, host, service);
   } else {
-    core_ =
-        std::make_shared<UdpPassiveCore>(udp_socket_factory_, host, service);
+    core_ = std::make_shared<UdpPassiveCore>(logger_, udp_socket_factory_, host,
+                                             service);
   }
 
   core_->Open(delegate);
