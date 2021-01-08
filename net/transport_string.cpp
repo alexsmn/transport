@@ -180,10 +180,22 @@ std::string TransportString::ToString() const {
 }
 
 int TransportString::ParseSerialPortNumber(std::string_view str) {
-  int value;
-  if (sscanf(std::string{str}.c_str(), "COM%u", &value) != 1)
-    value = 0;
-  return value;
+  const std::string_view kPrefix = "COM";
+
+  if (!base::StartsWith({str.data(), str.size()},
+                        {kPrefix.data(), kPrefix.size()},
+                        base::CompareCase::SENSITIVE)) {
+    return 0;
+  }
+
+  auto number_string = str.substr(kPrefix.size());
+  unsigned number = 0;
+  if (!base::StringToUint({number_string.data(), number_string.size()},
+                          &number)) {
+    return 0;
+  }
+
+  return static_cast<int>(number);
 }
 
 void TransportString::SetParam(std::string_view name) {
