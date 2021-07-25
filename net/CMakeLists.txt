@@ -1,12 +1,12 @@
 find_package(Boost REQUIRED)
 
-file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
   "*.cc"
   "*.cpp"
   "*.h"
 )
 
-file(GLOB_RECURSE SOURCES_UT RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+file(GLOB_RECURSE SOURCES_UT RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
   "*_unittest*"
 )
 
@@ -20,7 +20,7 @@ list(APPEND sources_win
   "pipe_transport.h"
 )
 
-file(GLOB net_sources_win_dir RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+file(GLOB net_sources_win_dir RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
   "win/*.*"
 )
 
@@ -28,7 +28,7 @@ list(APPEND sources_win
   ${net_sources_win_dir}
 )
 
-file(GLOB_RECURSE sources_lin RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+file(GLOB_RECURSE sources_lin RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
   "*_posix*"
   "*_linux*"
 )
@@ -62,4 +62,5 @@ target_link_libraries(net PUBLIC base Boost::boost)
 
 add_executable(net_unittests ${SOURCES_UT})
 target_link_libraries(net_unittests PUBLIC net gmock_main)
+include(GoogleTest)
 gtest_discover_tests(net_unittests)
