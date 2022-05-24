@@ -3,6 +3,8 @@
 #include "logger.h"
 #include "udp_socket_impl.h"
 
+#include <map>
+
 std::string ToString(const net::UdpSocket::Endpoint& endpoint) {
   std::stringstream stream;
   stream << endpoint;

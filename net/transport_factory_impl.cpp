@@ -72,6 +72,9 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const TransportString& ts,
     std::shared_ptr<const Logger> logger) {
+  logger->WriteF(LogSeverity::Normal, "Create transport: %s",
+                 ts.ToString().c_str());
+
   auto protocol = ts.GetProtocol();
   bool active = ts.IsActive();
 
@@ -84,7 +87,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     int port = ts.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
-      LOG(WARNING) << "TCP port is not specified";
+      logger->Write(LogSeverity::Warning, "TCP port is not specified");
       return nullptr;
     }
 
@@ -100,7 +103,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     int port = ts.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
-      LOG(WARNING) << "UDP port is not specified";
+      logger->Write(LogSeverity::Warning, "UDP port is not specified");
       return nullptr;
     }
 
@@ -116,7 +119,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     const std::string_view device = ts.GetParamStr(TransportString::kParamName);
     if (device.empty()) {
-      LOG(WARNING) << "Serial port name is not specified";
+      logger->Write(LogSeverity::Warning, "Serial port name is not specified");
       return nullptr;
     }
 
@@ -140,7 +143,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
             ts.GetParamStr(TransportString::kParamFlowControl)));
 
     } catch (const std::runtime_error& e) {
-      LOG(WARNING) << e.what();
+      logger->WriteF(LogSeverity::Warning, "Error: %s", e.what());
       return nullptr;
     }
 
@@ -154,7 +157,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const auto& name = base::SysNativeMBToWide(
         AsStringPiece(ts.GetParamStr(TransportString::kParamName)));
     if (name.empty()) {
-      LOG(WARNING) << "Pipe name is not specified";
+      logger->Write(LogSeverity::Warning, "Pipe name is not specified");
       return nullptr;
     }
 
@@ -163,7 +166,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     return transport;
 
 #else
-    LOG(WARNING) << "Pipes are supported only under Windows";
+    logger->Write(LogSeverity::Warning,
+                  "Pipes are supported only under Windows");
     return nullptr;
 #endif
 

@@ -111,7 +111,7 @@ void TransportString::SetProtocol(Protocol protocol) {
 }
 
 void TransportString::SetParam(std::string_view name, int value) {
-  SetParam(name, base::IntToString(value));
+  SetParam(name, base::NumberToString(value));
 }
 
 std::string_view TransportString::GetParamStr(std::string_view name) const {
@@ -150,17 +150,16 @@ std::string TransportString::ToString() const {
   // Fill parameters in predefined order.
   std::string str;
 
-  Protocol protocol = GetProtocol();
-  if (protocol == PROTOCOL_COUNT)
-    return str;
-
   typedef std::set<std::string, CompareNoCase> ParamSet;
   ParamSet unpassed_params;
   for (const auto& p : param_map_)
     unpassed_params.emplace(p.first);
 
-  AppendConnectionString(str, kProtocolNames[protocol], {});
-  unpassed_params.erase(kProtocolNames[protocol]);
+  Protocol protocol = GetProtocol();
+  if (protocol != PROTOCOL_COUNT) {
+    AppendConnectionString(str, kProtocolNames[protocol], {});
+    unpassed_params.erase(kProtocolNames[protocol]);
+  }
 
   for (int i = 0; i < arraysize(kParamOrder); ++i) {
     const auto& param = kParamOrder[i];
