@@ -61,6 +61,25 @@ boost::asio::serial_port::flow_control::type ParseFlowControl(
 
 }  // namespace
 
+std::shared_ptr<TransportFactory> CreateTransportFactory() {
+  struct Holder {
+    ~Holder() {
+      work.reset();
+      thread.join();
+    }
+
+    boost::asio::io_context io_context;
+    TransportFactoryImpl transport_factory{io_context};
+    std::thread thread{[this] { io_context.run(); }};
+    std::optional<boost::asio::io_context::work> work{io_context};
+  };
+
+  auto holder = std::make_shared<Holder>();
+  return std::shared_ptr<TransportFactory>(holder, &holder->transport_factory);
+}
+
+// TransportFactoryImpl
+
 TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
     : io_context_{io_context} {
   udp_socket_factory_ =
@@ -91,7 +110,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    auto transport = std::make_unique<AsioTcpTransport>(io_context_);
+    auto transport =
+        std::make_unique<AsioTcpTransport>(io_context_, std::move(logger));
     transport->host = host;
     transport->service = std::to_string(port);
     transport->active = active;
@@ -147,8 +167,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    return std::make_unique<SerialTransport>(io_context_, std::string{device},
-                                             options);
+    return std::make_unique<SerialTransport>(io_context_, std::move(logger),
+                                             std::string{device}, options);
 
   } else if (protocol == TransportString::PIPE) {
 #ifdef OS_WIN

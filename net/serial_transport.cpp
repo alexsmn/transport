@@ -27,6 +27,7 @@ class SerialTransport::SerialPortCore final
     : public AsioTransport::IoCore<boost::asio::serial_port> {
  public:
   SerialPortCore(boost::asio::io_context& io_context,
+                 std::shared_ptr<const Logger> logger,
                  std::string device,
                  const Options& options);
 
@@ -42,9 +43,10 @@ class SerialTransport::SerialPortCore final
 
 SerialTransport::SerialPortCore::SerialPortCore(
     boost::asio::io_context& io_context,
+    std::shared_ptr<const Logger> logger,
     std::string device,
     const Options& options)
-    : IoCore{io_context},
+    : IoCore{io_context, std::move(logger)},
       device_{std::move(device)},
       options_{std::move(options)} {}
 
@@ -85,12 +87,17 @@ void SerialTransport::SerialPortCore::Cleanup() {
 }
 
 SerialTransport::SerialTransport(boost::asio::io_context& io_context,
+                                 std::shared_ptr<const Logger> logger,
                                  std::string device,
                                  const Options& options)
-    : io_context_{io_context}, device_{std::move(device)}, options_{options} {}
+    : io_context_{io_context},
+      logger_{std::move(logger)},
+      device_{std::move(device)},
+      options_{options} {}
 
 net::Error SerialTransport::Open(Transport::Delegate& delegate) {
-  core_ = std::make_shared<SerialPortCore>(io_context_, device_, options_);
+  core_ =
+      std::make_shared<SerialPortCore>(io_context_, logger_, device_, options_);
   core_->Open(delegate);
   return net::OK;
 }

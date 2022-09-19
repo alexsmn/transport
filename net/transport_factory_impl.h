@@ -24,4 +24,6 @@ class NET_EXPORT TransportFactoryImpl : public TransportFactory {
   UdpSocketFactory udp_socket_factory_;
 };
 
+std::shared_ptr<TransportFactory> CreateTransportFactory();
+
 }  // namespace net

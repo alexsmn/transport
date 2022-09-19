@@ -7,8 +7,10 @@ namespace net {
 
 class NET_EXPORT AsioTcpTransport final : public AsioTransport {
  public:
-  explicit AsioTcpTransport(boost::asio::io_context& io_context);
+  explicit AsioTcpTransport(boost::asio::io_context& io_context,
+                            std::shared_ptr<const Logger> logger);
   AsioTcpTransport(boost::asio::io_context& io_context,
+                   std::shared_ptr<const Logger> logger,
                    boost::asio::ip::tcp::socket socket);
   ~AsioTcpTransport();
 
@@ -23,6 +25,7 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
 
  private:
   boost::asio::io_context& io_context_;
+  std::shared_ptr<const Logger> logger_;
 
   class ActiveCore;
   class PassiveCore;

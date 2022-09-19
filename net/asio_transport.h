@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base/threading/thread_checker.h"
 #include "net/transport.h"
 
 #include <boost/asio.hpp>
@@ -7,6 +8,8 @@
 #include <memory>
 
 namespace net {
+
+class Logger;
 
 class AsioTransport : public Transport {
  public:
@@ -54,7 +57,8 @@ class AsioTransport::IoCore : public Core,
   virtual int Write(const void* data, size_t len) override;
 
  protected:
-  explicit IoCore(boost::asio::io_context& io_context);
+  IoCore(boost::asio::io_context& io_context,
+         std::shared_ptr<const Logger> logger);
 
   void StartReading();
   void StartWriting();
@@ -63,7 +67,10 @@ class AsioTransport::IoCore : public Core,
 
   virtual void Cleanup() = 0;
 
+  THREAD_CHECKER(thread_checker_);
+
   boost::asio::io_context& io_context_;
+  const std::shared_ptr<const Logger> logger_;
   Delegate* delegate_ = nullptr;
 
   IoObject io_object_;
@@ -85,11 +92,16 @@ class AsioTransport::IoCore : public Core,
 
 template <class IoObject>
 inline AsioTransport::IoCore<IoObject>::IoCore(
-    boost::asio::io_context& io_context)
-    : io_context_{io_context}, io_object_{io_context} {}
+    boost::asio::io_context& io_context,
+    std::shared_ptr<const Logger> logger)
+    : io_context_{io_context},
+      logger_{std::move(logger)},
+      io_object_{io_context} {}
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::Close() {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
   closed_ = true;
   delegate_ = nullptr;
 
@@ -98,6 +110,8 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 
 template <class IoObject>
 inline int AsioTransport::IoCore<IoObject>::Read(void* data, size_t len) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
   size_t count = std::min(len, read_buffer_.size());
   std::copy(read_buffer_.begin(), read_buffer_.begin() + count,
             reinterpret_cast<char*>(data));
@@ -111,6 +125,8 @@ inline int AsioTransport::IoCore<IoObject>::Read(void* data, size_t len) {
 template <class IoObject>
 inline int AsioTransport::IoCore<IoObject>::Write(const void* data,
                                                   size_t len) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
   write_buffer_.insert(write_buffer_.end(), reinterpret_cast<const char*>(data),
                        reinterpret_cast<const char*>(data) + len);
 
@@ -121,6 +137,8 @@ inline int AsioTransport::IoCore<IoObject>::Write(const void* data,
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartReading() {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
   if (closed_ || reading_)
     return;
 
@@ -136,6 +154,8 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
       boost::asio::transfer_at_least(1),
       [this, ref = shared_from_this()](const boost::system::error_code& ec,
                                        std::size_t bytes_transferred) {
+        DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
         if (closed_)
           return;
 
@@ -165,6 +185,8 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartWriting() {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
   if (closed_ || writing_)
     return;
 
@@ -180,6 +202,8 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
       io_object_, boost::asio::buffer(writing_buffer_),
       [this, ref = shared_from_this()](const boost::system::error_code& ec,
                                        std::size_t bytes_transferred) {
+        DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
         if (closed_)
           return;
 
@@ -201,6 +225,8 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::ProcessError(net::Error error) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
   auto* delegate = delegate_;
   closed_ = true;
   delegate_ = nullptr;
