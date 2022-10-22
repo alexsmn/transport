@@ -91,6 +91,9 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const TransportString& ts,
     std::shared_ptr<const Logger> logger) {
+  if (!logger)
+    logger = NullLogger::GetInstance();
+
   logger->WriteF(LogSeverity::Normal, "Create transport: %s",
                  ts.ToString().c_str());
 

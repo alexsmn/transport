@@ -1,5 +1,7 @@
 #pragma once
 
+#include "base/compiler_specific.h"
+
 #include <cstdarg>
 #include <memory>
 
@@ -20,8 +22,10 @@ class Logger {
   virtual void Write(LogSeverity severity, const char* message) const = 0;
   virtual void WriteV(LogSeverity severity,
                       const char* format,
-                      va_list args) const = 0;
-  virtual void WriteF(LogSeverity severity, const char* format, ...) const = 0;
+                      va_list args) const PRINTF_FORMAT(3, 0) = 0;
+  virtual void WriteF(LogSeverity severity,
+                      _Printf_format_string_ const char* format,
+                      ...) const PRINTF_FORMAT(3, 4) = 0;
 };
 
 class NullLogger final : public Logger {
@@ -30,10 +34,10 @@ class NullLogger final : public Logger {
   }
   virtual void WriteV(LogSeverity severity,
                       const char* format,
-                      va_list args) const override {}
+                      va_list args) const override PRINTF_FORMAT(3, 0) {}
   virtual void WriteF(LogSeverity severity,
-                      const char* format,
-                      ...) const override {}
+                      _Printf_format_string_ const char* format,
+                      ...) const override PRINTF_FORMAT(3, 4) {}
 
   static std::shared_ptr<NullLogger> GetInstance() {
     static auto logger = std::make_shared<NullLogger>();
@@ -56,7 +60,7 @@ class ProxyLogger final : public Logger {
 
   virtual void WriteV(LogSeverity severity,
                       const char* format,
-                      va_list args) const override {
+                      va_list args) const override PRINTF_FORMAT(3, 0) {
     if (!underlying_logger_)
       return;
 
@@ -65,8 +69,8 @@ class ProxyLogger final : public Logger {
   }
 
   virtual void WriteF(LogSeverity severity,
-                      const char* format,
-                      ...) const override {
+                      _Printf_format_string_ const char* format,
+                      ...) const override PRINTF_FORMAT(3, 4) {
     if (!underlying_logger_)
       return;
 

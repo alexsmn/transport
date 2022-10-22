@@ -319,7 +319,7 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
 void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
   logger_->WriteF(LogSeverity::Normal, "Opened with endpoint %s",
-                  ToString(endpoint));
+                  ToString(endpoint).c_str());
 
   connected_ = true;
   delegate_->OnTransportOpened();

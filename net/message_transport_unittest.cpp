@@ -4,6 +4,7 @@
 #include "net/transport_delegate_mock.h"
 #include "net/transport_mock.h"
 
+#include <cstring>
 #include <gmock/gmock.h>
 
 namespace net {
