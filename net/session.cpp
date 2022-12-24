@@ -32,7 +32,8 @@ inline bool MessageIdLess(uint16_t left, uint16_t right) {
 Session::Session(boost::asio::io_service& io_service)
     : io_service_{io_service},
       logger_(NullLogger::GetInstance()),
-      timer_{io_service} {
+      timer_{io_service},
+      reconnection_period_{1s} {
   timer_.StartRepeating(50ms, [this] { OnTimer(); });
 }
 
@@ -50,7 +51,7 @@ Session::~Session() {
   while (!child_sessions_.empty())
     delete *child_sessions_.begin();
 
-  for (int i = 0; i < arraysize(send_queues_); ++i) {
+  for (int i = 0; i < std::size(send_queues_); ++i) {
     MessageQueue& send_queue = send_queues_[i];
     for (MessageQueue::iterator i = send_queue.begin(); i != send_queue.end();
          ++i)
@@ -254,7 +255,7 @@ void Session::StartConnecting() {
   logger_->WriteF(LogSeverity::Normal, "Connecting to %s",
                   transport_->GetName().c_str());
 
-  connect_start_ticks_ = base::TimeTicks::Now();
+  connect_start_ticks_ = Clock::now();
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
@@ -285,7 +286,7 @@ void Session::SendQueuedMessage() {
   // send
   while (!cancelation.expired() && IsSendPossible()) {
     MessageQueue* send_queue = NULL;
-    for (int i = 0; i < arraysize(send_queues_); ++i) {
+    for (int i = 0; i < std::size(send_queues_); ++i) {
       if (!send_queues_[i].empty()) {
         send_queue = &send_queues_[i];
         break;
@@ -328,7 +329,7 @@ void Session::ProcessSessionMessage(uint16_t id,
 
   ++recv_id_;
   if (!num_recv_)
-    receive_time_ = base::TimeTicks::Now();
+    receive_time_ = Clock::now();
   ++num_recv_;
 
   // handle received message
@@ -400,8 +401,7 @@ void Session::OnTimer() {
 
   if (!transport_->IsConnected() && !connecting_ && state_ == OPENED &&
       !accepted_ &&
-      (base::TimeTicks::Now() - connect_start_ticks_).InMilliseconds() >=
-          reconnection_period_) {
+      Clock::now() - connect_start_ticks_ >= reconnection_period_) {
     StartConnecting();
     return;
   }
@@ -412,9 +412,8 @@ void Session::OnTimer() {
   // Acknowledge received messages.
   if (num_recv_) {
     if (num_recv_ >= kMaxAcknowledgeCount ||
-        base::TimeTicks::Now() - receive_time_ >=
-            base::TimeDelta::FromSeconds(1)) {
-      receive_time_ = base::TimeTicks::Now();
+        Clock::now() - receive_time_ >= 1s) {
+      receive_time_ = Clock::now();
       num_recv_ = 0;
       SendAck(recv_id_);
     }

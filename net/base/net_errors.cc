@@ -4,6 +4,8 @@
 
 #include "net/base/net_errors.h"
 
+#include <cassert>
+
 namespace net {
 
 const char kErrorDomain[] = "net";
@@ -19,14 +21,14 @@ std::string ErrorToShortString(int error) {
   const char* error_string;
   switch (error) {
 #define NET_ERROR(label, value) \
-  case ERR_ ## label: \
-    error_string = # label; \
+  case ERR_##label:             \
+    error_string = #label;      \
     break;
 #include "net/base/net_error_list.h"
 #undef NET_ERROR
-  default:
-    NOTREACHED();
-    error_string = "<unknown>";
+    default:
+      assert(false);
+      error_string = "<unknown>";
   }
   return std::string("ERR_") + error_string;
 }
@@ -55,21 +57,6 @@ bool IsClientCertificateError(int error) {
 bool IsDnsError(int error) {
   return (error == ERR_NAME_NOT_RESOLVED ||
           error == ERR_NAME_RESOLUTION_FAILED);
-}
-
-Error FileErrorToNetError(base::File::Error file_error) {
-  switch (file_error) {
-    case base::File::FILE_OK:
-      return OK;
-    case base::File::FILE_ERROR_ACCESS_DENIED:
-      return ERR_ACCESS_DENIED;
-    case base::File::FILE_ERROR_INVALID_URL:
-      return ERR_INVALID_URL;
-    case base::File::FILE_ERROR_NOT_FOUND:
-      return ERR_FILE_NOT_FOUND;
-    default:
-      return ERR_FAILED;
-  }
 }
 
 }  // namespace net

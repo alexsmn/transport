@@ -1,12 +1,11 @@
 #pragma once
 
-#include "base/memory/ref_counted.h"
-#include "base/time/time.h"
 #include "net/base/net_errors.h"
 #include "net/session_info.h"
 #include "net/timer.h"
 #include "net/transport.h"
 
+#include <chrono>
 #include <deque>
 #include <map>
 #include <set>
@@ -18,6 +17,10 @@ class Logger;
 
 class NET_EXPORT Session final : public Transport, private Transport::Delegate {
  public:
+  using Clock = std::chrono::steady_clock;
+  using TimePoint = Clock::time_point;
+  using Duration = Clock::duration;
+
   class SessionTransportObserver {
    public:
     virtual void OnSessionRecovered() = 0;
@@ -34,7 +37,7 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
   void set_session_info(const SessionInfo& session_info) {
     session_info_ = session_info;
   }
-  void set_reconnection_period(unsigned period) {
+  void set_reconnection_period(Duration period) {
     reconnection_period_ = period;
   }
 
@@ -183,8 +186,8 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
   uint32_t long_send_seq_ = 0;
 
   // Time of first message of last unacked portion was received.
-  base::TimeTicks receive_time_;
-  base::TimeTicks connect_start_ticks_;
+  TimePoint receive_time_;
+  TimePoint connect_start_ticks_;
 
   size_t num_recv_ = 0;
 
@@ -201,7 +204,7 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
   std::vector<char> sequence_message_;
 
   bool accepted_ = false;
-  unsigned reconnection_period_ = 1000;
+  Duration reconnection_period_;
 
   bool connecting_ = false;
 

@@ -1,7 +1,5 @@
 #include "net/session_info.h"
 
-#include "base/guid.h"
-
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 

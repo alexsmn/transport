@@ -8,8 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/files/file.h"
-#include "base/logging.h"
 #include "net/base/net_export.h"
 
 namespace net {
@@ -22,7 +20,7 @@ enum Error {
   // No error.
   OK = 0,
 
-#define NET_ERROR(label, value) ERR_ ## label = value,
+#define NET_ERROR(label, value) ERR_##label = value,
 #include "net/base/net_error_list.h"
 #undef NET_ERROR
 
@@ -48,10 +46,7 @@ NET_EXPORT bool IsClientCertificateError(int error);
 NET_EXPORT bool IsDnsError(int error);
 
 // Map system error code to Error.
-NET_EXPORT Error MapSystemError(logging::SystemErrorCode os_error);
-
-// A convenient function to translate file error to net error code.
-NET_EXPORT Error FileErrorToNetError(base::File::Error file_error);
+NET_EXPORT Error MapSystemError(int os_error);
 
 }  // namespace net
 

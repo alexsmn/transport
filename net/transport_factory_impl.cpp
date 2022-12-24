@@ -1,7 +1,5 @@
 #include "net/transport_factory_impl.h"
 
-#include "base/strings/string_util.h"
-#include "base/strings/sys_string_conversions.h"
 #include "net/logger.h"
 #include "net/serial_transport.h"
 #include "net/tcp_transport.h"
@@ -13,6 +11,8 @@
 #include "net/pipe_transport.h"
 #endif
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #if defined(OS_WIN)
 #include <Windows.h>
 #endif
@@ -21,16 +21,12 @@ namespace net {
 
 namespace {
 
-inline constexpr base::StringPiece AsStringPiece(std::string_view str) {
-  return {str.data(), str.size()};
-}
-
 boost::asio::serial_port::parity::type ParseParity(std::string_view str) {
-  if (base::EqualsCaseInsensitiveASCII(AsStringPiece(str), "No"))
+  if (boost::iequals(str, "No"))
     return boost::asio::serial_port::parity::none;
-  else if (base::EqualsCaseInsensitiveASCII(AsStringPiece(str), "Even"))
+  else if (boost::iequals(str, "Even"))
     return boost::asio::serial_port::parity::even;
-  else if (base::EqualsCaseInsensitiveASCII(AsStringPiece(str), "Odd"))
+  else if (boost::iequals(str, "Odd"))
     return boost::asio::serial_port::parity::odd;
   else
     throw std::invalid_argument{"Wrong parity string"};

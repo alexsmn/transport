@@ -1,10 +1,6 @@
 #include "net/transport_string.h"
 
-#include "base/logging.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
-#include "base/strings/sys_string_conversions.h"
-
+#include <charconv>
 #include <set>
 
 namespace net {
@@ -37,7 +33,7 @@ static std::string_view Trim(std::string_view str) {
 bool TransportString::CompareNoCase::operator()(
     const std::string& left,
     const std::string& right) const {
-  return base::CompareCaseInsensitiveASCII(left, right) < 0;
+  return _strcmpi(left.c_str(), right.c_str()) < 0;
 }
 
 // TransportString
@@ -89,7 +85,7 @@ TransportString::TransportString(std::string_view str) {
 }
 
 TransportString::Protocol TransportString::GetProtocol() const {
-  static_assert(arraysize(kProtocolNames) == PROTOCOL_COUNT,
+  static_assert(std::size(kProtocolNames) == PROTOCOL_COUNT,
                 "NotEnoughProtocolNames");
   for (int i = 0; i < PROTOCOL_COUNT; ++i) {
     if (HasParam(kProtocolNames[i]))
@@ -111,7 +107,7 @@ void TransportString::SetProtocol(Protocol protocol) {
 }
 
 void TransportString::SetParam(std::string_view name, int value) {
-  SetParam(name, base::NumberToString(value));
+  SetParam(name, std::to_string(value));
 }
 
 std::string_view TransportString::GetParamStr(std::string_view name) const {
@@ -122,11 +118,18 @@ std::string_view TransportString::GetParamStr(std::string_view name) const {
   return {};
 }
 
+template <class T>
+bool StringToNumber(std::string_view name, T& value) {
+  auto [ptr, ec] =
+      std::from_chars(name.data(), name.data() + name.size(), value);
+  return ec == std::errc() && ptr == name.data() + name.size();
+}
+
 int TransportString::GetParamInt(std::string_view name) const {
   auto str = GetParamStr(name);
 
-  int value;
-  if (base::StringToInt({str.data(), str.size()}, &value))
+  int value = 0;
+  if (StringToNumber(str, value))
     return value;
 
   return 0;
@@ -161,7 +164,7 @@ std::string TransportString::ToString() const {
     unpassed_params.erase(kProtocolNames[protocol]);
   }
 
-  for (int i = 0; i < arraysize(kParamOrder); ++i) {
+  for (int i = 0; i < std::size(kParamOrder); ++i) {
     const auto& param = kParamOrder[i];
     unpassed_params.erase(param);
     if (HasParam(param)) {
@@ -181,18 +184,13 @@ std::string TransportString::ToString() const {
 int TransportString::ParseSerialPortNumber(std::string_view str) {
   const std::string_view kPrefix = "COM";
 
-  if (!base::StartsWith({str.data(), str.size()},
-                        {kPrefix.data(), kPrefix.size()},
-                        base::CompareCase::SENSITIVE)) {
+  if (!str.starts_with(kPrefix))
     return 0;
-  }
 
   auto number_string = str.substr(kPrefix.size());
   unsigned number = 0;
-  if (!base::StringToUint({number_string.data(), number_string.size()},
-                          &number)) {
+  if (!StringToNumber(number_string, number))
     return 0;
-  }
 
   return static_cast<int>(number);
 }

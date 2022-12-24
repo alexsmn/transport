@@ -1,4 +1,5 @@
 find_package(Boost REQUIRED)
+find_package(GTest REQUIRED)
 
 file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
   "*.cc"
@@ -47,21 +48,23 @@ else()
 endif()
 
 add_library(net ${sources})
+add_library(Net::net ALIAS net)
 
-target_compile_definitions(net PRIVATE -DNET_IMPLEMENTATION)
+target_compile_features(net PUBLIC cxx_std_20)
+
+target_compile_definitions(net PRIVATE NET_IMPLEMENTATION)
 
 if(BUILD_SHARED_LIBS)
-  target_compile_definitions(net PUBLIC -DCOMPONENT_BUILD)
+  target_compile_definitions(net PUBLIC COMPONENT_BUILD)
 endif()
 
 target_include_directories(net PUBLIC "..")
 
-# TODO: Remove base
-target_link_libraries(net PUBLIC base Boost::boost)
+target_link_libraries(net PUBLIC Boost::boost)
 
 # UTs
 
 add_executable(net_unittests ${SOURCES_UT})
-target_link_libraries(net_unittests PUBLIC net gmock_main)
+target_link_libraries(net_unittests PUBLIC net GTest::gmock_main)
 include(GoogleTest)
 gtest_discover_tests(net_unittests)
