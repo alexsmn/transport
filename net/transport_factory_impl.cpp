@@ -6,6 +6,7 @@
 #include "net/transport_string.h"
 #include "net/udp_socket_impl.h"
 #include "net/udp_transport.h"
+#include "net/websocket_transport.h"
 
 #if defined(OS_WIN)
 #include "net/pipe_transport.h"
@@ -189,6 +190,19 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
                   "Pipes are supported only under Windows");
     return nullptr;
 #endif
+
+  } else if (protocol == TransportString::WEB_SOCKET) {
+    // WS;Passive;Host=0.0.0.0;Port=3000
+    auto host = ts.GetParamStr(TransportString::kParamHost);
+
+    int port = ts.GetParamInt(TransportString::kParamPort);
+    if (port <= 0) {
+      logger->Write(LogSeverity::Warning, "UDP port is not specified");
+      return nullptr;
+    }
+
+    return std::make_unique<WebSocketTransport>(io_context_, std::string{host},
+                                                port);
 
   } else {
     return nullptr;

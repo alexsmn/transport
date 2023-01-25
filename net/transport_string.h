@@ -12,7 +12,7 @@ class Transport;
 
 class NET_EXPORT TransportString {
  public:
-  enum Protocol { TCP, UDP, SERIAL, PIPE, PROTOCOL_COUNT };
+  enum Protocol { TCP, UDP, SERIAL, PIPE, WEB_SOCKET, PROTOCOL_COUNT };
 
   TransportString() : valid_(true) {}
   explicit TransportString(std::string_view str);

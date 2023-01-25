@@ -10,12 +10,7 @@ namespace {
 static const char kValueDelimiter = '=';
 static const char kParamDelimiter = ';';
 
-static const char* kProtocolNames[] = {
-    "TCP",
-    "UDP",
-    "SERIAL",
-    "PIPE",
-};
+static const char* kProtocolNames[] = {"TCP", "UDP", "SERIAL", "PIPE", "WS"};
 
 static std::string_view Trim(std::string_view str) {
   auto f = str.find_first_not_of(' ');

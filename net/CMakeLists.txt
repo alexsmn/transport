@@ -1,4 +1,4 @@
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS coroutine)
 find_package(GTest REQUIRED)
 
 file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
@@ -60,7 +60,7 @@ endif()
 
 target_include_directories(net PUBLIC "..")
 
-target_link_libraries(net PUBLIC Boost::boost)
+target_link_libraries(net PUBLIC Boost::boost Boost::coroutine)
 
 # UTs
 
