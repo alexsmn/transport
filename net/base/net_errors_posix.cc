@@ -9,14 +9,9 @@
 #include <string>
 #include <unistd.h>
 
-#include "base/logging.h"
-
 namespace net {
 
-Error MapSystemError(logging::SystemErrorCode os_error) {
-  if (os_error != 0)
-    DVLOG(2) << "Error " << os_error;
-
+Error MapSystemError(int os_error) {
   // There are numerous posix error codes, but these are the ones we thus far
   // find interesting.
   switch (os_error) {
@@ -112,8 +107,6 @@ Error MapSystemError(logging::SystemErrorCode os_error) {
     case 0:
       return OK;
     default:
-      LOG(WARNING) << "Unknown error " << os_error
-                   << " mapped to net::ERR_FAILED";
       return ERR_FAILED;
   }
 }

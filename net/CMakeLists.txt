@@ -58,6 +58,10 @@ if(BUILD_SHARED_LIBS)
   target_compile_definitions(net PUBLIC COMPONENT_BUILD)
 endif()
 
+if(NOT WIN32)
+  target_compile_definitions(net PRIVATE COMPILER_GCC)
+endif()
+
 target_include_directories(net PUBLIC "..")
 
 target_link_libraries(net PUBLIC Boost::boost Boost::coroutine)

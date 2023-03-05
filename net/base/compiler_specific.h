@@ -9,6 +9,7 @@
 // (This is undocumented but matches what the system C headers do.)
 // For member functions, the implicit this parameter counts as index 1.
 #if defined(COMPILER_GCC) || defined(__clang__)
+#define _Printf_format_string_
 #define PRINTF_FORMAT(format_param, dots_param) \
   __attribute__((format(printf, format_param, dots_param)))
 #else

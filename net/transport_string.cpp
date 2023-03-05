@@ -1,5 +1,6 @@
 #include "net/transport_string.h"
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <charconv>
 #include <set>
 
@@ -28,7 +29,7 @@ static std::string_view Trim(std::string_view str) {
 bool TransportString::CompareNoCase::operator()(
     const std::string& left,
     const std::string& right) const {
-  return _strcmpi(left.c_str(), right.c_str()) < 0;
+  return boost::ilexicographical_compare(left, right);
 }
 
 // TransportString
