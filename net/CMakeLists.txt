@@ -59,7 +59,7 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 if(NOT WIN32)
-  target_compile_definitions(net PRIVATE COMPILER_GCC)
+  target_compile_definitions(net PUBLIC COMPILER_GCC)
 endif()
 
 target_include_directories(net PUBLIC "..")
