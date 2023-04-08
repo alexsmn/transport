@@ -58,7 +58,9 @@ if(BUILD_SHARED_LIBS)
   target_compile_definitions(net PUBLIC COMPONENT_BUILD)
 endif()
 
-if(NOT WIN32)
+if(WIN32)
+  target_compile_options(net PRIVATE /bigobj)
+else()
   target_compile_definitions(net PUBLIC COMPILER_GCC)
 endif()
 
