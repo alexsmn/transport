@@ -63,51 +63,52 @@ void AsioTcpTransport::ActiveCore::Open(Delegate& delegate) {
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
 
-  Resolver::query query{host_, service_};
-  resolver_.async_resolve(query, [this, ref = shared_from_this()](
-                                     const boost::system::error_code& error,
-                                     Resolver::iterator iterator) {
-    DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  resolver_.async_resolve(
+      host_, service_,
+      [this, ref = shared_from_this()](const boost::system::error_code& error,
+                                       Resolver::iterator iterator) {
+        DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-    if (closed_)
-      return;
+        if (closed_)
+          return;
 
-    if (error) {
-      if (error != boost::asio::error::operation_aborted) {
-        logger_->Write(LogSeverity::Warning, "DNS resolution error");
-        ProcessError(net::MapSystemError(error.value()));
-      }
-      return;
-    }
-
-    logger_->Write(LogSeverity::Normal, "DNS resolution completed");
-
-    boost::asio::async_connect(
-        io_object_, iterator,
-        [this, ref = shared_from_this()](const boost::system::error_code& error,
-                                         Resolver::iterator iterator) {
-          DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-
-          if (closed_)
-            return;
-
-          if (error) {
-            if (error != boost::asio::error::operation_aborted) {
-              logger_->Write(LogSeverity::Warning, "Connect error");
-              ProcessError(net::MapSystemError(error.value()));
-            }
-            return;
+        if (error) {
+          if (error != boost::asio::error::operation_aborted) {
+            logger_->Write(LogSeverity::Warning, "DNS resolution error");
+            ProcessError(net::MapSystemError(error.value()));
           }
+          return;
+        }
 
-          logger_->WriteF(LogSeverity::Normal, "Connected to %s",
-                          iterator->host_name().c_str());
+        logger_->Write(LogSeverity::Normal, "DNS resolution completed");
 
-          connected_ = true;
-          delegate_->OnTransportOpened();
+        boost::asio::async_connect(
+            io_object_, iterator,
+            [this, ref = shared_from_this()](
+                const boost::system::error_code& error,
+                Resolver::iterator iterator) {
+              DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-          StartReading();
-        });
-  });
+              if (closed_)
+                return;
+
+              if (error) {
+                if (error != boost::asio::error::operation_aborted) {
+                  logger_->Write(LogSeverity::Warning, "Connect error");
+                  ProcessError(net::MapSystemError(error.value()));
+                }
+                return;
+              }
+
+              logger_->WriteF(LogSeverity::Normal, "Connected to %s",
+                              iterator->host_name().c_str());
+
+              connected_ = true;
+              delegate_->OnTransportOpened();
+
+              StartReading();
+            });
+      });
 }
 
 void AsioTcpTransport::ActiveCore::Cleanup() {
