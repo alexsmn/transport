@@ -110,12 +110,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    auto transport =
-        std::make_unique<AsioTcpTransport>(io_context_, std::move(logger));
-    transport->host = host;
-    transport->service = std::to_string(port);
-    transport->active = active;
-    return std::move(transport);
+    return std::make_unique<AsioTcpTransport>(io_context_, std::move(logger),
+                                              std::string{host},
+                                              std::to_string(port), active);
 
   } else if (protocol == TransportString::UDP) {
     // UDP;Passive;Host=0.0.0.0;Port=3000
@@ -127,12 +124,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    auto transport = std::make_unique<AsioUdpTransport>(std::move(logger),
-                                                        udp_socket_factory_);
-    transport->host = host;
-    transport->service = std::to_string(port);
-    transport->active = active;
-    return std::move(transport);
+    return std::make_unique<AsioUdpTransport>(
+        std::move(logger), udp_socket_factory_, std::string{host},
+        std::to_string(port), active);
 
   } else if (protocol == TransportString::SERIAL) {
     // SERIAL;Name=COM2

@@ -26,7 +26,7 @@ class AsioUdpTransportTest : public Test {
  public:
   virtual void SetUp() override;
 
-  void OpenTransport();
+  void OpenTransport(bool active);
   void ReceiveMessage();
 
   void ExpectTransportAccepted();
@@ -42,7 +42,7 @@ class AsioUdpTransportTest : public Test {
   };
 
   TransportDelegateMock delegate;
-  AsioUdpTransport transport{NullLogger::GetInstance(), udp_socket_factory};
+  std::unique_ptr<Transport> transport_;
 
   TransportDelegateMock accepted_delegate;
   std::unique_ptr<Transport> accepted_transport;
@@ -50,16 +50,22 @@ class AsioUdpTransportTest : public Test {
 
 void AsioUdpTransportTest::SetUp() {}
 
-void AsioUdpTransportTest::OpenTransport() {
+void AsioUdpTransportTest::OpenTransport(bool active) {
+  transport_ = std::make_unique<AsioUdpTransport>(NullLogger::GetInstance(),
+                                                  udp_socket_factory,
+                                                  /*host*/ std::string{},
+                                                  /*service*/ std::string{},
+                                                  /*active*/ active);
+
   EXPECT_CALL(*socket, Open());
-  ASSERT_EQ(OK, transport.Open(delegate));
-  EXPECT_FALSE(transport.IsActive());
-  EXPECT_FALSE(transport.IsConnected());
+  ASSERT_EQ(OK, transport_->Open(delegate));
+  EXPECT_FALSE(transport_->IsActive());
+  EXPECT_FALSE(transport_->IsConnected());
 
   const UdpSocket::Endpoint endpoint;
   EXPECT_CALL(delegate, OnTransportOpened());
   open_handler(endpoint);
-  EXPECT_TRUE(transport.IsConnected());
+  EXPECT_TRUE(transport_->IsConnected());
 }
 
 void AsioUdpTransportTest::ReceiveMessage() {
@@ -78,13 +84,11 @@ void AsioUdpTransportTest::ExpectTransportAccepted() {
 }
 
 TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportIgnored) {
-  transport.active = false;
-
-  OpenTransport();
+  OpenTransport(false);
 
   EXPECT_CALL(delegate, OnTransportAccepted(_))
       .WillOnce(Invoke([&](std::unique_ptr<Transport> t) {
-        // Ignore accepted transport.
+        // Ignore accepted transport_->
         return net::OK;
       }));
 
@@ -94,9 +98,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportIgnored) {
 }
 
 TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportDestroyed) {
-  transport.active = false;
-
-  OpenTransport();
+  OpenTransport(false);
   ExpectTransportAccepted();
 
   EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _));
@@ -111,9 +113,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportDestroyed) {
 }
 
 TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
-  transport.active = false;
-
-  OpenTransport();
+  OpenTransport(false);
   ExpectTransportAccepted();
 
   EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _));
@@ -130,9 +130,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
 
 TEST_F(AsioUdpTransportTest,
        UdpServer_AcceptedTransportDestroyedFromMessageHandler) {
-  transport.active = false;
-
-  OpenTransport();
+  OpenTransport(false);
   ExpectTransportAccepted();
 
   EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _))
@@ -144,9 +142,7 @@ TEST_F(AsioUdpTransportTest,
 
 TEST_F(AsioUdpTransportTest,
        UdpServer_AcceptedTransportClosedFromMessageHandler) {
-  transport.active = false;
-
-  OpenTransport();
+  OpenTransport(false);
   ExpectTransportAccepted();
 
   EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _))

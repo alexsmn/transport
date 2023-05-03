@@ -136,6 +136,8 @@ class AsioTcpTransport::PassiveCore final
               const std::string& host,
               const std::string& service);
 
+  int GetLocalPort() const;
+
   // Core
   virtual bool IsConnected() const override { return connected_; }
   virtual void Open(Delegate& delegate) override;
@@ -176,6 +178,11 @@ AsioTcpTransport::PassiveCore::PassiveCore(boost::asio::io_context& io_context,
       acceptor_{io_context},
       host_{host},
       service_{service} {}
+
+int AsioTcpTransport::PassiveCore::GetLocalPort() const {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  return acceptor_.local_endpoint().port();
+}
 
 void AsioTcpTransport::PassiveCore::Open(Delegate& delegate) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
@@ -295,13 +302,20 @@ void AsioTcpTransport::PassiveCore::ProcessError(
 // AsioTcpTransport
 
 AsioTcpTransport::AsioTcpTransport(boost::asio::io_context& io_context,
-                                   std::shared_ptr<const Logger> logger)
-    : io_context_{io_context}, logger_(std::move(logger)) {}
+                                   std::shared_ptr<const Logger> logger,
+                                   std::string host,
+                                   std::string service,
+                                   bool active)
+    : io_context_{io_context},
+      logger_(std::move(logger)),
+      host_{std::move(host)},
+      service_{std::move(service)},
+      active_{active} {}
 
 AsioTcpTransport::AsioTcpTransport(boost::asio::io_context& io_context,
                                    std::shared_ptr<const Logger> logger,
                                    boost::asio::ip::tcp::socket socket)
-    : io_context_{io_context}, logger_(std::move(logger)) {
+    : io_context_{io_context}, logger_{std::move(logger)} {
   core_ = std::make_shared<ActiveCore>(io_context_, logger_, std::move(socket));
 }
 
@@ -312,14 +326,22 @@ AsioTcpTransport::~AsioTcpTransport() {
 
 Error AsioTcpTransport::Open(Transport::Delegate& delegate) {
   if (!core_) {
-    if (active)
-      core_ = std::make_shared<ActiveCore>(io_context_, logger_, host, service);
-    else
+    if (active_) {
       core_ =
-          std::make_shared<PassiveCore>(io_context_, logger_, host, service);
+          std::make_shared<ActiveCore>(io_context_, logger_, host_, service_);
+    } else {
+      core_ =
+          std::make_shared<PassiveCore>(io_context_, logger_, host_, service_);
+    }
   }
   core_->Open(delegate);
   return net::OK;
+}
+
+int AsioTcpTransport::GetLocalPort() const {
+  return core_ && !active_
+             ? std::static_pointer_cast<PassiveCore>(core_)->GetLocalPort()
+             : 0;
 }
 
 std::string AsioTcpTransport::GetName() const {

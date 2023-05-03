@@ -456,19 +456,26 @@ void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {
 // AsioUdpTransport
 
 AsioUdpTransport::AsioUdpTransport(std::shared_ptr<const Logger> logger,
-                                   UdpSocketFactory udp_socket_factory)
+                                   UdpSocketFactory udp_socket_factory,
+                                   std::string host,
+                                   std::string service,
+                                   bool active)
     : logger_{std::move(logger)},
-      udp_socket_factory_{std::move(udp_socket_factory)} {}
+      udp_socket_factory_{std::move(udp_socket_factory)},
+      host_{std::move(host)},
+      service_{std::move(service)},
+      active_{active} {}
 
 Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
   if (core_)
     core_->Close();
 
-  if (active) {
-    core_ = std::make_shared<UdpActiveCore>(udp_socket_factory_, host, service);
+  if (active_) {
+    core_ =
+        std::make_shared<UdpActiveCore>(udp_socket_factory_, host_, service_);
   } else {
-    core_ = std::make_shared<UdpPassiveCore>(logger_, udp_socket_factory_, host,
-                                             service);
+    core_ = std::make_shared<UdpPassiveCore>(logger_, udp_socket_factory_,
+                                             host_, service_);
   }
 
   core_->Open(delegate);
