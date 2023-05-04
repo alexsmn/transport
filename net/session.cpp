@@ -118,7 +118,18 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
   transport_ = std::move(transport);
   if (transport_) {
     cancelation_ = std::make_shared<bool>(false);
-    transport_->Open(*this);
+    transport_->Open(
+        {.on_open = [this] { OnTransportOpened(); },
+         .on_close = [this](net::Error error) { OnTransportClosed(error); },
+         .on_data = [this] { OnTransportDataReceived(); },
+         .on_message =
+             [this](std::span<const char> data) {
+               OnTransportMessageReceived(data);
+             },
+         .on_accept =
+             [this](std::unique_ptr<Transport> transport) {
+               return OnTransportAccepted(std::move(transport));
+             }});
   }
 }
 
@@ -191,8 +202,8 @@ void Session::OnClosed(Error error) {
 
   Close();
 
-  if (delegate_)
-    delegate_->OnTransportClosed(error);
+  if (handlers_.on_close)
+    handlers_.on_close(error);
   else if (accepted_)
     delete this;
 }
@@ -220,14 +231,14 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-Error Session::Open(Transport::Delegate& delegate) {
+Error Session::Open(const Handlers& handlers) {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
 
   logger_->Write(LogSeverity::Normal, "Opening session");
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
   state_ = OPENING;
   StartConnecting();
 
@@ -259,7 +270,18 @@ void Session::StartConnecting() {
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  Error error = transport_->Open(*this);
+  Error error = transport_->Open(
+      {.on_open = [this] { OnTransportOpened(); },
+       .on_close = [this](net::Error error) { OnTransportClosed(error); },
+       .on_data = [this] { OnTransportDataReceived(); },
+       .on_message =
+           [this](std::span<const char> data) {
+             OnTransportMessageReceived(data);
+           },
+       .on_accept =
+           [this](std::unique_ptr<Transport> transport) {
+             return OnTransportAccepted(std::move(transport));
+           }});
   if (error != OK)
     OnTransportError(error);
 }
@@ -350,15 +372,14 @@ void Session::ProcessSessionMessage(uint16_t id,
     std::vector<char> sequence_message;
     sequence_message.swap(sequence_message_);
 
-    if (delegate_) {
-      delegate_->OnTransportMessageReceived(sequence_message);
+    if (handlers_.on_message) {
+      handlers_.on_message(sequence_message);
     }
 
   } else {
     // Short message.
-    if (delegate_) {
-      delegate_->OnTransportMessageReceived(
-          {static_cast<const char*>(data), len});
+    if (handlers_.on_message) {
+      handlers_.on_message({static_cast<const char*>(data), len});
     }
   }
 
@@ -426,8 +447,8 @@ void Session::OnCreateResponse(const SessionID& session_id,
   session_info_ = session_info;
   state_ = OPENED;
 
-  if (delegate_)
-    delegate_->OnTransportOpened();
+  if (handlers_.on_open)
+    handlers_.on_open();
 }
 
 void Session::OnTransportClosed(Error error) {
@@ -656,13 +677,13 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
 
   std::unique_ptr<net::Transport> self(this);
 
-  if (!parent_session_ || !parent_session_->delegate_) {
+  if (!parent_session_ || !parent_session_->handlers_.on_accept) {
     error = ERR_FAILED;
 
   } else {
     create_info_ = create_info;
     // TODO: Refactor!
-    error = parent_session_->delegate_->OnTransportAccepted(std::move(self));
+    error = parent_session_->handlers_.on_accept(std::move(self));
     if (error == OK) {
       state_ = OPENED;
 

@@ -15,7 +15,7 @@ namespace net {
 
 class Logger;
 
-class NET_EXPORT Session final : public Transport, private Transport::Delegate {
+class NET_EXPORT Session final : public Transport {
  public:
   using Clock = std::chrono::steady_clock;
   using TimePoint = Clock::time_point;
@@ -72,7 +72,7 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
   std::unique_ptr<Transport> DetachTransport();
 
   // Transport
-  virtual Error Open(Transport::Delegate& delegate) override;
+  virtual Error Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -151,18 +151,17 @@ class NET_EXPORT Session final : public Transport, private Transport::Delegate {
   void OnTimer();
 
   // Transport::Delegate overrides
-  virtual void OnTransportOpened() override;
-  virtual void OnTransportClosed(Error error) override;
-  virtual void OnTransportDataReceived() override;
-  virtual net::Error OnTransportAccepted(
-      std::unique_ptr<Transport> transport) override;
-  virtual void OnTransportMessageReceived(std::span<const char> data) override;
+  void OnTransportOpened();
+  void OnTransportClosed(Error error);
+  void OnTransportDataReceived();
+  net::Error OnTransportAccepted(std::unique_ptr<Transport> transport);
+  void OnTransportMessageReceived(std::span<const char> data);
 
   boost::asio::io_service& io_service_;
 
   std::shared_ptr<const Logger> logger_;
 
-  Transport::Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   SessionID id_;
   Session* parent_session_ = nullptr;

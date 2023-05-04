@@ -23,10 +23,10 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-Error PipeTransport::Open(Transport::Delegate& delegate) {
+Error PipeTransport::Open(const Handlers& handlers) {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
 
   HANDLE handle;
 
@@ -57,8 +57,8 @@ Error PipeTransport::Open(Transport::Delegate& delegate) {
   // TODO: Fix ASAP.
   timer_.StartRepeating(10ms, [this] { OnTimer(); });
 
-  if (delegate_)
-    delegate_->OnTransportOpened();
+  if (handlers_.on_open)
+    handlers_.on_open();
 
   return OK;
 }
@@ -68,7 +68,8 @@ void PipeTransport::Close() {
     CloseHandle(handle_);
     handle_ = INVALID_HANDLE_VALUE;
   }
-  delegate_ = nullptr;
+
+  handlers_ = {};
 }
 
 int PipeTransport::Read(std::span<char> data) {
@@ -89,8 +90,8 @@ int PipeTransport::Write(std::span<const char> data) {
 }
 
 void PipeTransport::OnTimer() {
-  if (delegate_)
-    delegate_->OnTransportDataReceived();
+  if (handlers_.on_data)
+    handlers_.on_data();
 }
 
 std::string PipeTransport::GetName() const {

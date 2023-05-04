@@ -15,7 +15,7 @@ class WebSocketTransport : public Transport {
                      int port);
   ~WebSocketTransport();
 
-  virtual Error Open(Delegate& delegate) override;
+  virtual Error Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return 0; }
   virtual int Write(std::span<const char> data) override { return 0; }

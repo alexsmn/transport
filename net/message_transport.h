@@ -10,8 +10,7 @@ namespace net {
 class Logger;
 class MessageReader;
 
-class NET_EXPORT MessageTransport : public Transport,
-                                    private Transport::Delegate {
+class NET_EXPORT MessageTransport : public Transport {
  public:
   MessageTransport(std::unique_ptr<Transport> child_transport,
                    std::unique_ptr<MessageReader> message_reader,
@@ -21,7 +20,7 @@ class NET_EXPORT MessageTransport : public Transport,
   MessageReader& message_reader() { return *message_reader_; }
 
   // Transport
-  virtual Error Open(Transport::Delegate& delegate) override;
+  virtual Error Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -39,13 +38,12 @@ class NET_EXPORT MessageTransport : public Transport,
 
   void InternalClose();
 
-  // Transport::Delegate
-  virtual void OnTransportOpened() override;
-  virtual net::Error OnTransportAccepted(
-      std::unique_ptr<Transport> transport) override;
-  virtual void OnTransportClosed(Error error) override;
-  virtual void OnTransportDataReceived() override;
-  virtual void OnTransportMessageReceived(std::span<const char> data) override;
+  // Child handlers.
+  void OnChildTransportOpened();
+  net::Error OnChildTransportAccepted(std::unique_ptr<Transport> transport);
+  void OnChildTransportClosed(Error error);
+  void OnChildTransportDataReceived();
+  void OnChildTransportMessageReceived(std::span<const char> data);
 
   std::unique_ptr<Transport> child_transport_;
 
@@ -53,7 +51,7 @@ class NET_EXPORT MessageTransport : public Transport,
 
   const std::shared_ptr<const Logger> logger_;
 
-  Transport::Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   size_t max_message_size_;
   // TODO: Move into Context.

@@ -78,22 +78,33 @@ bool MessageTransport::IsMessageOriented() const {
   return true;
 }
 
-Error MessageTransport::Open(Transport::Delegate& delegate) {
+Error MessageTransport::Open(const Handlers& handlers) {
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
   assert(!cancelation_);
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
   cancelation_ = std::make_shared<bool>(false);
 
-  return child_transport_->Open(*this);
+  return child_transport_->Open(
+      {.on_open = [this] { OnChildTransportOpened(); },
+       .on_close = [this](net::Error error) { OnChildTransportClosed(error); },
+       .on_data = [this] { OnChildTransportDataReceived(); },
+       .on_message =
+           [this](std::span<const char> data) {
+             OnChildTransportMessageReceived(data);
+           },
+       .on_accept =
+           [this](std::unique_ptr<Transport> transport) {
+             return OnChildTransportAccepted(std::move(transport));
+           }});
 }
 
 void MessageTransport::InternalClose() {
   if (!child_transport_->IsConnected())
     return;
 
-  delegate_ = nullptr;
+  handlers_ = {};
   cancelation_ = nullptr;
   child_transport_->Close();
   message_reader_->Reset();
@@ -166,29 +177,30 @@ std::string MessageTransport::GetName() const {
   return "MSG:" + child_transport_->GetName();
 }
 
-void MessageTransport::OnTransportOpened() {
+void MessageTransport::OnChildTransportOpened() {
   assert(child_transport_->IsConnected());
 
-  if (delegate_)
-    delegate_->OnTransportOpened();
+  if (handlers_.on_open)
+    handlers_.on_open();
 }
 
-net::Error MessageTransport::OnTransportAccepted(
+Error MessageTransport::OnChildTransportAccepted(
     std::unique_ptr<Transport> transport) {
-  return delegate_->OnTransportAccepted(std::move(transport));
+  return handlers_.on_accept ? handlers_.on_accept(std::move(transport))
+                             : ERR_ACCESS_DENIED;
 }
 
-void MessageTransport::OnTransportClosed(Error error) {
+void MessageTransport::OnChildTransportClosed(Error error) {
   assert(child_transport_);
   assert(cancelation_);
 
   cancelation_ = nullptr;
 
-  if (delegate_)
-    delegate_->OnTransportClosed(error);
+  if (handlers_.on_close)
+    handlers_.on_close(error);
 }
 
-void MessageTransport::OnTransportDataReceived() {
+void MessageTransport::OnChildTransportDataReceived() {
   assert(child_transport_->IsConnected());
 
   std::weak_ptr<bool> cancelation = cancelation_;
@@ -200,13 +212,13 @@ void MessageTransport::OnTransportDataReceived() {
     if (res < 0)
       break;
 
-    if (delegate_)
-      delegate_->OnTransportMessageReceived(
-          {read_buffer_.data(), static_cast<size_t>(res)});
+    if (handlers_.on_message)
+      handlers_.on_message({read_buffer_.data(), static_cast<size_t>(res)});
   }
 }
 
-void MessageTransport::OnTransportMessageReceived(std::span<const char> data) {
+void MessageTransport::OnChildTransportMessageReceived(
+    std::span<const char> data) {
   assert(child_transport_->IsMessageOriented());
 
   span<const char> buffer{data.data(), data.size()};
@@ -216,8 +228,10 @@ void MessageTransport::OnTransportMessageReceived(std::span<const char> data) {
   while (!cancelation.expired() && !buffer.empty()) {
     int res = ReadMessage(buffer, *message_reader_, *logger_, message);
     if (res > 0) {
-      delegate_->OnTransportMessageReceived(
-          {reinterpret_cast<const char*>(message.data), message.size});
+      if (handlers_.on_message) {
+        handlers_.on_message(
+            {reinterpret_cast<const char*>(message.data), message.size});
+      }
     } else if (res < 0) {
       if (message_reader_->has_error_correction()) {
         logger_->WriteF(LogSeverity::Warning,
@@ -228,7 +242,9 @@ void MessageTransport::OnTransportMessageReceived(std::span<const char> data) {
         logger_->WriteF(LogSeverity::Error, "Error on message parsing - %s",
                         ErrorToString(static_cast<Error>(res)).c_str());
         child_transport_->Close();
-        delegate_->OnTransportClosed(static_cast<Error>(res));
+        if (handlers_.on_close) {
+          handlers_.on_close(static_cast<Error>(res));
+        }
       }
       return;
     }

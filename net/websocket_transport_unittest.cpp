@@ -16,9 +16,9 @@ TEST_F(WebSocketTransportTest, Test) {
 
   int port = 4000;
 
-  MockTransportDelegate server_delegate;
+  MockTransportHandlers server_handlers;
   WebSocketTransport server{io_context, {}, port};
-  ASSERT_EQ(OK, server.Open(server_delegate));
+  ASSERT_EQ(OK, server.Open(server_handlers.AsHandlers()));
 }
 
 }  // namespace net

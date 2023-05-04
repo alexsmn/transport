@@ -14,7 +14,7 @@ class WebSocketTransport::ConnectionCore
                  boost::asio::yield_context yield)
       : ws{std::move(ws)}, yield{std::move(yield)} {}
 
-  void Open(Delegate& delegate);
+  void Open(const Handlers& handlers);
   void Close();
 
   int Write(const void* data, size_t len);
@@ -25,7 +25,7 @@ class WebSocketTransport::ConnectionCore
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws;
   boost::asio::yield_context yield;
 
-  Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   std::queue<std::vector<char>> write_queue_;
   bool writing_ = false;
@@ -35,10 +35,10 @@ void Fail(boost::beast::error_code ec, char const* what) {
   // std::cerr << what << ": " << ec.message() << "\n";
 }
 
-void WebSocketTransport::ConnectionCore::Open(Delegate& delegate) {
+void WebSocketTransport::ConnectionCore::Open(const Handlers& handlers) {
   auto ref = shared_from_this();
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
 
   boost::beast::error_code ec;
 
@@ -53,24 +53,23 @@ void WebSocketTransport::ConnectionCore::Open(Delegate& delegate) {
       break;
 
     if (ec) {
-      if (delegate_)
-        delegate_->OnTransportClosed(net::ERR_ABORTED);
+      if (handlers_.on_close)
+        handlers_.on_close(net::ERR_ABORTED);
       return;
     }
 
-    if (delegate_) {
-      delegate_->OnTransportMessageReceived(
-          {static_cast<const char*>(buffer.data().data()),
-           buffer.data().size()});
+    if (handlers_.on_message) {
+      handlers_.on_message({static_cast<const char*>(buffer.data().data()),
+                            buffer.data().size()});
     }
   }
 
-  if (delegate_)
-    delegate_->OnTransportClosed(net::OK);
+  if (handlers_.on_close)
+    handlers_.on_close(net::OK);
 }
 
 void WebSocketTransport::ConnectionCore::Close() {
-  delegate_ = nullptr;
+  handlers_ = {};
 
   boost::beast::error_code ec;
   ws.close(boost::beast::websocket::close_code::normal, ec);
@@ -102,8 +101,8 @@ void WebSocketTransport::ConnectionCore::StartWriting(
     boost::beast::error_code ec;
     ws.async_write(boost::asio::buffer(message), yield[ec]);
     if (ec) {
-      if (delegate_)
-        delegate_->OnTransportClosed(net::ERR_ABORTED);
+      if (handlers_.on_close)
+        handlers_.on_close(net::ERR_ABORTED);
       return;
     }
   }
@@ -118,7 +117,7 @@ class WebSocketTransport::Connection : public Transport {
   ~Connection();
 
   // Transport
-  virtual Error Open(Delegate& delegate) override;
+  virtual Error Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return OK; }
   virtual int Write(std::span<const char> data) override;
@@ -137,10 +136,10 @@ WebSocketTransport::Connection::~Connection() {
     core_->Close();
 }
 
-Error WebSocketTransport::Connection::Open(Delegate& delegate) {
+Error WebSocketTransport::Connection::Open(const Handlers& handlers) {
   assert(!opened_);
   opened_ = true;
-  core_->Open(delegate);
+  core_->Open(handlers);
   return OK;
 }
 
@@ -160,7 +159,7 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
  public:
   Core(boost::asio::io_context& io_context, std::string host, int port);
 
-  Error Open(Delegate& delegate);
+  Error Open(const Handlers& handlers);
   void Close();
 
   void Listen(boost::asio::yield_context yield);
@@ -172,7 +171,7 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
   const std::string host_;
   const int port_;
 
-  Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 };
 
 WebSocketTransport::Core::Core(boost::asio::io_context& io_context,
@@ -180,8 +179,8 @@ WebSocketTransport::Core::Core(boost::asio::io_context& io_context,
                                int port)
     : io_context_{io_context}, host_{std::move(host)}, port_{std::move(port)} {}
 
-Error WebSocketTransport::Core::Open(Delegate& delegate) {
-  delegate_ = &delegate;
+Error WebSocketTransport::Core::Open(const Handlers& handlers) {
+  handlers_ = handlers;
 
   boost::asio::spawn(io_context_,
                      std::bind_front(&Core::Listen, shared_from_this()));
@@ -190,7 +189,7 @@ Error WebSocketTransport::Core::Open(Delegate& delegate) {
 }
 
 void WebSocketTransport::Core::Close() {
-  delegate_ = nullptr;
+  handlers_ = {};
 }
 
 void WebSocketTransport::Core::Listen(boost::asio::yield_context yield) {
@@ -263,9 +262,11 @@ void WebSocketTransport::Core::DoSession(
   if (ec)
     return Fail(ec, "accept");
 
-  auto connection_core =
-      std::make_shared<ConnectionCore>(std::move(ws), std::move(yield));
-  delegate_->OnTransportAccepted(std::make_unique<Connection>(connection_core));
+  if (handlers_.on_accept) {
+    auto connection_core =
+        std::make_shared<ConnectionCore>(std::move(ws), std::move(yield));
+    handlers_.on_accept(std::make_unique<Connection>(connection_core));
+  }
 }
 
 // WebSocketTransport
@@ -280,9 +281,9 @@ WebSocketTransport::~WebSocketTransport() {
     core_->Close();
 }
 
-Error WebSocketTransport::Open(Delegate& delegate) {
+Error WebSocketTransport::Open(const Handlers& handlers) {
   assert(core_);
-  return core_->Open(delegate);
+  return core_->Open(handlers);
 }
 
 void WebSocketTransport::Close() {

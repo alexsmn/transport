@@ -18,7 +18,7 @@ class NET_EXPORT QueueTransport final : public Transport {
   void Exec();
 
   // Transport
-  virtual Error Open(Transport::Delegate& delegate) override;
+  virtual Error Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -36,7 +36,7 @@ class NET_EXPORT QueueTransport final : public Transport {
 
   boost::asio::io_service& io_service_;
 
-  Transport::Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   MessageQueue read_queue_;
 

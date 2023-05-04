@@ -8,14 +8,14 @@ namespace net {
 
 class TransportMock : public Transport {
  public:
-  MOCK_METHOD1(Open, Error(Delegate& delegate));
-  MOCK_METHOD0(Close, void());
-  MOCK_METHOD1(Read, int(std::span<char> data));
-  MOCK_METHOD1(Write, int(std::span<const char> data));
-  MOCK_CONST_METHOD0(GetName, std::string());
-  MOCK_CONST_METHOD0(IsMessageOriented, bool());
-  MOCK_CONST_METHOD0(IsConnected, bool());
-  MOCK_CONST_METHOD0(IsActive, bool());
+  MOCK_METHOD(Error, Open, (const Handlers& handlers), (override));
+  MOCK_METHOD(void, Close, (), (override));
+  MOCK_METHOD(int, Read, (std::span<char> data), (override));
+  MOCK_METHOD(int, Write, (std::span<const char> data), (override));
+  MOCK_METHOD(std::string, GetName, (), (const override));
+  MOCK_METHOD(bool, IsMessageOriented, (), (const override));
+  MOCK_METHOD(bool, IsConnected, (), (const override));
+  MOCK_METHOD(bool, IsActive, (), (const override));
 };
 
 }  // namespace net

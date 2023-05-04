@@ -20,7 +20,7 @@ class AsioTcpTransport::ActiveCore final
              Socket socket);
 
   // Core
-  virtual void Open(Delegate& delegate) override;
+  virtual void Open(const Handlers& handlers) override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
@@ -50,10 +50,10 @@ AsioTcpTransport::ActiveCore::ActiveCore(boost::asio::io_context& io_context,
   connected_ = true;
 }
 
-void AsioTcpTransport::ActiveCore::Open(Delegate& delegate) {
+void AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
 
   if (connected_) {
     StartReading();
@@ -104,7 +104,10 @@ void AsioTcpTransport::ActiveCore::Open(Delegate& delegate) {
                               iterator->host_name().c_str());
 
               connected_ = true;
-              delegate_->OnTransportOpened();
+
+              if (handlers_.on_open) {
+                handlers_.on_open();
+              }
 
               StartReading();
             });
@@ -140,7 +143,7 @@ class AsioTcpTransport::PassiveCore final
 
   // Core
   virtual bool IsConnected() const override { return connected_; }
-  virtual void Open(Delegate& delegate) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -159,7 +162,7 @@ class AsioTcpTransport::PassiveCore final
   const std::shared_ptr<const Logger> logger_;
   std::string host_;
   std::string service_;
-  Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   Resolver resolver_;
   boost::asio::ip::tcp::acceptor acceptor_;
@@ -184,10 +187,10 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-void AsioTcpTransport::PassiveCore::Open(Delegate& delegate) {
+void AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
 
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
@@ -234,7 +237,8 @@ void AsioTcpTransport::PassiveCore::Open(Delegate& delegate) {
     logger_->Write(LogSeverity::Normal, "Bind completed");
 
     connected_ = true;
-    delegate_->OnTransportOpened();
+    if (handlers_.on_open)
+      handlers_.on_open();
 
     StartAccepting();
   });
@@ -282,9 +286,11 @@ void AsioTcpTransport::PassiveCore::StartAccepting() {
 
         logger_->Write(LogSeverity::Normal, "Connection accepted");
 
-        auto accepted_transport = std::make_unique<AsioTcpTransport>(
-            io_context_, logger_, std::move(peer));
-        delegate_->OnTransportAccepted(std::move(accepted_transport));
+        if (handlers_.on_accept) {
+          auto accepted_transport = std::make_unique<AsioTcpTransport>(
+              io_context_, logger_, std::move(peer));
+          handlers_.on_accept(std::move(accepted_transport));
+        }
 
         StartAccepting();
       });
@@ -296,7 +302,10 @@ void AsioTcpTransport::PassiveCore::ProcessError(
 
   connected_ = false;
   closed_ = true;
-  delegate_->OnTransportClosed(net::MapSystemError(ec.value()));
+
+  if (handlers_.on_close) {
+    handlers_.on_close(net::MapSystemError(ec.value()));
+  }
 }
 
 // AsioTcpTransport
@@ -324,7 +333,7 @@ AsioTcpTransport::~AsioTcpTransport() {
     core_->Close();
 }
 
-Error AsioTcpTransport::Open(Transport::Delegate& delegate) {
+Error AsioTcpTransport::Open(const Handlers& handlers) {
   if (!core_) {
     if (active_) {
       core_ =
@@ -334,7 +343,7 @@ Error AsioTcpTransport::Open(Transport::Delegate& delegate) {
           std::make_shared<PassiveCore>(io_context_, logger_, host_, service_);
     }
   }
-  core_->Open(delegate);
+  core_->Open(handlers);
   return net::OK;
 }
 

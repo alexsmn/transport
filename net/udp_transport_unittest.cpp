@@ -41,11 +41,11 @@ class AsioUdpTransportTest : public Test {
     return socket;
   };
 
-  MockTransportDelegate delegate;
+  MockTransportHandlers transport_handlers_;
   std::unique_ptr<Transport> transport_;
 
-  MockTransportDelegate accepted_delegate;
-  std::unique_ptr<Transport> accepted_transport;
+  MockTransportHandlers accepted_transport_handlers_;
+  std::unique_ptr<Transport> accepted_transport_;
 };
 
 void AsioUdpTransportTest::SetUp() {}
@@ -58,12 +58,12 @@ void AsioUdpTransportTest::OpenTransport(bool active) {
                                                   /*active*/ active);
 
   EXPECT_CALL(*socket, Open());
-  ASSERT_EQ(OK, transport_->Open(delegate));
+  ASSERT_EQ(OK, transport_->Open(transport_handlers_.AsHandlers()));
   EXPECT_FALSE(transport_->IsActive());
   EXPECT_FALSE(transport_->IsConnected());
 
   const UdpSocket::Endpoint endpoint;
-  EXPECT_CALL(delegate, OnTransportOpened());
+  EXPECT_CALL(transport_handlers_.on_open, Call());
   open_handler(endpoint);
   EXPECT_TRUE(transport_->IsConnected());
 }
@@ -75,10 +75,10 @@ void AsioUdpTransportTest::ReceiveMessage() {
 }
 
 void AsioUdpTransportTest::ExpectTransportAccepted() {
-  EXPECT_CALL(delegate, OnTransportAccepted(_))
+  EXPECT_CALL(transport_handlers_.on_accept, Call(_))
       .WillOnce(Invoke([&](std::unique_ptr<Transport> t) {
-        t->Open(accepted_delegate);
-        accepted_transport = std::move(t);
+        t->Open(accepted_transport_handlers_.AsHandlers());
+        accepted_transport_ = std::move(t);
         return net::OK;
       }));
 }
@@ -86,9 +86,9 @@ void AsioUdpTransportTest::ExpectTransportAccepted() {
 TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportIgnored) {
   OpenTransport(false);
 
-  EXPECT_CALL(delegate, OnTransportAccepted(_))
+  EXPECT_CALL(transport_handlers_.on_accept, Call(_))
       .WillOnce(Invoke([&](std::unique_ptr<Transport> t) {
-        // Ignore accepted transport_->
+        // Ignore accepted transport.
         return net::OK;
       }));
 
@@ -101,13 +101,13 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportDestroyed) {
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_));
+  EXPECT_CALL(accepted_transport_handlers_.on_message, Call(_));
   ReceiveMessage();
 
-  ASSERT_TRUE(accepted_transport);
-  EXPECT_TRUE(accepted_transport->IsConnected());
+  ASSERT_TRUE(accepted_transport_);
+  EXPECT_TRUE(accepted_transport_->IsConnected());
 
-  accepted_transport.reset();
+  accepted_transport_.reset();
 
   EXPECT_CALL(*socket, Close());
 }
@@ -116,14 +116,14 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_));
+  EXPECT_CALL(accepted_transport_handlers_.on_message, Call(_));
   ReceiveMessage();
 
-  ASSERT_TRUE(accepted_transport);
-  EXPECT_TRUE(accepted_transport->IsConnected());
+  ASSERT_TRUE(accepted_transport_);
+  EXPECT_TRUE(accepted_transport_->IsConnected());
 
-  accepted_transport->Close();
-  EXPECT_FALSE(accepted_transport->IsConnected());
+  accepted_transport_->Close();
+  EXPECT_FALSE(accepted_transport_->IsConnected());
 
   EXPECT_CALL(*socket, Close());
 }
@@ -133,8 +133,8 @@ TEST_F(AsioUdpTransportTest,
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_))
-      .WillOnce(Invoke([&] { accepted_transport.reset(); }));
+  EXPECT_CALL(accepted_transport_handlers_.on_message, Call(_))
+      .WillOnce(Invoke([&] { accepted_transport_.reset(); }));
   ReceiveMessage();
 
   EXPECT_CALL(*socket, Close());
@@ -145,8 +145,8 @@ TEST_F(AsioUdpTransportTest,
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_))
-      .WillOnce(Invoke([&] { accepted_transport->Close(); }));
+  EXPECT_CALL(accepted_transport_handlers_.on_message, Call(_))
+      .WillOnce(Invoke([&] { accepted_transport_->Close(); }));
   ReceiveMessage();
 
   EXPECT_CALL(*socket, Close());

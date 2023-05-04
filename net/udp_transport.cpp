@@ -25,7 +25,7 @@ class AsioUdpTransport::UdpActiveCore
 
   // Core
   virtual bool IsConnected() const override { return connected_; }
-  virtual void Open(Delegate& delegate) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -44,7 +44,7 @@ class AsioUdpTransport::UdpActiveCore
 
   std::shared_ptr<UdpSocket> socket_;
 
-  Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   bool connected_ = false;
   UdpSocket::Endpoint peer_endpoint_;
@@ -58,8 +58,8 @@ AsioUdpTransport::UdpActiveCore::UdpActiveCore(
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-void AsioUdpTransport::UdpActiveCore::Open(Delegate& delegate) {
-  delegate_ = &delegate;
+void AsioUdpTransport::UdpActiveCore::Open(const Handlers& handlers) {
+  handlers_ = handlers;
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
   socket_->Open();
@@ -87,19 +87,27 @@ void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
   peer_endpoint_ = endpoint;
   connected_ = true;
-  delegate_->OnTransportOpened();
+
+  if (handlers_.on_open) {
+    handlers_.on_open();
+  }
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  delegate_->OnTransportMessageReceived(datagram);
+  if (handlers_.on_message) {
+    handlers_.on_message(datagram);
+  }
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
   connected_ = false;
-  delegate_->OnTransportClosed(net::MapSystemError(error.value()));
+
+  if (handlers_.on_close) {
+    handlers_.on_close(net::MapSystemError(error.value()));
+  }
 }
 
 UdpSocketContext AsioUdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
@@ -135,7 +143,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   ~AcceptedTransport();
 
   // Transport
-  virtual Error Open(Delegate& delegate) override;
+  virtual Error Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -156,7 +164,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
 
   bool connected_ = false;
 
-  Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   friend class UdpPassiveCore;
 };
@@ -175,7 +183,7 @@ class AsioUdpTransport::UdpPassiveCore final
 
   // Core
   virtual bool IsConnected() const override { return connected_; }
-  virtual void Open(Delegate& delegate) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -200,7 +208,7 @@ class AsioUdpTransport::UdpPassiveCore final
 
   std::shared_ptr<UdpSocket> socket_;
 
-  Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   bool connected_ = false;
 
@@ -225,10 +233,10 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
 }
 
-void AsioUdpTransport::UdpPassiveCore::Open(Delegate& delegate) {
+void AsioUdpTransport::UdpPassiveCore::Open(const Handlers& handlers) {
   logger_->WriteF(LogSeverity::Normal, "Open");
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
   socket_->Open();
@@ -286,10 +294,12 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
   logger_->WriteF(LogSeverity::Normal, "Accept new transport from endpoint %s",
                   ToString(endpoint).c_str());
 
-  auto accepted_transport =
-      std::make_unique<AcceptedTransport>(shared_from_this(), endpoint);
-  accepted_transports_.emplace(endpoint, accepted_transport.get());
-  delegate_->OnTransportAccepted(std::move(accepted_transport));
+  if (handlers_.on_accept) {
+    auto accepted_transport =
+        std::make_unique<AcceptedTransport>(shared_from_this(), endpoint);
+    accepted_transports_.emplace(endpoint, accepted_transport.get());
+    handlers_.on_accept(std::move(accepted_transport));
+  }
 
   // Accepted transport can be deleted from the callback above.
   {
@@ -320,7 +330,10 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
                   ToString(endpoint).c_str());
 
   connected_ = true;
-  delegate_->OnTransportOpened();
+
+  if (handlers_.on_open) {
+    handlers_.on_open();
+  }
 }
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
@@ -330,7 +343,10 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
   auto net_error = net::MapSystemError(error.value());
   connected_ = false;
   CloseAllAcceptedTransports(net_error);
-  delegate_->OnTransportClosed(net_error);
+
+  if (handlers_.on_close) {
+    handlers_.on_close(net_error);
+  }
 }
 
 UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
@@ -368,13 +384,13 @@ AsioUdpTransport::AcceptedTransport::~AcceptedTransport() {
     core_->RemoveAcceptedTransport(endpoint_);
 }
 
-Error AsioUdpTransport::AcceptedTransport::Open(Delegate& delegate) {
+Error AsioUdpTransport::AcceptedTransport::Open(const Handlers& handlers) {
   assert(!connected_);
 
   if (connected_ || !core_)
     return ERR_FAILED;
 
-  delegate_ = &delegate;
+  handlers_ = handlers;
   connected_ = true;
 
   return OK;
@@ -388,7 +404,7 @@ void AsioUdpTransport::AcceptedTransport::Close() {
     core_ = nullptr;
   }
 
-  delegate_ = nullptr;
+  handlers_ = {};
   connected_ = false;
 }
 
@@ -429,8 +445,8 @@ bool AsioUdpTransport::AcceptedTransport::IsActive() const {
 void AsioUdpTransport::AcceptedTransport::ProcessDatagram(Datagram&& datagram) {
   assert(core_);
 
-  if (connected_ && delegate_)
-    delegate_->OnTransportMessageReceived(datagram);
+  if (connected_ && handlers_.on_message)
+    handlers_.on_message(datagram);
 }
 
 void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {
@@ -444,8 +460,8 @@ void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {
   if (connected_) {
     connected_ = false;
 
-    if (delegate_)
-      delegate_->OnTransportClosed(error);
+    if (handlers_.on_close)
+      handlers_.on_close(error);
   }
 }
 
@@ -462,7 +478,7 @@ AsioUdpTransport::AsioUdpTransport(std::shared_ptr<const Logger> logger,
       service_{std::move(service)},
       active_{active} {}
 
-Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
+Error AsioUdpTransport::Open(const Handlers& handlers) {
   if (core_)
     core_->Close();
 
@@ -474,7 +490,7 @@ Error AsioUdpTransport::Open(Transport::Delegate& delegate) {
                                              host_, service_);
   }
 
-  core_->Open(delegate);
+  core_->Open(handlers);
   return net::OK;
 }
 

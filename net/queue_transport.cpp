@@ -16,8 +16,8 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-Error QueueTransport::Open(Transport::Delegate& delegate) {
-  delegate_ = &delegate;
+Error QueueTransport::Open(const Handlers& handlers) {
+  handlers_ = handlers;
 
   if (active_) {
     assert(peer_);
@@ -28,8 +28,8 @@ Error QueueTransport::Open(Transport::Delegate& delegate) {
 
   connected_ = true;
 
-  if (delegate_)
-    delegate_->OnTransportOpened();
+  if (handlers_.on_open)
+    handlers_.on_open();
 
   return OK;
 }
@@ -65,8 +65,8 @@ void QueueTransport::Exec() {
   read_queue_.pop();
 
   assert(!message.empty());
-  if (delegate_)
-    delegate_->OnTransportMessageReceived(message);
+  if (handlers_.on_message)
+    handlers_.on_message(message);
 }
 
 std::string QueueTransport::GetName() const {
@@ -76,9 +76,8 @@ std::string QueueTransport::GetName() const {
 void QueueTransport::OnMessage(const void* data, size_t size) {
   assert(connected_);
 
-  if (delegate_) {
-    delegate_->OnTransportMessageReceived(
-        {static_cast<const char*>(data), size});
+  if (handlers_.on_message) {
+    handlers_.on_message({static_cast<const char*>(data), size});
   }
 }
 
@@ -86,7 +85,7 @@ void QueueTransport::OnAccept(QueueTransport& transport) {
   assert(!peer_);
   assert(connected_);
 
-  if (!delegate_)
+  if (!handlers_.on_accept)
     return;
 
   auto t = std::make_unique<QueueTransport>(io_service_);
@@ -97,7 +96,7 @@ void QueueTransport::OnAccept(QueueTransport& transport) {
   t->timer_.StartRepeating(10ms, [this] { Exec(); });
 
   auto* tt = t.get();
-  if (delegate_->OnTransportAccepted(std::move(t)) == net::OK)
+  if (handlers_.on_accept(std::move(t)) == net::OK)
     transport.peer_ = tt;
 }
 

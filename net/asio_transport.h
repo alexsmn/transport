@@ -37,7 +37,7 @@ class AsioTransport::Core {
 
   virtual bool IsConnected() const = 0;
 
-  virtual void Open(Delegate& delegate) = 0;
+  virtual void Open(const Handlers& handlers) = 0;
   virtual void Close() = 0;
 
   virtual int Read(std::span<char> data) = 0;
@@ -71,7 +71,7 @@ class AsioTransport::IoCore : public Core,
 
   boost::asio::io_context& io_context_;
   const std::shared_ptr<const Logger> logger_;
-  Delegate* delegate_ = nullptr;
+  Handlers handlers_;
 
   IoObject io_object_;
 
@@ -103,7 +103,7 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   closed_ = true;
-  delegate_ = nullptr;
+  handlers_ = {};
 
   Cleanup();
 }
@@ -174,7 +174,8 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
                             reading_buffer_.begin() + bytes_transferred);
         reading_buffer_.clear();
 
-        delegate_->OnTransportDataReceived();
+        if (handlers_.on_data)
+          handlers_.on_data();
 
         StartReading();
       });
@@ -224,13 +225,14 @@ template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::ProcessError(net::Error error) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  auto* delegate = delegate_;
+  auto on_close = handlers_.on_close;
   closed_ = true;
-  delegate_ = nullptr;
+  handlers_ = {};
 
   Cleanup();
 
-  delegate->OnTransportClosed(error);
+  if (on_close)
+    on_close(error);
 }
 
 // AsioTransport

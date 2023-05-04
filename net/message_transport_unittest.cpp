@@ -37,9 +37,9 @@ class MessageTransportTest : public Test {
  public:
   virtual void SetUp() override;
 
-  MockTransportDelegate message_transport_delegate_;
+  MockTransportHandlers message_transport_handlers_;
 
-  Transport::Delegate* child_transport_delegate_ = nullptr;
+  Transport::Handlers child_handlers_;
   TransportMock* child_transport_ptr_ = nullptr;
 
   std::unique_ptr<MessageTransport> message_transport_;
@@ -54,18 +54,15 @@ void MessageTransportTest::SetUp() {
       .WillRepeatedly(Return(true));
 
   EXPECT_CALL(*child_transport_ptr_, Open(_))
-      .WillOnce(Invoke([&](Transport::Delegate& delegate) {
-        child_transport_delegate_ = &delegate;
-        return net::OK;
-      }));
+      .WillOnce(DoAll(SaveArg<0>(&child_handlers_), Return(net::OK)));
 
   auto message_reader = std::make_unique<TestMessageReader>();
   message_transport_ = std::make_unique<MessageTransport>(
       std::move(child_transport), std::move(message_reader),
       NullLogger::GetInstance());
 
-  ASSERT_EQ(net::OK, message_transport_->Open(message_transport_delegate_));
-  ASSERT_TRUE(child_transport_delegate_);
+  ASSERT_EQ(net::OK,
+            message_transport_->Open(message_transport_handlers_.AsHandlers()));
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
@@ -81,28 +78,27 @@ TEST_F(MessageTransportTest, CompositeMessage) {
   const char message2[] = {2, 0, 0};
   const char message3[] = {3, 0, 0, 0};
 
-  EXPECT_CALL(message_transport_delegate_,
-              OnTransportMessageReceived(ElementsAreArray(message1)));
-  EXPECT_CALL(message_transport_delegate_,
-              OnTransportMessageReceived(ElementsAreArray(message2)));
-  EXPECT_CALL(message_transport_delegate_,
-              OnTransportMessageReceived(ElementsAreArray(message3)));
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message1)));
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message2)));
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message3)));
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
-  child_transport_delegate_->OnTransportMessageReceived(datagram);
+  child_handlers_.on_message(datagram);
 
   EXPECT_CALL(*child_transport_ptr_, Close());
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
-  EXPECT_CALL(message_transport_delegate_, OnTransportMessageReceived(_))
-      .Times(0);
+  EXPECT_CALL(message_transport_handlers_.on_message, Call(_)).Times(0);
 
   EXPECT_CALL(*child_transport_ptr_, Close());
-  EXPECT_CALL(message_transport_delegate_, OnTransportClosed(ERR_FAILED));
+  EXPECT_CALL(message_transport_handlers_.on_close, Call(ERR_FAILED));
 
   const char datagram[] = {5, 0, 0, 0};
-  child_transport_delegate_->OnTransportMessageReceived(datagram);
+  child_handlers_.on_message(datagram);
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
@@ -113,30 +109,30 @@ TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
   const char message1[] = {1, 0};
   const char message2[] = {2, 0, 0};
 
-  EXPECT_CALL(message_transport_delegate_,
-              OnTransportMessageReceived(ElementsAreArray(message1)));
-  EXPECT_CALL(message_transport_delegate_,
-              OnTransportMessageReceived(ElementsAreArray(message2)))
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message1)));
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message2)))
       .WillOnce(Invoke([&] { message_transport_.reset(); }));
   EXPECT_CALL(*child_transport_ptr_, Close());
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
-  child_transport_delegate_->OnTransportMessageReceived(datagram);
+  child_handlers_.on_message(datagram);
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
   const char message1[] = {1, 0};
   const char message2[] = {2, 0, 0};
 
-  EXPECT_CALL(message_transport_delegate_,
-              OnTransportMessageReceived(ElementsAreArray(message1)));
-  EXPECT_CALL(message_transport_delegate_,
-              OnTransportMessageReceived(ElementsAreArray(message2)))
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message1)));
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message2)))
       .WillOnce(Invoke([&] { message_transport_->Close(); }));
   EXPECT_CALL(*child_transport_ptr_, Close());
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
-  child_transport_delegate_->OnTransportMessageReceived(datagram);
+  child_handlers_.on_message(datagram);
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())

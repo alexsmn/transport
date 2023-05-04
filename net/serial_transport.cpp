@@ -32,7 +32,7 @@ class SerialTransport::SerialPortCore final
                  const Options& options);
 
   // Core
-  virtual void Open(Delegate& delegate) override;
+  virtual void Open(const Handlers& handlers) override;
 
  protected:
   virtual void Cleanup() override;
@@ -50,11 +50,12 @@ SerialTransport::SerialPortCore::SerialPortCore(
       device_{std::move(device)},
       options_{std::move(options)} {}
 
-void SerialTransport::SerialPortCore::Open(Transport::Delegate& delegate) {
+void SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
   boost::system::error_code ec;
   io_object_.open(device_, ec);
   if (ec) {
-    delegate.OnTransportClosed(net::ERR_FAILED);
+    if (handlers.on_close)
+      handlers.on_close(net::ERR_FAILED);
     return;
   }
 
@@ -64,14 +65,16 @@ void SerialTransport::SerialPortCore::Open(Transport::Delegate& delegate) {
       !SetOption(io_object_, options_.stop_bits) ||
       !SetOption(io_object_, options_.character_size)) {
     io_object_.close(ec);
-    delegate.OnTransportClosed(net::ERR_FAILED);
+    if (handlers.on_close)
+      handlers.on_close(net::ERR_FAILED);
     return;
   }
 
   connected_ = true;
 
-  delegate_ = &delegate;
-  delegate_->OnTransportOpened();
+  handlers_ = handlers;
+  if (handlers_.on_open)
+    handlers_.on_open();
 
   StartReading();
 }
@@ -95,10 +98,10 @@ SerialTransport::SerialTransport(boost::asio::io_context& io_context,
       device_{std::move(device)},
       options_{options} {}
 
-net::Error SerialTransport::Open(Transport::Delegate& delegate) {
+net::Error SerialTransport::Open(const Handlers& handlers) {
   core_ =
       std::make_shared<SerialPortCore>(io_context_, logger_, device_, options_);
-  core_->Open(delegate);
+  core_->Open(handlers);
   return net::OK;
 }
 

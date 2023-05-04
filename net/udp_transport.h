@@ -16,7 +16,7 @@ class AsioUdpTransport final : public AsioTransport {
                    bool active);
 
   // Transport overrides
-  virtual Error Open(Transport::Delegate& delegate) override;
+  virtual Error Open(const Handlers& handlers) override;
   virtual std::string GetName() const override;
   virtual bool IsActive() const override { return active_; }
   virtual bool IsMessageOriented() const override { return true; }

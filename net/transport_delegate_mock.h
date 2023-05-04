@@ -6,19 +6,27 @@
 
 namespace net {
 
-class MockTransportDelegate : public net::Transport::Delegate {
- public:
-  MOCK_METHOD(void, OnTransportOpened, (), (override));
-  MOCK_METHOD(void, OnTransportClosed, (net::Error), (override));
-  MOCK_METHOD(void, OnTransportDataReceived, (), (override));
-  MOCK_METHOD(void,
-              OnTransportMessageReceived,
-              (std::span<const char> data),
-              (override));
-  MOCK_METHOD(net::Error,
-              OnTransportAccepted,
-              (std::unique_ptr<net::Transport> transport),
-              (override));
+struct MockTransportHandlers {
+  using OpenHandler = testing::MockFunction<void()>;
+  using CloseHandler = testing::MockFunction<void(net::Error)>;
+  using DataHandler = testing::MockFunction<void()>;
+  using MessageHandler = testing::MockFunction<void(std::span<const char>)>;
+  using AcceptHandler =
+      testing::MockFunction<net::Error(std::unique_ptr<net::Transport>)>;
+
+  OpenHandler on_open;
+  CloseHandler on_close;
+  DataHandler on_data;
+  MessageHandler on_message;
+  AcceptHandler on_accept;
+
+  Transport::Handlers AsHandlers() {
+    return {.on_open = on_open.AsStdFunction(),
+            .on_close = on_close.AsStdFunction(),
+            .on_data = on_data.AsStdFunction(),
+            .on_message = on_message.AsStdFunction(),
+            .on_accept = on_accept.AsStdFunction()};
+  }
 };
 
 }  // namespace net
