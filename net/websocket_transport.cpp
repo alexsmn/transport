@@ -59,8 +59,9 @@ void WebSocketTransport::ConnectionCore::Open(Delegate& delegate) {
     }
 
     if (delegate_) {
-      delegate_->OnTransportMessageReceived(buffer.data().data(),
-                                            buffer.data().size());
+      delegate_->OnTransportMessageReceived(
+          {static_cast<const char*>(buffer.data().data()),
+           buffer.data().size()});
     }
   }
 
@@ -119,8 +120,8 @@ class WebSocketTransport::Connection : public Transport {
   // Transport
   virtual Error Open(Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override { return OK; }
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override { return OK; }
+  virtual int Write(std::span<const char> data) override;
   virtual std::string GetName() const override { return "WebSocket"; }
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return true; }
@@ -148,9 +149,9 @@ void WebSocketTransport::Connection::Close() {
   core_->Close();
 }
 
-int WebSocketTransport::Connection::Write(const void* data, size_t len) {
+int WebSocketTransport::Connection::Write(std::span<const char> data) {
   assert(opened_);
-  return core_->Write(data, len);
+  return core_->Write(data.data(), data.size());
 }
 
 // WebSocketTransport::Core

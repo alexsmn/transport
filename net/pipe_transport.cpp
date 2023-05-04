@@ -71,19 +71,19 @@ void PipeTransport::Close() {
   delegate_ = nullptr;
 }
 
-int PipeTransport::Read(void* data, size_t len) {
+int PipeTransport::Read(std::span<char> data) {
   OVERLAPPED overlapped = {0};
   DWORD bytes_read;
-  if (!ReadFile(handle_, data, len, &bytes_read, &overlapped))
+  if (!ReadFile(handle_, data.data(), data.size(), &bytes_read, &overlapped))
     return ERR_FAILED;
   return bytes_read;
 }
 
-int PipeTransport::Write(const void* data, size_t len) {
+int PipeTransport::Write(std::span<const char> data) {
   DWORD bytes_written;
-  if (!WriteFile(handle_, data, len, &bytes_written, NULL))
+  if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, NULL))
     return ERR_FAILED;
-  if (bytes_written != len)
+  if (bytes_written != data.size())
     return ERR_FAILED;
   return static_cast<int>(bytes_written);
 }

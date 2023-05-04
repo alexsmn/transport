@@ -17,8 +17,8 @@ class WebSocketTransport : public Transport {
 
   virtual Error Open(Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override { return 0; }
-  virtual int Write(const void* data, size_t len) override { return 0; }
+  virtual int Read(std::span<char> data) override { return 0; }
+  virtual int Write(std::span<const char> data) override { return 0; }
   virtual std::string GetName() const override { return "Websocket"; }
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return false; }

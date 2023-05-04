@@ -1,18 +1,24 @@
 #pragma once
 
-#include <gmock/gmock.h>
-
 #include "net/transport.h"
+
+#include <gmock/gmock.h>
 
 namespace net {
 
-class TransportDelegateMock : public net::Transport::Delegate {
+class MockTransportDelegate : public net::Transport::Delegate {
  public:
-  MOCK_METHOD0(OnTransportOpened, void());
-  MOCK_METHOD1(OnTransportClosed, void(net::Error));
-  MOCK_METHOD0(OnTransportDataReceived, void());
-  MOCK_METHOD2(OnTransportMessageReceived, void(const void* data, size_t size));
-  MOCK_METHOD1(OnTransportAccepted, net::Error(std::unique_ptr<net::Transport> transport));
+  MOCK_METHOD(void, OnTransportOpened, (), (override));
+  MOCK_METHOD(void, OnTransportClosed, (net::Error), (override));
+  MOCK_METHOD(void, OnTransportDataReceived, (), (override));
+  MOCK_METHOD(void,
+              OnTransportMessageReceived,
+              (std::span<const char> data),
+              (override));
+  MOCK_METHOD(net::Error,
+              OnTransportAccepted,
+              (std::unique_ptr<net::Transport> transport),
+              (override));
 };
 
-} // namespace net
+}  // namespace net

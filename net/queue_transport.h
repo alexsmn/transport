@@ -20,8 +20,8 @@ class NET_EXPORT QueueTransport final : public Transport {
   // Transport
   virtual Error Open(Transport::Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return connected_; }

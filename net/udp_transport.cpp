@@ -27,8 +27,8 @@ class AsioUdpTransport::UdpActiveCore
   virtual bool IsConnected() const override { return connected_; }
   virtual void Open(Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -70,19 +70,17 @@ void AsioUdpTransport::UdpActiveCore::Close() {
   socket_->Close();
 }
 
-int AsioUdpTransport::UdpActiveCore::Read(void* data, size_t len) {
+int AsioUdpTransport::UdpActiveCore::Read(std::span<char> data) {
   assert(false);
 
   return net::ERR_FAILED;
 }
 
-int AsioUdpTransport::UdpActiveCore::Write(const void* data, size_t len) {
-  std::vector<char> datagram(len);
-  memcpy(datagram.data(), data, len);
-
+int AsioUdpTransport::UdpActiveCore::Write(std::span<const char> data) {
+  std::vector<char> datagram(data.begin(), data.end());
   socket_->SendTo(peer_endpoint_, std::move(datagram));
 
-  return static_cast<int>(len);
+  return static_cast<int>(data.size());
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
@@ -95,7 +93,7 @@ void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
 void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  delegate_->OnTransportMessageReceived(datagram.data(), datagram.size());
+  delegate_->OnTransportMessageReceived(datagram);
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketClosed(
@@ -139,8 +137,8 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   // Transport
   virtual Error Open(Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
@@ -179,8 +177,8 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual bool IsConnected() const override { return connected_; }
   virtual void Open(Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -246,13 +244,13 @@ void AsioUdpTransport::UdpPassiveCore::Close() {
   CloseAllAcceptedTransports(OK);
 }
 
-int AsioUdpTransport::UdpPassiveCore::Read(void* data, size_t len) {
+int AsioUdpTransport::UdpPassiveCore::Read(std::span<char> data) {
   assert(false);
 
   return ERR_FAILED;
 }
 
-int AsioUdpTransport::UdpPassiveCore::Write(const void* data, size_t len) {
+int AsioUdpTransport::UdpPassiveCore::Write(std::span<const char> data) {
   assert(false);
 
   return ERR_FAILED;
@@ -394,24 +392,22 @@ void AsioUdpTransport::AcceptedTransport::Close() {
   connected_ = false;
 }
 
-int AsioUdpTransport::AcceptedTransport::Read(void* data, size_t len) {
+int AsioUdpTransport::AcceptedTransport::Read(std::span<char> data) {
   assert(false);
 
   return ERR_FAILED;
 }
 
-int AsioUdpTransport::AcceptedTransport::Write(const void* data, size_t len) {
+int AsioUdpTransport::AcceptedTransport::Write(std::span<const char> data) {
   assert(connected_);
 
   if (!core_ || !connected_)
     return ERR_FAILED;
 
-  std::vector<char> datagram(len);
-  memcpy(datagram.data(), data, len);
-
+  std::vector<char> datagram(data.begin(), data.end());
   core_->InternalWrite(endpoint_, std::move(datagram));
 
-  return static_cast<int>(len);
+  return static_cast<int>(data.size());
 }
 
 std::string AsioUdpTransport::AcceptedTransport::GetName() const {
@@ -434,7 +430,7 @@ void AsioUdpTransport::AcceptedTransport::ProcessDatagram(Datagram&& datagram) {
   assert(core_);
 
   if (connected_ && delegate_)
-    delegate_->OnTransportMessageReceived(datagram.data(), datagram.size());
+    delegate_->OnTransportMessageReceived(datagram);
 }
 
 void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {

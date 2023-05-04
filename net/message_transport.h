@@ -23,8 +23,8 @@ class NET_EXPORT MessageTransport : public Transport,
   // Transport
   virtual Error Open(Transport::Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override {
@@ -45,8 +45,7 @@ class NET_EXPORT MessageTransport : public Transport,
       std::unique_ptr<Transport> transport) override;
   virtual void OnTransportClosed(Error error) override;
   virtual void OnTransportDataReceived() override;
-  virtual void OnTransportMessageReceived(const void* data,
-                                          size_t size) override;
+  virtual void OnTransportMessageReceived(std::span<const char> data) override;
 
   std::unique_ptr<Transport> child_transport_;
 

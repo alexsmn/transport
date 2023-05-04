@@ -41,10 +41,10 @@ class AsioUdpTransportTest : public Test {
     return socket;
   };
 
-  TransportDelegateMock delegate;
+  MockTransportDelegate delegate;
   std::unique_ptr<Transport> transport_;
 
-  TransportDelegateMock accepted_delegate;
+  MockTransportDelegate accepted_delegate;
   std::unique_ptr<Transport> accepted_transport;
 };
 
@@ -101,7 +101,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportDestroyed) {
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _));
+  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_));
   ReceiveMessage();
 
   ASSERT_TRUE(accepted_transport);
@@ -116,7 +116,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _));
+  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_));
   ReceiveMessage();
 
   ASSERT_TRUE(accepted_transport);
@@ -133,7 +133,7 @@ TEST_F(AsioUdpTransportTest,
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _))
+  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_))
       .WillOnce(Invoke([&] { accepted_transport.reset(); }));
   ReceiveMessage();
 
@@ -145,7 +145,7 @@ TEST_F(AsioUdpTransportTest,
   OpenTransport(false);
   ExpectTransportAccepted();
 
-  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_, _))
+  EXPECT_CALL(accepted_delegate, OnTransportMessageReceived(_))
       .WillOnce(Invoke([&] { accepted_transport->Close(); }));
   ReceiveMessage();
 

@@ -9,8 +9,8 @@ class DummyTransport : public Transport {
   // Transport
   virtual Error Open(Delegate& delegate) override;
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
@@ -37,12 +37,13 @@ inline void DummyTransport::Close() {
   delegate->OnTransportClosed(OK);
 }
 
-inline int DummyTransport::Read(void* data, size_t len) {
-  return static_cast<int>(len);
+inline int DummyTransport::Read(std::span<char> data) {
+  std::fill(data.begin(), data.end(), 0);
+  return static_cast<int>(data.size());
 }
 
-inline int DummyTransport::Write(const void* data, size_t len) {
-  return static_cast<int>(len);
+inline int DummyTransport::Write(std::span<const char> data) {
+  return static_cast<int>(data.size());
 }
 
 inline std::string DummyTransport::GetName() const {

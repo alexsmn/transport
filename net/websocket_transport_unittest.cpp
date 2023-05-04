@@ -16,7 +16,7 @@ TEST_F(WebSocketTransportTest, Test) {
 
   int port = 4000;
 
-  TransportDelegateMock server_delegate;
+  MockTransportDelegate server_delegate;
   WebSocketTransport server{io_context, {}, port};
   ASSERT_EQ(OK, server.Open(server_delegate));
 }

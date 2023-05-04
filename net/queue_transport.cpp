@@ -39,18 +39,18 @@ void QueueTransport::Close() {
   timer_.Stop();
 }
 
-int QueueTransport::Read(void* data, size_t len) {
+int QueueTransport::Read(std::span<char> data) {
   assert(false);
   return net::ERR_FAILED;
 }
 
-int QueueTransport::Write(const void* data, size_t len) {
-  assert(len > 0);
+int QueueTransport::Write(std::span<const char> data) {
+  assert(!data.empty());
   if (!connected_ || !peer_)
     return net::ERR_FAILED;
-  const char* chars = static_cast<const char*>(data);
-  peer_->read_queue_.push(Message(chars, chars + len));
-  return static_cast<int>(len);
+  const char* chars = static_cast<const char*>(data.data());
+  peer_->read_queue_.push(Message(chars, chars + data.size()));
+  return static_cast<int>(data.size());
 }
 
 void QueueTransport::Exec() {
@@ -66,7 +66,7 @@ void QueueTransport::Exec() {
 
   assert(!message.empty());
   if (delegate_)
-    delegate_->OnTransportMessageReceived(&message[0], message.size());
+    delegate_->OnTransportMessageReceived(message);
 }
 
 std::string QueueTransport::GetName() const {
@@ -76,8 +76,10 @@ std::string QueueTransport::GetName() const {
 void QueueTransport::OnMessage(const void* data, size_t size) {
   assert(connected_);
 
-  if (delegate_)
-    delegate_->OnTransportMessageReceived(data, size);
+  if (delegate_) {
+    delegate_->OnTransportMessageReceived(
+        {static_cast<const char*>(data), size});
+  }
 }
 
 void QueueTransport::OnAccept(QueueTransport& transport) {

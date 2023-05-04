@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <memory>
+#include <span>
 #include <string>
 
 namespace net {
@@ -16,14 +17,15 @@ class NET_EXPORT Transport {
     virtual void OnTransportClosed(Error error) {}
     // Transport-level data was received.
     virtual void OnTransportDataReceived() {}
-    virtual void OnTransportMessageReceived(const void* data, size_t size) {}
-    virtual net::Error OnTransportAccepted(std::unique_ptr<Transport> transport) {
+    virtual void OnTransportMessageReceived(std::span<const char> data) {}
+    virtual net::Error OnTransportAccepted(
+        std::unique_ptr<Transport> transport) {
       return net::ERR_ACCESS_DENIED;
     }
   };
 
-  Transport() {}
-  virtual ~Transport() {}
+  Transport() = default;
+  virtual ~Transport() = default;
 
   Transport(const Transport&) = delete;
   Transport& operator=(const Transport&) = delete;
@@ -34,10 +36,10 @@ class NET_EXPORT Transport {
   virtual void Close() = 0;
 
   // Returns |net::Error| on failure.
-  virtual int Read(void* data, size_t len) = 0;
+  virtual int Read(std::span<char> data) = 0;
 
   // Returns |net::Error| on failure.
-  virtual int Write(const void* data, size_t len) = 0;
+  virtual int Write(std::span<const char> data) = 0;
 
   virtual std::string GetName() const = 0;
 
@@ -50,4 +52,4 @@ class NET_EXPORT Transport {
   virtual bool IsActive() const = 0;
 };
 
-} // namespace net
+}  // namespace net

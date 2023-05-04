@@ -234,13 +234,13 @@ Error Session::Open(Transport::Delegate& delegate) {
   return OK;
 }
 
-int Session::Read(void* data, size_t len) {
+int Session::Read(std::span<char> data) {
   assert(false);
   return ERR_NOT_IMPLEMENTED;
 }
 
-int Session::Write(const void* data, size_t len) {
-  Send(data, len);
+int Session::Write(std::span<const char> data) {
+  Send(data.data(), data.size());
   return OK;
 }
 
@@ -351,14 +351,14 @@ void Session::ProcessSessionMessage(uint16_t id,
     sequence_message.swap(sequence_message_);
 
     if (delegate_) {
-      delegate_->OnTransportMessageReceived(&sequence_message[0],
-                                            sequence_message.size());
+      delegate_->OnTransportMessageReceived(sequence_message);
     }
 
   } else {
     // Short message.
     if (delegate_) {
-      delegate_->OnTransportMessageReceived(data, len);
+      delegate_->OnTransportMessageReceived(
+          {static_cast<const char*>(data), len});
     }
   }
 
@@ -441,15 +441,14 @@ void Session::OnTransportDataReceived() {
   assert(false);
 }
 
-void Session::OnTransportMessageReceived(const void* data, size_t size) {
+void Session::OnTransportMessageReceived(std::span<const char> data) {
   // TODO: Handle another size.
-  assert(size >= 2);
+  assert(data.size() >= 2);
 
-  num_bytes_received_ += size;
+  num_bytes_received_ += data.size();
   num_messages_received_++;
 
-  const char* chars = reinterpret_cast<const char*>(data);
-  OnMessageReceived(chars + 2, size - 2);
+  OnMessageReceived(data.data() + 2, data.size() - 2);
 }
 
 void Session::OnMessageReceived(const void* data, size_t size) {
@@ -560,7 +559,7 @@ void Session::SendInternal(const void* data, size_t size) {
   num_bytes_sent_ += size;
   num_messages_sent_++;
 
-  int res = transport()->Write(data, size);
+  int res = transport()->Write({static_cast<const char*>(data), size});
   if (res < 0) {
     logger_->Write(LogSeverity::Error, "Transport write failed");
     OnTransportError(static_cast<Error>(res));
@@ -611,7 +610,7 @@ void Session::SendClose() {
   num_bytes_sent_ += msg.size;
   num_messages_sent_++;
 
-  transport_->Write(msg.data, msg.size);
+  transport_->Write({reinterpret_cast<const char*>(msg.data), msg.size});
 }
 
 void Session::SendDataMessage(const SendingMessage& message) {
@@ -688,7 +687,8 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
     msg.WriteT(session_id);
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
-    int res = transport()->Write(msg.data, msg.size);
+    int res =
+        transport()->Write({reinterpret_cast<const char*>(msg.data), msg.size});
     if (res < 0) {
       OnClosed(static_cast<Error>(res));
       return;
@@ -745,7 +745,8 @@ void Session::OnRestore(const SessionID& session_id) {
     msg.WriteLong(error);
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
-    int res = transport->Write(msg.data, msg.size);
+    int res =
+        transport->Write({reinterpret_cast<const char*>(msg.data), msg.size});
     if (res < 0) {
       OnClosed(static_cast<Error>(res));
       return;

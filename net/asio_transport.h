@@ -17,8 +17,8 @@ class AsioTransport : public Transport {
 
   // Transport overrides
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
 
@@ -40,8 +40,8 @@ class AsioTransport::Core {
   virtual void Open(Delegate& delegate) = 0;
   virtual void Close() = 0;
 
-  virtual int Read(void* data, size_t len) = 0;
-  virtual int Write(const void* data, size_t len) = 0;
+  virtual int Read(std::span<char> data) = 0;
+  virtual int Write(std::span<const char> data) = 0;
 };
 
 // AsioTransport::Core
@@ -53,8 +53,8 @@ class AsioTransport::IoCore : public Core,
   // Core
   virtual bool IsConnected() const override { return connected_; }
   virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
+  virtual int Read(std::span<char> data) override;
+  virtual int Write(std::span<const char> data) override;
 
  protected:
   IoCore(boost::asio::io_context& io_context,
@@ -109,12 +109,11 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 }
 
 template <class IoObject>
-inline int AsioTransport::IoCore<IoObject>::Read(void* data, size_t len) {
+inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  size_t count = std::min(len, read_buffer_.size());
-  std::copy(read_buffer_.begin(), read_buffer_.begin() + count,
-            reinterpret_cast<char*>(data));
+  size_t count = std::min(data.size(), read_buffer_.size());
+  std::copy(read_buffer_.begin(), read_buffer_.begin() + count, data.data());
   read_buffer_.erase_begin(count);
 
   StartReading();
@@ -123,16 +122,14 @@ inline int AsioTransport::IoCore<IoObject>::Read(void* data, size_t len) {
 }
 
 template <class IoObject>
-inline int AsioTransport::IoCore<IoObject>::Write(const void* data,
-                                                  size_t len) {
+inline int AsioTransport::IoCore<IoObject>::Write(std::span<const char> data) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  write_buffer_.insert(write_buffer_.end(), reinterpret_cast<const char*>(data),
-                       reinterpret_cast<const char*>(data) + len);
+  write_buffer_.insert(write_buffer_.end(), data.begin(), data.end());
 
   StartWriting();
 
-  return len;
+  return static_cast<int>(data.size());
 }
 
 template <class IoObject>
@@ -248,12 +245,12 @@ inline void AsioTransport::Close() {
   core_ = nullptr;
 }
 
-inline int AsioTransport::Read(void* data, size_t len) {
-  return core_ ? core_->Read(data, len) : net::ERR_FAILED;
+inline int AsioTransport::Read(std::span<char> data) {
+  return core_ ? core_->Read(data) : net::ERR_FAILED;
 }
 
-inline int AsioTransport::Write(const void* data, size_t len) {
-  return core_ ? core_->Write(data, len) : net::ERR_FAILED;
+inline int AsioTransport::Write(std::span<const char> data) {
+  return core_ ? core_->Write(data) : net::ERR_FAILED;
 }
 
 inline bool AsioTransport::IsMessageOriented() const {

@@ -10,8 +10,8 @@ class TransportMock : public Transport {
  public:
   MOCK_METHOD1(Open, Error(Delegate& delegate));
   MOCK_METHOD0(Close, void());
-  MOCK_METHOD2(Read, int(void* data, size_t len));
-  MOCK_METHOD2(Write, int(const void* data, size_t len));
+  MOCK_METHOD1(Read, int(std::span<char> data));
+  MOCK_METHOD1(Write, int(std::span<const char> data));
   MOCK_CONST_METHOD0(GetName, std::string());
   MOCK_CONST_METHOD0(IsMessageOriented, bool());
   MOCK_CONST_METHOD0(IsConnected, bool());

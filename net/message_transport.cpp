@@ -103,7 +103,7 @@ void MessageTransport::Close() {
   InternalClose();
 }
 
-int MessageTransport::Read(void* data, size_t len) {
+int MessageTransport::Read(std::span<char> data) {
   assert(false);
   return ERR_UNEXPECTED;
 }
@@ -130,7 +130,8 @@ int MessageTransport::InternalRead(void* data, size_t len) {
     if (bytes_to_read == 0)
       break;
 
-    int res = child_transport_->Read(message_reader_->ptr(), bytes_to_read);
+    int res = child_transport_->Read(
+        {static_cast<char*>(message_reader_->ptr()), bytes_to_read});
     if (res <= 0)
       return res;
 
@@ -155,10 +156,10 @@ int MessageTransport::InternalRead(void* data, size_t len) {
   return size;
 }
 
-int MessageTransport::Write(const void* data, size_t len) {
+int MessageTransport::Write(std::span<const char> data) {
   if (!child_transport_)
     return ERR_INVALID_HANDLE;
-  return child_transport_->Write(data, len);
+  return child_transport_->Write(data);
 }
 
 std::string MessageTransport::GetName() const {
@@ -200,23 +201,23 @@ void MessageTransport::OnTransportDataReceived() {
       break;
 
     if (delegate_)
-      delegate_->OnTransportMessageReceived(read_buffer_.data(),
-                                            static_cast<size_t>(res));
+      delegate_->OnTransportMessageReceived(
+          {read_buffer_.data(), static_cast<size_t>(res)});
   }
 }
 
-void MessageTransport::OnTransportMessageReceived(const void* data,
-                                                  size_t size) {
+void MessageTransport::OnTransportMessageReceived(std::span<const char> data) {
   assert(child_transport_->IsMessageOriented());
 
-  span<const char> buffer{static_cast<const char*>(data), size};
+  span<const char> buffer{data.data(), data.size()};
 
   std::weak_ptr<bool> cancelation = cancelation_;
   ByteMessage message;
   while (!cancelation.expired() && !buffer.empty()) {
     int res = ReadMessage(buffer, *message_reader_, *logger_, message);
     if (res > 0) {
-      delegate_->OnTransportMessageReceived(message.data, message.size);
+      delegate_->OnTransportMessageReceived(
+          {reinterpret_cast<const char*>(message.data), message.size});
     } else if (res < 0) {
       if (message_reader_->has_error_correction()) {
         logger_->WriteF(LogSeverity::Warning,
