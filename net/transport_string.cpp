@@ -11,7 +11,8 @@ namespace {
 static const char kValueDelimiter = '=';
 static const char kParamDelimiter = ';';
 
-static const char* kProtocolNames[] = {"TCP", "UDP", "SERIAL", "PIPE", "WS"};
+static const char* kProtocolNames[] = {"TCP",  "UDP", "SERIAL",
+                                       "PIPE", "WS",  "INPROCESS"};
 
 static std::string_view Trim(std::string_view str) {
   auto f = str.find_first_not_of(' ');
@@ -204,7 +205,7 @@ void TransportString::RemoveParam(std::string_view name) {
 }
 
 bool TransportString::HasParam(std::string_view name) const {
-  return param_map_.find(std::string{name}) != param_map_.end();
+  return param_map_.contains(std::string{name});
 }
 
 }  // namespace net

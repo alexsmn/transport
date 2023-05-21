@@ -1,5 +1,6 @@
 #include "net/transport_factory_impl.h"
 
+#include "net/inprocess_transport.h"
 #include "net/logger.h"
 #include "net/serial_transport.h"
 #include "net/tcp_transport.h"
@@ -84,6 +85,8 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
     return std::make_shared<UdpSocketImpl>(io_context, std::move(context));
   };
 }
+
+TransportFactoryImpl::~TransportFactoryImpl() = default;
 
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const TransportString& ts,
@@ -197,6 +200,17 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     return std::make_unique<WebSocketTransport>(io_context_, std::string{host},
                                                 port);
+
+  } else if (protocol == TransportString::INPROCESS) {
+    if (!inprocess_transport_host_) {
+      inprocess_transport_host_ = std::make_unique<InprocessTransportHost>();
+    }
+
+    // INPROCESS;Passive;Name=Abc
+    auto name = ts.GetParamStr(TransportString::kParamName);
+
+    return active ? inprocess_transport_host_->CreateClient(name)
+                  : inprocess_transport_host_->CreateServer(name);
 
   } else {
     return nullptr;

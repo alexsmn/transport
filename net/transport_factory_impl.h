@@ -10,9 +10,12 @@ class io_context;
 
 namespace net {
 
+class InprocessTransportHost;
+
 class NET_EXPORT TransportFactoryImpl : public TransportFactory {
  public:
   explicit TransportFactoryImpl(boost::asio::io_context& io_context);
+  ~TransportFactoryImpl();
 
   // Returns nullptr if parameters are invalid.
   virtual std::unique_ptr<Transport> CreateTransport(
@@ -22,6 +25,7 @@ class NET_EXPORT TransportFactoryImpl : public TransportFactory {
  private:
   boost::asio::io_context& io_context_;
   UdpSocketFactory udp_socket_factory_;
+  std::unique_ptr<InprocessTransportHost> inprocess_transport_host_;
 };
 
 std::shared_ptr<TransportFactory> CreateTransportFactory();
