@@ -8,6 +8,7 @@
 
 namespace net {
 
+// TODO: Rework with `boost/process/async_pipe.hpp`.
 class NET_EXPORT PipeTransport final : public Transport {
  public:
   explicit PipeTransport(boost::asio::io_service& io_service);

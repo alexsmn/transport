@@ -68,6 +68,9 @@ target_include_directories(net PUBLIC "..")
 
 target_link_libraries(net PUBLIC Boost::boost Boost::coroutine)
 
+find_package(PromiseHpp)
+target_link_libraries(net PUBLIC promise.hpp)
+
 # UTs
 
 add_executable(net_unittests ${SOURCES_UT})
