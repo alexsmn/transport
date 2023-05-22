@@ -7,7 +7,7 @@ namespace net {
 class DummyTransport : public Transport {
  public:
   // Transport
-  virtual Error Open(const Handlers& handlers) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -22,25 +22,28 @@ class DummyTransport : public Transport {
   Handlers handlers_;
 };
 
-inline Error DummyTransport::Open(const Handlers& handlers) {
+inline void DummyTransport::Open(const Handlers& handlers) {
   opened_ = true;
   handlers_ = handlers;
-  if (handlers_.on_open)
-    handlers_.on_open();
-  return OK;
+
+  if (auto on_open = std::move(handlers_.on_open)) {
+    on_open();
+  }
 }
 
 inline void DummyTransport::Close() {
+  auto on_close = std::move(handlers_.on_close);
+
   opened_ = false;
   connected_ = false;
-  auto on_close = std::move(handlers_.on_close);
   handlers_ = {};
+
   if (on_close)
     on_close(OK);
 }
 
 inline int DummyTransport::Read(std::span<char> data) {
-  std::fill(data.begin(), data.end(), 0);
+  std::ranges::fill(data, 0);
   return static_cast<int>(data.size());
 }
 

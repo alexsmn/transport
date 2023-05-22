@@ -20,7 +20,7 @@ class NET_EXPORT MessageTransport : public Transport {
   MessageReader& message_reader() { return *message_reader_; }
 
   // Transport
-  virtual Error Open(const Handlers& handlers) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;

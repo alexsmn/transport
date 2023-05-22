@@ -54,15 +54,15 @@ void MessageTransportTest::SetUp() {
       .WillRepeatedly(Return(true));
 
   EXPECT_CALL(*child_transport_ptr_, Open(_))
-      .WillOnce(DoAll(SaveArg<0>(&child_handlers_), Return(net::OK)));
+      .WillOnce(DoAll(SaveArg<0>(&child_handlers_)));
 
   auto message_reader = std::make_unique<TestMessageReader>();
+
   message_transport_ = std::make_unique<MessageTransport>(
       std::move(child_transport), std::move(message_reader),
       NullLogger::GetInstance());
 
-  ASSERT_EQ(net::OK,
-            message_transport_->Open(message_transport_handlers_.AsHandlers()));
+  message_transport_->Open(message_transport_handlers_.AsHandlers());
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())

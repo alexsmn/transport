@@ -78,7 +78,7 @@ bool MessageTransport::IsMessageOriented() const {
   return true;
 }
 
-Error MessageTransport::Open(const Handlers& handlers) {
+void MessageTransport::Open(const Handlers& handlers) {
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
   assert(!cancelation_);
@@ -86,7 +86,7 @@ Error MessageTransport::Open(const Handlers& handlers) {
   handlers_ = handlers;
   cancelation_ = std::make_shared<bool>(false);
 
-  return child_transport_->Open(
+  child_transport_->Open(
       {.on_open = [this] { OnChildTransportOpened(); },
        .on_close = [this](net::Error error) { OnChildTransportClosed(error); },
        .on_data = [this] { OnChildTransportDataReceived(); },

@@ -16,7 +16,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-Error QueueTransport::Open(const Handlers& handlers) {
+void QueueTransport::Open(const Handlers& handlers) {
   handlers_ = handlers;
 
   if (active_) {
@@ -28,10 +28,9 @@ Error QueueTransport::Open(const Handlers& handlers) {
 
   connected_ = true;
 
-  if (handlers_.on_open)
-    handlers_.on_open();
-
-  return OK;
+  if (auto on_open = std::move(handlers_.on_open)) {
+    on_open();
+  }
 }
 
 void QueueTransport::Close() {

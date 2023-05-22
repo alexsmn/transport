@@ -231,7 +231,7 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-Error Session::Open(const Handlers& handlers) {
+void Session::Open(const Handlers& handlers) {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
@@ -241,8 +241,6 @@ Error Session::Open(const Handlers& handlers) {
   handlers_ = handlers;
   state_ = OPENING;
   StartConnecting();
-
-  return OK;
 }
 
 int Session::Read(std::span<char> data) {
@@ -270,7 +268,7 @@ void Session::StartConnecting() {
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  Error error = transport_->Open(
+  transport_->Open(
       {.on_open = [this] { OnTransportOpened(); },
        .on_close = [this](net::Error error) { OnTransportClosed(error); },
        .on_data = [this] { OnTransportDataReceived(); },
@@ -282,8 +280,6 @@ void Session::StartConnecting() {
            [this](std::unique_ptr<Transport> transport) {
              return OnTransportAccepted(std::move(transport));
            }});
-  if (error != OK)
-    OnTransportError(error);
 }
 
 void Session::SendQueuedMessage() {

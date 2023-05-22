@@ -34,7 +34,7 @@ class NET_EXPORT Transport {
   Transport& operator=(const Transport&) = delete;
 
   // Returns |Error| on failure.
-  virtual Error Open(const Handlers& handlers) = 0;
+  virtual void Open(const Handlers& handlers) = 0;
 
   virtual void Close() = 0;
 

@@ -23,44 +23,46 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-Error PipeTransport::Open(const Handlers& handlers) {
+void PipeTransport::Open(const Handlers& handlers) {
   assert(handle_ == INVALID_HANDLE_VALUE);
-
-  handlers_ = handlers;
 
   HANDLE handle;
 
   if (server_) {
     handle = CreateNamedPipeW(name_.c_str(), PIPE_ACCESS_DUPLEX,
                               PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT,
-                              PIPE_UNLIMITED_INSTANCES, 1024, 1024, 0, NULL);
+                              PIPE_UNLIMITED_INSTANCES, 1024, 1024, 0, nullptr);
   } else {
-    handle = CreateFileW(name_.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                         OPEN_EXISTING, 0, NULL);
+    handle = CreateFileW(name_.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
+                         nullptr, OPEN_EXISTING, 0, nullptr);
   }
-  if (handle == INVALID_HANDLE_VALUE)
-    return ERR_FAILED;
+
+  if (handle == INVALID_HANDLE_VALUE) {
+    handlers.on_close(ERR_FAILED);
+    return;
+  }
 
   if (server_) {
-    if (!ConnectNamedPipe(handle, NULL)) {
+    if (!ConnectNamedPipe(handle, nullptr)) {
       DWORD error = GetLastError();
       if (error != ERROR_PIPE_LISTENING) {
         CloseHandle(handle);
-        return ERR_FAILED;
+        handlers.on_close(ERR_FAILED);
+        return;
       }
     }
   }
 
+  handlers_ = handlers;
   handle_ = handle;
   connected_ = true;
 
   // TODO: Fix ASAP.
   timer_.StartRepeating(10ms, [this] { OnTimer(); });
 
-  if (handlers_.on_open)
-    handlers_.on_open();
-
-  return OK;
+  if (auto on_open = std::move(handlers_.on_open)) {
+    on_open();
+  }
 }
 
 void PipeTransport::Close() {
@@ -82,7 +84,7 @@ int PipeTransport::Read(std::span<char> data) {
 
 int PipeTransport::Write(std::span<const char> data) {
   DWORD bytes_written;
-  if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, NULL))
+  if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr))
     return ERR_FAILED;
   if (bytes_written != data.size())
     return ERR_FAILED;

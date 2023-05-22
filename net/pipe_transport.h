@@ -16,7 +16,7 @@ class NET_EXPORT PipeTransport final : public Transport {
   void Init(const std::wstring& name, bool server);
 
   // Transport overrides.
-  virtual Error Open(const Handlers& handlers) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;

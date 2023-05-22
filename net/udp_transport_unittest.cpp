@@ -58,7 +58,7 @@ void AsioUdpTransportTest::OpenTransport(bool active) {
                                                   /*active*/ active);
 
   EXPECT_CALL(*socket, Open());
-  ASSERT_EQ(OK, transport_->Open(transport_handlers_.AsHandlers()));
+  transport_->Open(transport_handlers_.AsHandlers());
   EXPECT_FALSE(transport_->IsActive());
   EXPECT_FALSE(transport_->IsConnected());
 

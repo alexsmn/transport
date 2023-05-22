@@ -23,7 +23,7 @@ class InprocessTransportHost::Client : public Transport {
     return std::format("client:{}", channel_name_);
   }
 
-  virtual Error Open(const Handlers& handlers) override;
+  virtual void Open(const Handlers& handlers) override;
 
   virtual void Close() override;
 
@@ -75,18 +75,23 @@ class InprocessTransportHost::Server : public Transport {
     return std::format("server:{}", channel_name_);
   }
 
-  virtual Error Open(const Handlers& handlers) override {
+  virtual void Open(const Handlers& handlers) override {
     if (opened_) {
-      return ERR_ADDRESS_IN_USE;
+      handlers.on_close(ERR_ADDRESS_IN_USE);
+      return;
     }
 
     if (!host_.listeners_.try_emplace(channel_name_, this).second) {
-      return ERR_ADDRESS_IN_USE;
+      handlers.on_close(ERR_ADDRESS_IN_USE);
+      return;
     }
 
     handlers_ = handlers;
     opened_ = true;
-    return OK;
+
+    if (auto on_open = std::move(handlers_.on_open)) {
+      on_open();
+    }
   }
 
   virtual void Close() override {
@@ -138,21 +143,25 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  virtual Error Open(const Handlers& handlers) override {
+  virtual void Open(const Handlers& handlers) override {
     if (opened_) {
-      return ERR_ADDRESS_IN_USE;
+      handlers.on_close(ERR_ADDRESS_IN_USE);
+      return;
     }
 
     handlers_ = handlers;
     opened_ = true;
-    return OK;
+
+    // Accepted transport doesn't trigger `on_open` by design.
+    assert(!handlers_.on_open);
+    handlers_.on_open = nullptr;
   }
 
   virtual void Close() override {
     if (opened_) {
-      client_.OnServerClosed();
-      handlers_ = {};
       opened_ = false;
+      handlers_ = {};
+      client_.OnServerClosed();
     }
   }
 
@@ -192,14 +201,16 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
 // InprocessTransportHost::Client
 
-Error InprocessTransportHost::Client::Open(const Handlers& handlers) {
+void InprocessTransportHost::Client::Open(const Handlers& handlers) {
   if (accepted_client_) {
-    return ERR_ADDRESS_IN_USE;
+    handlers.on_close(ERR_ADDRESS_IN_USE);
+    return;
   }
 
   auto* server = host_.FindServer(channel_name_);
   if (!server) {
-    return ERR_ADDRESS_INVALID;
+    handlers.on_close(ERR_ADDRESS_INVALID);
+    return;
   }
 
   handlers_ = handlers;
@@ -207,22 +218,31 @@ Error InprocessTransportHost::Client::Open(const Handlers& handlers) {
   auto [error, accepted_client] = server->AcceptClient(*this);
   if (error != OK) {
     handlers_ = {};
-    return error;
+    handlers.on_close(error);
+    return;
   }
 
   accepted_client_ = accepted_client;
-  return OK;
+
+  if (auto on_open = std::move(handlers_.on_open)) {
+    on_open();
+  }
 }
 
 void InprocessTransportHost::Client::Close() {
   if (accepted_client_) {
-    accepted_client_->OnClientClosed();
+    auto* accepted_client = accepted_client_;
     accepted_client_ = nullptr;
+    handlers_ = {};
+    accepted_client->OnClientClosed();
   }
 }
 
 int InprocessTransportHost::Client::Write(std::span<const char> data) {
-  return accepted_client_->Receive(data);
+  assert(accepted_client_);
+
+  return accepted_client_ ? accepted_client_->Receive(data)
+                          : net::ERR_CONNECTION_CLOSED;
 }
 
 // InprocessTransportHost::Server

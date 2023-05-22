@@ -117,7 +117,7 @@ class WebSocketTransport::Connection : public Transport {
   ~Connection();
 
   // Transport
-  virtual Error Open(const Handlers& handlers) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return OK; }
   virtual int Write(std::span<const char> data) override;
@@ -136,11 +136,10 @@ WebSocketTransport::Connection::~Connection() {
     core_->Close();
 }
 
-Error WebSocketTransport::Connection::Open(const Handlers& handlers) {
+void WebSocketTransport::Connection::Open(const Handlers& handlers) {
   assert(!opened_);
   opened_ = true;
   core_->Open(handlers);
-  return OK;
 }
 
 void WebSocketTransport::Connection::Close() {
@@ -159,7 +158,7 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
  public:
   Core(boost::asio::io_context& io_context, std::string host, int port);
 
-  Error Open(const Handlers& handlers);
+  void Open(const Handlers& handlers);
   void Close();
 
   void Listen(boost::asio::yield_context yield);
@@ -179,13 +178,11 @@ WebSocketTransport::Core::Core(boost::asio::io_context& io_context,
                                int port)
     : io_context_{io_context}, host_{std::move(host)}, port_{std::move(port)} {}
 
-Error WebSocketTransport::Core::Open(const Handlers& handlers) {
+void WebSocketTransport::Core::Open(const Handlers& handlers) {
   handlers_ = handlers;
 
   boost::asio::spawn(io_context_,
                      std::bind_front(&Core::Listen, shared_from_this()));
-
-  return Error::OK;
 }
 
 void WebSocketTransport::Core::Close() {
@@ -219,6 +216,10 @@ void WebSocketTransport::Core::Listen(boost::asio::yield_context yield) {
   acceptor.listen(boost::asio::socket_base::max_listen_connections, ec);
   if (ec)
     return Fail(ec, "listen");
+
+  if (auto on_open = std::move(handlers_.on_open)) {
+    on_open();
+  }
 
   for (;;) {
     boost::asio::ip::tcp::socket socket(io_context_);
@@ -281,9 +282,9 @@ WebSocketTransport::~WebSocketTransport() {
     core_->Close();
 }
 
-Error WebSocketTransport::Open(const Handlers& handlers) {
+void WebSocketTransport::Open(const Handlers& handlers) {
   assert(core_);
-  return core_->Open(handlers);
+  core_->Open(handlers);
 }
 
 void WebSocketTransport::Close() {

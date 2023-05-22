@@ -143,7 +143,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   ~AcceptedTransport();
 
   // Transport
-  virtual Error Open(const Handlers& handlers) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -384,16 +384,14 @@ AsioUdpTransport::AcceptedTransport::~AcceptedTransport() {
     core_->RemoveAcceptedTransport(endpoint_);
 }
 
-Error AsioUdpTransport::AcceptedTransport::Open(const Handlers& handlers) {
+void AsioUdpTransport::AcceptedTransport::Open(const Handlers& handlers) {
   assert(!connected_);
 
   if (connected_ || !core_)
-    return ERR_FAILED;
+    return;
 
-  handlers_ = handlers;
   connected_ = true;
-
-  return OK;
+  handlers_ = handlers;
 }
 
 void AsioUdpTransport::AcceptedTransport::Close() {
@@ -478,20 +476,20 @@ AsioUdpTransport::AsioUdpTransport(std::shared_ptr<const Logger> logger,
       service_{std::move(service)},
       active_{active} {}
 
-Error AsioUdpTransport::Open(const Handlers& handlers) {
+void AsioUdpTransport::Open(const Handlers& handlers) {
   if (core_)
     core_->Close();
 
-  if (active_) {
+  if (!core_) {
     core_ =
-        std::make_shared<UdpActiveCore>(udp_socket_factory_, host_, service_);
-  } else {
-    core_ = std::make_shared<UdpPassiveCore>(logger_, udp_socket_factory_,
-                                             host_, service_);
+        active_
+            ? std::static_pointer_cast<Core>(std::make_shared<UdpActiveCore>(
+                  udp_socket_factory_, host_, service_))
+            : std::static_pointer_cast<Core>(std::make_shared<UdpPassiveCore>(
+                  logger_, udp_socket_factory_, host_, service_));
   }
 
   core_->Open(handlers);
-  return net::OK;
 }
 
 std::string AsioUdpTransport::GetName() const {

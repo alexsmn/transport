@@ -8,7 +8,7 @@ namespace net {
 
 class TransportMock : public Transport {
  public:
-  MOCK_METHOD(Error, Open, (const Handlers& handlers), (override));
+  MOCK_METHOD(void, Open, (const Handlers& handlers), (override));
   MOCK_METHOD(void, Close, (), (override));
   MOCK_METHOD(int, Read, (std::span<char> data), (override));
   MOCK_METHOD(int, Write, (std::span<const char> data), (override));

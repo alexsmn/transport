@@ -18,7 +18,7 @@ class NET_EXPORT QueueTransport final : public Transport {
   void Exec();
 
   // Transport
-  virtual Error Open(const Handlers& handlers) override;
+  virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual int Write(std::span<const char> data) override;
@@ -28,8 +28,8 @@ class NET_EXPORT QueueTransport final : public Transport {
   virtual bool IsActive() const override { return active_; }
 
  private:
-  typedef std::vector<char> Message;
-  typedef std::queue<Message> MessageQueue;
+  using Message = std::vector<char>;
+  using MessageQueue = std::queue<Message>;
 
   void OnMessage(const void* data, size_t size);
   void OnAccept(QueueTransport& transport);

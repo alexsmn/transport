@@ -333,18 +333,16 @@ AsioTcpTransport::~AsioTcpTransport() {
     core_->Close();
 }
 
-Error AsioTcpTransport::Open(const Handlers& handlers) {
+void AsioTcpTransport::Open(const Handlers& handlers) {
   if (!core_) {
-    if (active_) {
-      core_ =
-          std::make_shared<ActiveCore>(io_context_, logger_, host_, service_);
-    } else {
-      core_ =
-          std::make_shared<PassiveCore>(io_context_, logger_, host_, service_);
-    }
+    core_ = active_
+                ? std::static_pointer_cast<Core>(std::make_shared<ActiveCore>(
+                      io_context_, logger_, host_, service_))
+                : std::static_pointer_cast<Core>(std::make_shared<PassiveCore>(
+                      io_context_, logger_, host_, service_));
   }
+
   core_->Open(handlers);
-  return net::OK;
 }
 
 int AsioTcpTransport::GetLocalPort() const {

@@ -98,11 +98,10 @@ SerialTransport::SerialTransport(boost::asio::io_context& io_context,
       device_{std::move(device)},
       options_{options} {}
 
-net::Error SerialTransport::Open(const Handlers& handlers) {
+void SerialTransport::Open(const Handlers& handlers) {
   core_ =
       std::make_shared<SerialPortCore>(io_context_, logger_, device_, options_);
   core_->Open(handlers);
-  return net::OK;
 }
 
 std::string SerialTransport::GetName() const {
