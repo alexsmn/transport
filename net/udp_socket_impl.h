@@ -17,7 +17,8 @@ class UdpSocketImpl : private UdpSocketContext,
   // UdpSocket
   virtual void Open() override;
   virtual void Close() override;
-  virtual void SendTo(const Endpoint& endpoint, Datagram&& datagram) override;
+  virtual promise<size_t> SendTo(const Endpoint& endpoint,
+                                 Datagram&& datagram) override;
 
  private:
   void StartReading();
@@ -104,10 +105,15 @@ inline void UdpSocketImpl::Close() {
   socket_.close();
 }
 
-inline void UdpSocketImpl::SendTo(const Endpoint& endpoint,
-                                  Datagram&& datagram) {
-  write_queue_.emplace(std::make_pair(endpoint, std::move(datagram)));
+inline promise<size_t> UdpSocketImpl::SendTo(const Endpoint& endpoint,
+                                             Datagram&& datagram) {
+  auto size = datagram.size();
+
+  write_queue_.emplace(endpoint, std::move(datagram));
   StartWriting();
+
+  // TODO: Property async operation.
+  return make_resolved_promise(size);
 }
 
 inline void UdpSocketImpl::StartReading() {

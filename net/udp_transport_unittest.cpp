@@ -15,9 +15,12 @@ namespace {
 
 class MockUdpSocket : public UdpSocket {
  public:
-  MOCK_METHOD0(Open, void());
-  MOCK_METHOD0(Close, void());
-  MOCK_METHOD2(SendTo, void(const Endpoint& endpoint, Datagram&& datagram));
+  MOCK_METHOD(void, Open, (), (override));
+  MOCK_METHOD(void, Close, (), (override));
+  MOCK_METHOD(promise<size_t>,
+              SendTo,
+              (const Endpoint& endpoint, Datagram&& datagram),
+              (override));
 };
 
 }  // namespace

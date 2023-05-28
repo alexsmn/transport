@@ -248,9 +248,9 @@ int Session::Read(std::span<char> data) {
   return ERR_NOT_IMPLEMENTED;
 }
 
-int Session::Write(std::span<const char> data) {
+promise<size_t> Session::Write(std::span<const char> data) {
   Send(data.data(), data.size());
-  return OK;
+  return make_resolved_promise<size_t>(data.size());
 }
 
 std::string Session::GetName() const {
@@ -576,12 +576,8 @@ void Session::SendInternal(const void* data, size_t size) {
   num_bytes_sent_ += size;
   num_messages_sent_++;
 
-  int res = transport()->Write({static_cast<const char*>(data), size});
-  if (res < 0) {
-    logger_->Write(LogSeverity::Error, "Transport write failed");
-    OnTransportError(static_cast<Error>(res));
-    return;
-  }
+  // Ignores result.
+  transport()->Write({static_cast<const char*>(data), size});
 }
 
 void Session::SendAck(uint16_t recv_id) {
@@ -685,9 +681,8 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
 
       do {
         id_ = CreateSessionID();
-      } while (!parent_session_->accepted_sessions_
-                    .insert(Session::SessionMap::value_type(id_, this))
-                    .second);
+      } while (
+          !parent_session_->accepted_sessions_.try_emplace(id_, this).second);
 
       session_id = id_;
       session_info = this->session_info();
@@ -704,12 +699,7 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
     msg.WriteT(session_id);
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
-    int res =
-        transport()->Write({reinterpret_cast<const char*>(msg.data), msg.size});
-    if (res < 0) {
-      OnClosed(static_cast<Error>(res));
-      return;
-    }
+    transport()->Write({reinterpret_cast<const char*>(msg.data), msg.size});
   }
 
   // Send pending messages. Shall be sent after create session response.
@@ -762,12 +752,8 @@ void Session::OnRestore(const SessionID& session_id) {
     msg.WriteLong(error);
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
-    int res =
-        transport->Write({reinterpret_cast<const char*>(msg.data), msg.size});
-    if (res < 0) {
-      OnClosed(static_cast<Error>(res));
-      return;
-    }
+    // Ignores promise.
+    transport->Write({reinterpret_cast<const char*>(msg.data), msg.size});
   }
 
   // Send pending messages. Shall be sent after restore session response.

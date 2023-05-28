@@ -75,7 +75,7 @@ void AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
         if (error) {
           if (error != boost::asio::error::operation_aborted) {
             logger_->Write(LogSeverity::Warning, "DNS resolution error");
-            ProcessError(net::MapSystemError(error.value()));
+            ProcessError(MapSystemError(error.value()));
           }
           return;
         }
@@ -95,7 +95,7 @@ void AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
               if (error) {
                 if (error != boost::asio::error::operation_aborted) {
                   logger_->Write(LogSeverity::Warning, "Connect error");
-                  ProcessError(net::MapSystemError(error.value()));
+                  ProcessError(MapSystemError(error.value()));
                 }
                 return;
               }
@@ -146,7 +146,7 @@ class AsioTcpTransport::PassiveCore final
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
 
  private:
   using Socket = boost::asio::ip::tcp::socket;
@@ -255,11 +255,12 @@ void AsioTcpTransport::PassiveCore::Close() {
 }
 
 int AsioTcpTransport::PassiveCore::Read(std::span<char> data) {
-  return net::ERR_ACCESS_DENIED;
+  return ERR_ACCESS_DENIED;
 }
 
-int AsioTcpTransport::PassiveCore::Write(std::span<const char> data) {
-  return net::ERR_ACCESS_DENIED;
+promise<size_t> AsioTcpTransport::PassiveCore::Write(
+    std::span<const char> data) {
+  return make_error_promise<size_t>(ERR_ACCESS_DENIED);
 }
 
 void AsioTcpTransport::PassiveCore::StartAccepting() {
@@ -304,7 +305,7 @@ void AsioTcpTransport::PassiveCore::ProcessError(
   closed_ = true;
 
   if (handlers_.on_close) {
-    handlers_.on_close(net::MapSystemError(ec.value()));
+    handlers_.on_close(MapSystemError(ec.value()));
   }
 }
 

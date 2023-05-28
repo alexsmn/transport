@@ -2,6 +2,7 @@
 
 #include "net/base/net_errors.h"
 #include "net/base/net_export.h"
+#include "net/promise.h"
 
 #include <cassert>
 #include <functional>
@@ -41,8 +42,8 @@ class NET_EXPORT Transport {
   // Returns |Error| on failure.
   virtual int Read(std::span<char> data) = 0;
 
-  // Returns |Error| on failure.
-  virtual int Write(std::span<const char> data) = 0;
+  // Returns amount of bytes written or an error.
+  virtual promise<size_t> Write(std::span<const char> data) = 0;
 
   virtual std::string GetName() const = 0;
 

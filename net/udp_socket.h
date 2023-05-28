@@ -17,7 +17,8 @@ class UdpSocket {
 
   virtual void Open() = 0;
   virtual void Close() = 0;
-  virtual void SendTo(const Endpoint& endpoint, Datagram&& datagram) = 0;
+  virtual promise<size_t> SendTo(const Endpoint& endpoint,
+                                 Datagram&& datagram) = 0;
 };
 
 struct UdpSocketContext {

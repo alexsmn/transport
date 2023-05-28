@@ -21,7 +21,7 @@ class NET_EXPORT QueueTransport final : public Transport {
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return connected_; }

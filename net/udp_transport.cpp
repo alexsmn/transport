@@ -28,7 +28,7 @@ class AsioUdpTransport::UdpActiveCore
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -76,11 +76,10 @@ int AsioUdpTransport::UdpActiveCore::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-int AsioUdpTransport::UdpActiveCore::Write(std::span<const char> data) {
+promise<size_t> AsioUdpTransport::UdpActiveCore::Write(
+    std::span<const char> data) {
   std::vector<char> datagram(data.begin(), data.end());
-  socket_->SendTo(peer_endpoint_, std::move(datagram));
-
-  return static_cast<int>(data.size());
+  return socket_->SendTo(peer_endpoint_, std::move(datagram));
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
@@ -146,7 +145,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
@@ -186,7 +185,7 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -196,8 +195,8 @@ class AsioUdpTransport::UdpPassiveCore final
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::Error& error);
 
-  void InternalWrite(const UdpSocket::Endpoint& endpoint,
-                     UdpSocket::Datagram&& datagram);
+  promise<size_t> InternalWrite(const UdpSocket::Endpoint& endpoint,
+                                UdpSocket::Datagram&& datagram);
   void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
   void CloseAllAcceptedTransports(Error error);
 
@@ -258,16 +257,17 @@ int AsioUdpTransport::UdpPassiveCore::Read(std::span<char> data) {
   return ERR_FAILED;
 }
 
-int AsioUdpTransport::UdpPassiveCore::Write(std::span<const char> data) {
+promise<size_t> AsioUdpTransport::UdpPassiveCore::Write(
+    std::span<const char> data) {
   assert(false);
 
-  return ERR_FAILED;
+  return make_error_promise<size_t>(ERR_FAILED);
 }
 
-void AsioUdpTransport::UdpPassiveCore::InternalWrite(
+promise<size_t> AsioUdpTransport::UdpPassiveCore::InternalWrite(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  socket_->SendTo(endpoint, std::move(datagram));
+  return socket_->SendTo(endpoint, std::move(datagram));
 }
 
 void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
@@ -412,16 +412,15 @@ int AsioUdpTransport::AcceptedTransport::Read(std::span<char> data) {
   return ERR_FAILED;
 }
 
-int AsioUdpTransport::AcceptedTransport::Write(std::span<const char> data) {
+promise<size_t> AsioUdpTransport::AcceptedTransport::Write(
+    std::span<const char> data) {
   assert(connected_);
 
   if (!core_ || !connected_)
-    return ERR_FAILED;
+    return make_error_promise<size_t>(ERR_FAILED);
 
   std::vector<char> datagram(data.begin(), data.end());
-  core_->InternalWrite(endpoint_, std::move(datagram));
-
-  return static_cast<int>(data.size());
+  return core_->InternalWrite(endpoint_, std::move(datagram));
 }
 
 std::string AsioUdpTransport::AcceptedTransport::GetName() const {

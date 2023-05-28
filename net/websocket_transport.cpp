@@ -17,7 +17,7 @@ class WebSocketTransport::ConnectionCore
   void Open(const Handlers& handlers);
   void Close();
 
-  int Write(const void* data, size_t len);
+  promise<size_t> Write(const void* data, size_t len);
 
  private:
   void StartWriting(boost::asio::yield_context yield);
@@ -75,9 +75,10 @@ void WebSocketTransport::ConnectionCore::Close() {
   ws.close(boost::beast::websocket::close_code::normal, ec);
 }
 
-int WebSocketTransport::ConnectionCore::Write(const void* data, size_t len) {
-  write_queue_.push(std::vector<char>(static_cast<const char*>(data),
-                                      static_cast<const char*>(data) + len));
+promise<size_t> WebSocketTransport::ConnectionCore::Write(const void* data,
+                                                          size_t len) {
+  write_queue_.emplace(static_cast<const char*>(data),
+                       static_cast<const char*>(data) + len);
 
   if (!writing_) {
     writing_ = true;
@@ -89,7 +90,8 @@ int WebSocketTransport::ConnectionCore::Write(const void* data, size_t len) {
                        });
   }
 
-  return static_cast<int>(len);
+  // TODO: Proper async.
+  return make_resolved_promise(len);
 }
 
 void WebSocketTransport::ConnectionCore::StartWriting(
@@ -120,7 +122,7 @@ class WebSocketTransport::Connection : public Transport {
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return OK; }
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
   virtual std::string GetName() const override { return "WebSocket"; }
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return true; }
@@ -147,7 +149,8 @@ void WebSocketTransport::Connection::Close() {
   core_->Close();
 }
 
-int WebSocketTransport::Connection::Write(std::span<const char> data) {
+promise<size_t> WebSocketTransport::Connection::Write(
+    std::span<const char> data) {
   assert(opened_);
   return core_->Write(data.data(), data.size());
 }

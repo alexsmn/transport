@@ -23,7 +23,7 @@ class NET_EXPORT MessageTransport : public Transport {
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override {

@@ -43,13 +43,15 @@ int QueueTransport::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-int QueueTransport::Write(std::span<const char> data) {
+promise<size_t> QueueTransport::Write(std::span<const char> data) {
   assert(!data.empty());
-  if (!connected_ || !peer_)
-    return net::ERR_FAILED;
-  const char* chars = static_cast<const char*>(data.data());
-  peer_->read_queue_.push(Message(chars, chars + data.size()));
-  return static_cast<int>(data.size());
+
+  if (!connected_ || !peer_) {
+    return make_error_promise<size_t>(net::ERR_FAILED);
+  }
+
+  peer_->read_queue_.emplace(data.begin(), data.end());
+  return make_resolved_promise(data.size());
 }
 
 void QueueTransport::Exec() {

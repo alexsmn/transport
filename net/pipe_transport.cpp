@@ -82,13 +82,13 @@ int PipeTransport::Read(std::span<char> data) {
   return bytes_read;
 }
 
-int PipeTransport::Write(std::span<const char> data) {
-  DWORD bytes_written;
-  if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr))
-    return ERR_FAILED;
-  if (bytes_written != data.size())
-    return ERR_FAILED;
-  return static_cast<int>(bytes_written);
+promise<size_t> PipeTransport::Write(std::span<const char> data) {
+  DWORD bytes_written = 0;
+  if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
+    return make_error_promise<size_t>(ERR_FAILED);
+  }
+
+  return make_resolved_promise(static_cast<size_t>(bytes_written));
 }
 
 void PipeTransport::OnTimer() {

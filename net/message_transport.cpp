@@ -167,10 +167,9 @@ int MessageTransport::InternalRead(void* data, size_t len) {
   return size;
 }
 
-int MessageTransport::Write(std::span<const char> data) {
-  if (!child_transport_)
-    return ERR_INVALID_HANDLE;
-  return child_transport_->Write(data);
+promise<size_t> MessageTransport::Write(std::span<const char> data) {
+  return child_transport_ ? child_transport_->Write(data)
+                          : make_error_promise<size_t>(ERR_INVALID_HANDLE);
 }
 
 std::string MessageTransport::GetName() const {

@@ -29,16 +29,15 @@ class InprocessTransportHost::Client : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual int Write(std::span<const char> data);
+  virtual promise<size_t> Write(std::span<const char> data) override;
 
-  int Receive(std::span<const char> data) {
+  void Receive(std::span<const char> data) {
     // Must be opened.
     assert(accepted_client_);
 
     if (handlers_.on_message) {
       handlers_.on_message(data);
     }
-    return data.size();
   }
 
   void OnServerClosed() {
@@ -104,8 +103,8 @@ class InprocessTransportHost::Server : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual int Write(std::span<const char> data) override {
-    return ERR_ACCESS_DENIED;
+  virtual promise<size_t> Write(std::span<const char> data) override {
+    return make_error_promise<size_t>(ERR_ACCESS_DENIED);
   }
 
   std::pair<Error, AcceptedClient*> AcceptClient(Client& client);
@@ -167,8 +166,9 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual int Write(std::span<const char> data) override {
-    return client_.Receive(data);
+  virtual promise<size_t> Write(std::span<const char> data) override {
+    client_.Receive(data);
+    return make_resolved_promise<size_t>(data.size());
   }
 
   void OnClientClosed() {
@@ -181,14 +181,13 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     }
   }
 
-  int Receive(std::span<const char> data) {
+  void Receive(std::span<const char> data) {
     // Must be opened.
     assert(opened_);
 
     if (handlers_.on_message) {
       handlers_.on_message(data);
     }
-    return data.size();
   }
 
  private:
@@ -238,11 +237,17 @@ void InprocessTransportHost::Client::Close() {
   }
 }
 
-int InprocessTransportHost::Client::Write(std::span<const char> data) {
+promise<size_t> InprocessTransportHost::Client::Write(
+    std::span<const char> data) {
   assert(accepted_client_);
 
-  return accepted_client_ ? accepted_client_->Receive(data)
-                          : net::ERR_CONNECTION_CLOSED;
+  if (!accepted_client_) {
+    return make_error_promise<size_t>(ERR_CONNECTION_CLOSED);
+  }
+
+  accepted_client_->Receive(data);
+
+  return make_resolved_promise<size_t>(data.size());
 }
 
 // InprocessTransportHost::Server

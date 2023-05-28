@@ -20,7 +20,7 @@ class NET_EXPORT PipeTransport final : public Transport {
   virtual void Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override { return false; }
   virtual bool IsConnected() const override { return connected_; }

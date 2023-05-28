@@ -18,7 +18,7 @@ class AsioTransport : public Transport {
   // Transport overrides
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
 
@@ -41,7 +41,7 @@ class AsioTransport::Core {
   virtual void Close() = 0;
 
   virtual int Read(std::span<char> data) = 0;
-  virtual int Write(std::span<const char> data) = 0;
+  virtual promise<size_t> Write(std::span<const char> data) = 0;
 };
 
 // AsioTransport::Core
@@ -54,7 +54,7 @@ class AsioTransport::IoCore : public Core,
   virtual bool IsConnected() const override { return connected_; }
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual int Write(std::span<const char> data) override;
+  virtual promise<size_t> Write(std::span<const char> data) override;
 
  protected:
   IoCore(boost::asio::io_context& io_context,
@@ -63,7 +63,7 @@ class AsioTransport::IoCore : public Core,
   void StartReading();
   void StartWriting();
 
-  void ProcessError(net::Error error);
+  void ProcessError(Error error);
 
   virtual void Cleanup() = 0;
 
@@ -122,14 +122,16 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 }
 
 template <class IoObject>
-inline int AsioTransport::IoCore<IoObject>::Write(std::span<const char> data) {
+inline promise<size_t> AsioTransport::IoCore<IoObject>::Write(
+    std::span<const char> data) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   write_buffer_.insert(write_buffer_.end(), data.begin(), data.end());
 
   StartWriting();
 
-  return static_cast<int>(data.size());
+  // TODO: Handle properly.
+  return make_resolved_promise(data.size());
 }
 
 template <class IoObject>
@@ -161,12 +163,12 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
 
         if (ec) {
           if (ec != boost::asio::error::operation_aborted)
-            ProcessError(net::MapSystemError(ec.value()));
+            ProcessError(MapSystemError(ec.value()));
           return;
         }
 
         if (bytes_transferred == 0) {
-          ProcessError(net::OK);
+          ProcessError(OK);
           return;
         }
 
@@ -210,7 +212,7 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
 
         if (ec) {
           if (ec != boost::asio::error::operation_aborted)
-            ProcessError(net::MapSystemError(ec.value()));
+            ProcessError(MapSystemError(ec.value()));
           return;
         }
 
@@ -222,7 +224,7 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
 }
 
 template <class IoObject>
-inline void AsioTransport::IoCore<IoObject>::ProcessError(net::Error error) {
+inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   auto on_close = handlers_.on_close;
@@ -248,11 +250,11 @@ inline void AsioTransport::Close() {
 }
 
 inline int AsioTransport::Read(std::span<char> data) {
-  return core_ ? core_->Read(data) : net::ERR_FAILED;
+  return core_ ? core_->Read(data) : ERR_FAILED;
 }
 
-inline int AsioTransport::Write(std::span<const char> data) {
-  return core_ ? core_->Write(data) : net::ERR_FAILED;
+inline promise<size_t> AsioTransport::Write(std::span<const char> data) {
+  return core_ ? core_->Write(data) : make_error_promise<size_t>(ERR_FAILED);
 }
 
 inline bool AsioTransport::IsMessageOriented() const {
