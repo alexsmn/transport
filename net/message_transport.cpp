@@ -3,13 +3,12 @@
 #include "net/base/net_errors.h"
 #include "net/logger.h"
 #include "net/message_reader.h"
-#include "net/span.h"
 
 namespace net {
 
 namespace {
 
-int ReadMessage(span<const char>& buffer,
+int ReadMessage(std::span<const char>& buffer,
                 MessageReader& message_reader,
                 const Logger& logger,
                 ByteMessage& message) {
@@ -220,7 +219,7 @@ void MessageTransport::OnChildTransportMessageReceived(
     std::span<const char> data) {
   assert(child_transport_->IsMessageOriented());
 
-  span<const char> buffer{data.data(), data.size()};
+  std::span<const char> buffer{data.data(), data.size()};
 
   std::weak_ptr<bool> cancelation = cancelation_;
   ByteMessage message;
