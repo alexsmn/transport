@@ -22,7 +22,9 @@ class NET_EXPORT Transport {
 
   struct Handlers {
     OpenHandler on_open;
+    // Triggered also when open fails.
     CloseHandler on_close;
+    // For streaming transports.
     DataHandler on_data;
     MessageHandler on_message;
     AcceptHandler on_accept;
@@ -34,12 +36,13 @@ class NET_EXPORT Transport {
   Transport(const Transport&) = delete;
   Transport& operator=(const Transport&) = delete;
 
-  // Returns |Error| on failure.
   virtual void Open(const Handlers& handlers) = 0;
 
   virtual void Close() = 0;
 
-  // Returns |Error| on failure.
+  // For streaming transports. After reception of `on_data` event, the client
+  // can read received data gradually.
+  // Returns a negative |Error| on failure.
   virtual int Read(std::span<char> data) = 0;
 
   // Returns amount of bytes written or an error.
@@ -53,6 +56,7 @@ class NET_EXPORT Transport {
 
   virtual bool IsConnected() const = 0;
 
+  // Active means the transport is a client (not a server) transport.
   virtual bool IsActive() const = 0;
 };
 
