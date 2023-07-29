@@ -107,7 +107,7 @@ class InprocessTransportHost::Server : public Transport {
     return make_error_promise<size_t>(ERR_ACCESS_DENIED);
   }
 
-  std::pair<Error, AcceptedClient*> AcceptClient(Client& client);
+  AcceptedClient* AcceptClient(Client& client);
 
  private:
   InprocessTransportHost& host_;
@@ -214,14 +214,7 @@ void InprocessTransportHost::Client::Open(const Handlers& handlers) {
 
   handlers_ = handlers;
 
-  auto [error, accepted_client] = server->AcceptClient(*this);
-  if (error != OK) {
-    handlers_ = {};
-    handlers.on_close(error);
-    return;
-  }
-
-  accepted_client_ = accepted_client;
+  accepted_client_ = server->AcceptClient(*this);
 
   if (auto on_open = std::move(handlers_.on_open)) {
     on_open();
@@ -252,13 +245,13 @@ promise<size_t> InprocessTransportHost::Client::Write(
 
 // InprocessTransportHost::Server
 
-std::pair<Error, InprocessTransportHost::AcceptedClient*>
+InprocessTransportHost::AcceptedClient*
 InprocessTransportHost::Server::AcceptClient(Client& client) {
   assert(opened_);
   auto accepted_client = std::make_unique<AcceptedClient>(client, *this);
   AcceptedClient* accepted_client_ptr = accepted_client.get();
-  Error error = handlers_.on_accept(std::move(accepted_client));
-  return {error, accepted_client_ptr};
+  handlers_.on_accept(std::move(accepted_client));
+  return accepted_client_ptr;
 }
 
 // InprocessTransportHost

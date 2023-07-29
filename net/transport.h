@@ -18,7 +18,7 @@ class NET_EXPORT Transport {
   using CloseHandler = std::function<void(Error error)>;
   using DataHandler = std::function<void()>;
   using MessageHandler = std::function<void(std::span<const char>)>;
-  using AcceptHandler = std::function<Error(std::unique_ptr<Transport>)>;
+  using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
 
   struct Handlers {
     OpenHandler on_open;

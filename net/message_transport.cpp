@@ -182,10 +182,11 @@ void MessageTransport::OnChildTransportOpened() {
     handlers_.on_open();
 }
 
-Error MessageTransport::OnChildTransportAccepted(
+void MessageTransport::OnChildTransportAccepted(
     std::unique_ptr<Transport> transport) {
-  return handlers_.on_accept ? handlers_.on_accept(std::move(transport))
-                             : ERR_ACCESS_DENIED;
+  if (handlers_.on_accept) {
+    handlers_.on_accept(std::move(transport));
+  }
 }
 
 void MessageTransport::OnChildTransportClosed(Error error) {

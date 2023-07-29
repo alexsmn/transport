@@ -40,7 +40,7 @@ class NET_EXPORT MessageTransport : public Transport {
 
   // Child handlers.
   void OnChildTransportOpened();
-  net::Error OnChildTransportAccepted(std::unique_ptr<Transport> transport);
+  void OnChildTransportAccepted(std::unique_ptr<Transport> transport);
   void OnChildTransportClosed(Error error);
   void OnChildTransportDataReceived();
   void OnChildTransportMessageReceived(std::span<const char> data);

@@ -96,9 +96,8 @@ void QueueTransport::OnAccept(QueueTransport& transport) {
   // TODO: Fix ASAP.
   t->timer_.StartRepeating(10ms, [this] { Exec(); });
 
-  auto* tt = t.get();
-  if (handlers_.on_accept(std::move(t)) == net::OK)
-    transport.peer_ = tt;
+  transport.peer_ = t.get();
+  handlers_.on_accept(std::move(t));
 }
 
 }  // namespace net

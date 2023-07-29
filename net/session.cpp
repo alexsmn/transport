@@ -675,18 +675,16 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
   } else {
     create_info_ = create_info;
     // TODO: Refactor!
-    error = parent_session_->handlers_.on_accept(std::move(self));
-    if (error == OK) {
-      state_ = OPENED;
+    parent_session_->handlers_.on_accept(std::move(self));
+    state_ = OPENED;
 
-      do {
-        id_ = CreateSessionID();
-      } while (
-          !parent_session_->accepted_sessions_.try_emplace(id_, this).second);
+    do {
+      id_ = CreateSessionID();
+    } while (
+        !parent_session_->accepted_sessions_.try_emplace(id_, this).second);
 
-      session_id = id_;
-      session_info = this->session_info();
-    }
+    session_id = id_;
+    session_info = this->session_info();
   }
 
   // response
