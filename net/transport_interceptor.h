@@ -3,6 +3,7 @@
 #include "net/promise.h"
 
 #include <optional>
+#include <span>
 
 namespace net {
 

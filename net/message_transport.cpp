@@ -105,8 +105,8 @@ void MessageTransport::InternalClose() {
 
   handlers_ = {};
   cancelation_ = nullptr;
-  child_transport_->Close();
   message_reader_->Reset();
+  child_transport_->Close();
 }
 
 void MessageTransport::Close() {

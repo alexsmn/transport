@@ -1,5 +1,7 @@
 #pragma once
 
+#include "net/base/net_errors.h"
+
 #include <promise.hpp/promise.hpp>
 
 namespace net {
