@@ -1,6 +1,7 @@
 #pragma once
 
 #include "net/base/net_export.h"
+#include "net/logger.h"
 #include "net/transport_factory.h"
 #include "net/udp_socket_factory.h"
 
@@ -20,7 +21,8 @@ class NET_EXPORT TransportFactoryImpl : public TransportFactory {
   // Returns nullptr if parameters are invalid.
   virtual std::unique_ptr<Transport> CreateTransport(
       const TransportString& transport_string,
-      std::shared_ptr<const Logger> logger) override;
+      std::shared_ptr<const Logger> logger =
+          net::NullLogger::GetInstance()) override;
 
  private:
   boost::asio::io_context& io_context_;

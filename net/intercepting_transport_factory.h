@@ -18,7 +18,7 @@ class InterceptingTransportFactory : public TransportFactory {
 
   virtual std::unique_ptr<Transport> CreateTransport(
       const TransportString& transport_string,
-      std::shared_ptr<const Logger> logger) override {
+      std::shared_ptr<const Logger> logger = nullptr) override {
     auto transport = underlying_transport_factory_.CreateTransport(
         transport_string, std::move(logger));
 

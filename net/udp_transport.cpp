@@ -297,7 +297,7 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
   if (handlers_.on_accept) {
     auto accepted_transport =
         std::make_unique<AcceptedTransport>(shared_from_this(), endpoint);
-    accepted_transports_.emplace(endpoint, accepted_transport.get());
+    accepted_transports_.insert_or_assign(endpoint, accepted_transport.get());
     handlers_.on_accept(std::move(accepted_transport));
   }
 
