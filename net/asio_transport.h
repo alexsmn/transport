@@ -1,8 +1,8 @@
 #pragma once
 
-#include "base/threading/thread_checker.h"
 #include "net/transport.h"
 
+#include <base/threading/thread_collision_warner.h>
 #include <boost/asio.hpp>
 #include <boost/circular_buffer.hpp>
 #include <memory>
@@ -67,11 +67,13 @@ class AsioTransport::IoCore : public Core,
 
   virtual void Cleanup() = 0;
 
-  THREAD_CHECKER(thread_checker_);
+  DFAKE_MUTEX(mutex_);
 
   boost::asio::io_context& io_context_;
   const std::shared_ptr<const Logger> logger_;
   Handlers handlers_;
+
+  boost::asio::io_context::strand strand_{io_context_};
 
   IoObject io_object_;
 
@@ -100,7 +102,7 @@ inline AsioTransport::IoCore<IoObject>::IoCore(
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::Close() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   closed_ = true;
   handlers_ = {};
@@ -110,7 +112,7 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 
 template <class IoObject>
 inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   size_t count = std::min(data.size(), read_buffer_.size());
   std::copy(read_buffer_.begin(), read_buffer_.begin() + count, data.data());
@@ -124,19 +126,28 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 template <class IoObject>
 inline promise<size_t> AsioTransport::IoCore<IoObject>::Write(
     std::span<const char> data) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  promise<size_t> p;
 
-  write_buffer_.insert(write_buffer_.end(), data.begin(), data.end());
+  strand_.dispatch(
+      [this, ref = shared_from_this(), p,
+       copied_data = std::vector(data.begin(), data.end())]() mutable {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  StartWriting();
+        write_buffer_.insert(write_buffer_.end(), copied_data.begin(),
+                             copied_data.end());
 
-  // TODO: Handle properly.
-  return make_resolved_promise(data.size());
+        StartWriting();
+
+        // TODO: Handle properly.
+        p.resolve(copied_data.size());
+      });
+
+  return p;
 }
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartReading() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (closed_ || reading_)
     return;
@@ -151,41 +162,42 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
   boost::asio::async_read(
       io_object_, boost::asio::buffer(reading_buffer_),
       boost::asio::transfer_at_least(1),
-      [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                       std::size_t bytes_transferred) {
-        DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+      strand_.wrap(
+          [this, ref = shared_from_this()](const boost::system::error_code& ec,
+                                           std::size_t bytes_transferred) {
+            DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
-          return;
+            if (closed_)
+              return;
 
-        assert(reading_);
-        reading_ = false;
+            assert(reading_);
+            reading_ = false;
 
-        if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
-            ProcessError(MapSystemError(ec.value()));
-          return;
-        }
+            if (ec) {
+              if (ec != boost::asio::error::operation_aborted)
+                ProcessError(MapSystemError(ec.value()));
+              return;
+            }
 
-        if (bytes_transferred == 0) {
-          ProcessError(OK);
-          return;
-        }
+            if (bytes_transferred == 0) {
+              ProcessError(OK);
+              return;
+            }
 
-        read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
-                            reading_buffer_.begin() + bytes_transferred);
-        reading_buffer_.clear();
+            read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
+                                reading_buffer_.begin() + bytes_transferred);
+            reading_buffer_.clear();
 
-        if (handlers_.on_data)
-          handlers_.on_data();
+            if (handlers_.on_data)
+              handlers_.on_data();
 
-        StartReading();
-      });
+            StartReading();
+          }));
 }
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartWriting() {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (closed_ || writing_)
     return;
@@ -200,32 +212,33 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
 
   boost::asio::async_write(
       io_object_, boost::asio::buffer(writing_buffer_),
-      [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                       std::size_t bytes_transferred) {
-        DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+      strand_.wrap(
+          [this, ref = shared_from_this()](const boost::system::error_code& ec,
+                                           std::size_t bytes_transferred) {
+            DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
-          return;
+            if (closed_)
+              return;
 
-        assert(writing_);
-        writing_ = false;
+            assert(writing_);
+            writing_ = false;
 
-        if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
-            ProcessError(MapSystemError(ec.value()));
-          return;
-        }
+            if (ec) {
+              if (ec != boost::asio::error::operation_aborted)
+                ProcessError(MapSystemError(ec.value()));
+              return;
+            }
 
-        assert(bytes_transferred == writing_buffer_.size());
-        writing_buffer_.clear();
+            assert(bytes_transferred == writing_buffer_.size());
+            writing_buffer_.clear();
 
-        StartWriting();
-      });
+            StartWriting();
+          }));
 }
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   auto on_close = handlers_.on_close;
   closed_ = true;

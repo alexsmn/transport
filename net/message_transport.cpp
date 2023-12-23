@@ -78,7 +78,7 @@ bool MessageTransport::IsMessageOriented() const {
 }
 
 void MessageTransport::Open(const Handlers& handlers) {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
@@ -102,7 +102,7 @@ void MessageTransport::Open(const Handlers& handlers) {
 }
 
 void MessageTransport::InternalClose() {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (!child_transport_->IsConnected())
     return;
@@ -118,14 +118,14 @@ void MessageTransport::Close() {
 }
 
 int MessageTransport::Read(std::span<char> data) {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(false);
   return ERR_UNEXPECTED;
 }
 
 int MessageTransport::InternalRead(void* data, size_t len) {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (!child_transport_.get())
     return ERR_INVALID_HANDLE;
@@ -175,20 +175,20 @@ int MessageTransport::InternalRead(void* data, size_t len) {
 }
 
 promise<size_t> MessageTransport::Write(std::span<const char> data) {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   return child_transport_ ? child_transport_->Write(data)
                           : make_error_promise<size_t>(ERR_INVALID_HANDLE);
 }
 
 std::string MessageTransport::GetName() const {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   return "MSG:" + child_transport_->GetName();
 }
 
 void MessageTransport::OnChildTransportOpened() {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_->IsConnected());
 
@@ -198,7 +198,7 @@ void MessageTransport::OnChildTransportOpened() {
 
 void MessageTransport::OnChildTransportAccepted(
     std::unique_ptr<Transport> transport) {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (handlers_.on_accept) {
     handlers_.on_accept(std::move(transport));
@@ -206,7 +206,7 @@ void MessageTransport::OnChildTransportAccepted(
 }
 
 void MessageTransport::OnChildTransportClosed(Error error) {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_);
   assert(cancelation_);
@@ -218,7 +218,7 @@ void MessageTransport::OnChildTransportClosed(Error error) {
 }
 
 void MessageTransport::OnChildTransportDataReceived() {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_->IsConnected());
 
@@ -238,7 +238,7 @@ void MessageTransport::OnChildTransportDataReceived() {
 
 void MessageTransport::OnChildTransportMessageReceived(
     std::span<const char> data) {
-  DFAKE_SCOPED_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_->IsMessageOriented());
 

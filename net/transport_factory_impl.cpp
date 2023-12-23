@@ -13,6 +13,7 @@
 #include "net/pipe_transport.h"
 #endif
 
+#include <base/strings/sys_string_conversions.h>
 #include <boost/algorithm/string/predicate.hpp>
 
 #if defined(OS_WIN)
@@ -57,18 +58,17 @@ boost::asio::serial_port::flow_control::type ParseFlowControl(
     throw std::invalid_argument{"Wrong flow control string"};
 }
 
+base::StringPiece AsStringPiece(std::string_view str) {
+  return base::StringPiece{str.data(), str.size()};
+}
+
 }  // namespace
 
 std::shared_ptr<TransportFactory> CreateTransportFactory() {
   struct Holder {
-    ~Holder() {
-      work.reset();
-      thread.join();
-    }
-
     boost::asio::io_context io_context;
     TransportFactoryImpl transport_factory{io_context};
-    std::thread thread{[this] { io_context.run(); }};
+    std::jthread thread{[this] { io_context.run(); }};
     std::optional<boost::asio::io_context::work> work{io_context};
   };
 
@@ -179,7 +179,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     }
 
     auto transport = std::make_unique<PipeTransport>(io_context_);
-    transport->Init(L"\\\\.\\pipe\\" + name, !active);
+    transport->Init(LR"(\\.\pipe\)" + name, !active);
     return transport;
 
 #else

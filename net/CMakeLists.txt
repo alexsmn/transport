@@ -50,26 +50,21 @@ endif()
 add_library(net ${sources})
 add_library(Net::net ALIAS net)
 
+# Uses `std::span` in API.
 target_compile_features(net PUBLIC cxx_std_20)
 
 target_compile_definitions(net PRIVATE NET_IMPLEMENTATION)
 
-if(BUILD_SHARED_LIBS)
-  target_compile_definitions(net PUBLIC COMPONENT_BUILD)
-endif()
-
 if(WIN32)
   target_compile_options(net PRIVATE /bigobj)
-else()
-  target_compile_definitions(net PUBLIC COMPILER_GCC)
 endif()
 
 target_include_directories(net PUBLIC "..")
 
-target_link_libraries(net PUBLIC Boost::boost Boost::coroutine)
+target_link_libraries(net PRIVATE Boost::boost Boost::coroutine)
 
 find_package(ChromiumBase REQUIRED)
-target_link_libraries(net PUBLIC ChromiumBase::base)
+target_link_libraries(net PRIVATE ChromiumBase::base)
 
 find_package(PromiseHpp)
 target_link_libraries(net PUBLIC promise.hpp)
@@ -77,6 +72,12 @@ target_link_libraries(net PUBLIC promise.hpp)
 # UTs
 
 add_executable(net_unittests ${SOURCES_UT})
-target_link_libraries(net_unittests PUBLIC net GTest::gmock_main)
+
+target_link_libraries(net_unittests PRIVATE
+  ChromiumBase::base
+  GTest::gmock_main
+  net
+)
+
 include(GoogleTest)
 gtest_discover_tests(net_unittests)
