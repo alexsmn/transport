@@ -68,6 +68,9 @@ target_include_directories(net PUBLIC "..")
 
 target_link_libraries(net PUBLIC Boost::boost Boost::coroutine)
 
+find_package(ChromiumBase REQUIRED)
+target_link_libraries(net PUBLIC ChromiumBase::base)
+
 find_package(PromiseHpp)
 target_link_libraries(net PUBLIC promise.hpp)
 

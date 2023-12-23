@@ -1,9 +1,10 @@
 #pragma once
 
-#include <memory>
-
 #include "net/base/net_export.h"
 #include "net/transport.h"
+
+#include <base/threading/thread_collision_warner.h>
+#include <memory>
 
 namespace net {
 
@@ -58,6 +59,8 @@ class NET_EXPORT MessageTransport : public Transport {
   std::vector<char> read_buffer_;
 
   std::shared_ptr<bool> cancelation_;
+
+  DFAKE_MUTEX(mutex_);
 };
 
 }  // namespace net
