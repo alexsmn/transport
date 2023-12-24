@@ -12,11 +12,12 @@
 
 namespace net {
 
-// TODO: Make non-virtual.
-// TODO: Split per a stream and a message-oriented transport.
-// TODO: Split per a connected transport and a connector.
-class NET_EXPORT Transport {
+class Transport;
+
+class Connector {
  public:
+  virtual ~Connector() = default;
+
   using OpenHandler = std::function<void()>;
   using CloseHandler = std::function<void(Error error)>;
   using DataHandler = std::function<void()>;
@@ -38,25 +39,41 @@ class NET_EXPORT Transport {
     AcceptHandler on_accept;
   };
 
-  Transport() = default;
-  virtual ~Transport() = default;
-
-  Transport(const Transport&) = delete;
-  Transport& operator=(const Transport&) = delete;
-
   virtual void Open(const Handlers& handlers) = 0;
+};
 
-  // TODO: Should return a promise.
-  virtual void Close() = 0;
+class Sender {
+ public:
+  virtual ~Sender() = default;
+
+  // Returns amount of bytes written or an error.
+  virtual promise<size_t> Write(std::span<const char> data) = 0;
+};
+
+class Reader {
+ public:
+  virtual ~Reader() = default;
 
   // For streaming transports. After reception of `on_data` event, the client
   // can read received data gradually.
   // Returns a negative |Error| on failure.
   // TODO: This should return a promised buffer.
   virtual int Read(std::span<char> data) = 0;
+};
 
-  // Returns amount of bytes written or an error.
-  virtual promise<size_t> Write(std::span<const char> data) = 0;
+// TODO: Make non-virtual.
+// TODO: Split per a stream and a message-oriented transport.
+// TODO: Split per a connected transport and a connector.
+class NET_EXPORT Transport : public Connector, public Reader, public Sender {
+ public:
+  Transport() = default;
+  virtual ~Transport() = default;
+
+  Transport(const Transport&) = delete;
+  Transport& operator=(const Transport&) = delete;
+
+  // TODO: Should return a promise.
+  virtual void Close() = 0;
 
   virtual std::string GetName() const = 0;
 
