@@ -35,7 +35,7 @@ class TestMessageReader : public MessageReaderImpl<1024> {
 
 class MessageTransportTest : public Test {
  public:
-  virtual void SetUp() override;
+  void InitChildTransport(bool message_oriented);
 
   MockTransportHandlers message_transport_handlers_;
 
@@ -45,16 +45,24 @@ class MessageTransportTest : public Test {
   std::unique_ptr<MessageTransport> message_transport_;
 };
 
-void MessageTransportTest::SetUp() {
+MATCHER_P2(HasBytes, bytes, size, "") {
+  return std::memcmp(arg, bytes, size) == 0;
+}
+
+void MessageTransportTest::InitChildTransport(bool message_oriented) {
   auto child_transport = std::make_unique<TransportMock>();
   child_transport_ptr_ = child_transport.get();
 
   EXPECT_CALL(*child_transport_ptr_, IsMessageOriented())
       .Times(AnyNumber())
-      .WillRepeatedly(Return(true));
+      .WillRepeatedly(Return(message_oriented));
 
   EXPECT_CALL(*child_transport_ptr_, Open(_))
       .WillOnce(DoAll(SaveArg<0>(&child_handlers_)));
+
+  EXPECT_CALL(*child_transport_ptr_, IsConnected())
+      .Times(AnyNumber())
+      .WillRepeatedly(Return(true));
 
   auto message_reader = std::make_unique<TestMessageReader>();
 
@@ -64,16 +72,12 @@ void MessageTransportTest::SetUp() {
 
   message_transport_->Open(message_transport_handlers_.AsHandlers());
 
-  EXPECT_CALL(*child_transport_ptr_, IsConnected())
-      .Times(AnyNumber())
-      .WillRepeatedly(Return(true));
-}
-
-MATCHER_P2(HasBytes, bytes, size, "") {
-  return std::memcmp(arg, bytes, size) == 0;
+  EXPECT_CALL(*child_transport_ptr_, Close());
 }
 
 TEST_F(MessageTransportTest, CompositeMessage) {
+  InitChildTransport(/*message_oriented=*/true);
+
   const char message1[] = {1, 0};
   const char message2[] = {2, 0, 0};
   const char message3[] = {3, 0, 0, 0};
@@ -87,14 +91,13 @@ TEST_F(MessageTransportTest, CompositeMessage) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
-
-  EXPECT_CALL(*child_transport_ptr_, Close());
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
+  InitChildTransport(/*message_oriented=*/true);
+
   EXPECT_CALL(message_transport_handlers_.on_message, Call(_)).Times(0);
 
-  EXPECT_CALL(*child_transport_ptr_, Close());
   EXPECT_CALL(message_transport_handlers_.on_close, Call(ERR_FAILED));
 
   const char datagram[] = {5, 0, 0, 0};
@@ -106,6 +109,8 @@ TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
+  InitChildTransport(/*message_oriented=*/true);
+
   const char message1[] = {1, 0};
   const char message2[] = {2, 0, 0};
 
@@ -114,13 +119,14 @@ TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message2)))
       .WillOnce(Invoke([&] { message_transport_.reset(); }));
-  EXPECT_CALL(*child_transport_ptr_, Close());
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
+  InitChildTransport(/*message_oriented=*/true);
+
   const char message1[] = {1, 0};
   const char message2[] = {2, 0, 0};
 
@@ -129,7 +135,6 @@ TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message2)))
       .WillOnce(Invoke([&] { message_transport_->Close(); }));
-  EXPECT_CALL(*child_transport_ptr_, Close());
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
@@ -137,6 +142,65 @@ TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
       .WillRepeatedly(Return(false));
+}
+
+auto MakeReadImpl(const std::vector<char>& buffer) {
+  return [buffer](std::span<char> data) {
+    if (data.size() < buffer.size()) {
+      throw std::runtime_error{"The read buffer is too small"};
+    }
+    std::ranges::copy(buffer, data.begin());
+    return buffer.size();
+  };
+}
+
+TEST_F(MessageTransportTest,
+       OnData_StreamChildTransport_PartialMessage_DontTriggerOnMessage) {
+  InitChildTransport(/*message_oriented=*/false);
+
+  InSequence s;
+
+  EXPECT_CALL(message_transport_handlers_.on_message, Call(_)).Times(0);
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(1)))
+      .WillOnce(Invoke(MakeReadImpl({10})));
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(10)))
+      .WillOnce(Invoke(MakeReadImpl({1, 2, 3})));
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(7)))
+      .WillOnce(Invoke(MakeReadImpl({4})));
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(6)))
+      .WillOnce(Invoke(MakeReadImpl({})));
+
+  child_handlers_.on_data();
+}
+
+TEST_F(MessageTransportTest,
+       OnData_StreamChildTransport_FullMessage_TriggersOnMessage) {
+  InitChildTransport(/*message_oriented=*/false);
+
+  InSequence s;
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(1)))
+      .WillOnce(Invoke(MakeReadImpl({10})));
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(10)))
+      .WillOnce(Invoke(MakeReadImpl({1, 2, 3})));
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(7)))
+      .WillOnce(Invoke(MakeReadImpl({4, 5, 6, 7, 8, 9, 10})));
+
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAre(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+
+  // Starts reading next message.
+
+  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(1)))
+      .WillOnce(Invoke(MakeReadImpl({})));
+
+  child_handlers_.on_data();
 }
 
 }  // namespace net
