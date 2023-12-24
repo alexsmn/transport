@@ -1,4 +1,4 @@
-#include "net/message_transport.h"
+#include "net/message_reader_transport.h"
 
 #include "net/base/net_errors.h"
 #include "net/logger.h"
@@ -62,29 +62,28 @@ int ReadMessage(std::span<const char>& buffer,
 
 }  // namespace
 
-MessageTransport::MessageTransport(
+MessageReaderTransport::MessageReaderTransport(
     std::unique_ptr<Transport> child_transport,
     std::unique_ptr<MessageReader> message_reader,
     std::shared_ptr<const Logger> logger)
     : child_transport_(std::move(child_transport)),
       message_reader_(std::move(message_reader)),
       logger_{std::move(logger)},
-      max_message_size_(message_reader_->message().capacity),
-      read_buffer_(max_message_size_) {
+      read_buffer_(message_reader_->message().capacity) {
   assert(child_transport_);
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
 }
 
-MessageTransport::~MessageTransport() {
+MessageReaderTransport::~MessageReaderTransport() {
   InternalClose();
 }
 
-bool MessageTransport::IsMessageOriented() const {
+bool MessageReaderTransport::IsMessageOriented() const {
   return true;
 }
 
-void MessageTransport::Open(const Handlers& handlers) {
+void MessageReaderTransport::Open(const Handlers& handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   // Passive transport can be connected.
@@ -108,7 +107,7 @@ void MessageTransport::Open(const Handlers& handlers) {
            }});
 }
 
-void MessageTransport::InternalClose() {
+void MessageReaderTransport::InternalClose() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (!child_transport_->IsConnected())
@@ -120,18 +119,18 @@ void MessageTransport::InternalClose() {
   child_transport_->Close();
 }
 
-void MessageTransport::Close() {
+void MessageReaderTransport::Close() {
   InternalClose();
 }
 
-int MessageTransport::Read(std::span<char> data) {
+int MessageReaderTransport::Read(std::span<char> data) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(false);
   return ERR_UNEXPECTED;
 }
 
-int MessageTransport::InternalRead(void* data, size_t len) {
+int MessageReaderTransport::InternalRead(void* data, size_t len) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (!child_transport_.get())
@@ -172,20 +171,20 @@ int MessageTransport::InternalRead(void* data, size_t len) {
   return size;
 }
 
-promise<size_t> MessageTransport::Write(std::span<const char> data) {
+promise<size_t> MessageReaderTransport::Write(std::span<const char> data) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   return child_transport_ ? child_transport_->Write(data)
                           : make_error_promise<size_t>(ERR_INVALID_HANDLE);
 }
 
-std::string MessageTransport::GetName() const {
+std::string MessageReaderTransport::GetName() const {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   return "MSG:" + child_transport_->GetName();
 }
 
-void MessageTransport::OnChildTransportOpened() {
+void MessageReaderTransport::OnChildTransportOpened() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_->IsConnected());
@@ -194,7 +193,7 @@ void MessageTransport::OnChildTransportOpened() {
     handlers_.on_open();
 }
 
-void MessageTransport::OnChildTransportAccepted(
+void MessageReaderTransport::OnChildTransportAccepted(
     std::unique_ptr<Transport> transport) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
@@ -203,7 +202,7 @@ void MessageTransport::OnChildTransportAccepted(
   }
 }
 
-void MessageTransport::OnChildTransportClosed(Error error) {
+void MessageReaderTransport::OnChildTransportClosed(Error error) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_);
@@ -215,7 +214,7 @@ void MessageTransport::OnChildTransportClosed(Error error) {
     handlers_.on_close(error);
 }
 
-void MessageTransport::OnChildTransportDataReceived() {
+void MessageReaderTransport::OnChildTransportDataReceived() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_->IsConnected());
@@ -234,7 +233,7 @@ void MessageTransport::OnChildTransportDataReceived() {
   }
 }
 
-void MessageTransport::OnChildTransportMessageReceived(
+void MessageReaderTransport::OnChildTransportMessageReceived(
     std::span<const char> data) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 

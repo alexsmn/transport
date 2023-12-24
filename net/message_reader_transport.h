@@ -11,12 +11,18 @@ namespace net {
 class Logger;
 class MessageReader;
 
-class NET_EXPORT MessageTransport : public Transport {
+// A message-oriented transport constructed from a child transport using a
+// provided message reader.
+//
+// Supports both message and stream child transports. When message child
+// transport is used, the message reader is applied on concatenated child
+// transport messages.
+class NET_EXPORT MessageReaderTransport : public Transport {
  public:
-  MessageTransport(std::unique_ptr<Transport> child_transport,
-                   std::unique_ptr<MessageReader> message_reader,
-                   std::shared_ptr<const Logger> logger);
-  virtual ~MessageTransport();
+  MessageReaderTransport(std::unique_ptr<Transport> child_transport,
+                         std::unique_ptr<MessageReader> message_reader,
+                         std::shared_ptr<const Logger> logger);
+  virtual ~MessageReaderTransport();
 
   MessageReader& message_reader() { return *message_reader_; }
 
@@ -54,7 +60,6 @@ class NET_EXPORT MessageTransport : public Transport {
 
   Handlers handlers_;
 
-  size_t max_message_size_;
   // TODO: Move into Context.
   std::vector<char> read_buffer_;
 

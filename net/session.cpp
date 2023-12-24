@@ -3,7 +3,7 @@
 #include "net/bytebuf.h"
 #include "net/logger.h"
 #include "net/message_code.h"
-#include "net/message_transport.h"
+#include "net/message_reader_transport.h"
 #include "net/message_utils.h"
 #include "net/session_message_reader.h"
 
@@ -110,7 +110,7 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
   CloseTransport();
 
   if (transport && !transport->IsMessageOriented()) {
-    transport = std::make_unique<MessageTransport>(
+    transport = std::make_unique<MessageReaderTransport>(
         std::move(transport), std::make_unique<SessionMessageReader>(),
         logger_);
   }
