@@ -61,19 +61,9 @@ class Reader {
   virtual int Read(std::span<char> data) = 0;
 };
 
-// TODO: Make non-virtual.
-// TODO: Split per a stream and a message-oriented transport.
-// TODO: Split per a connected transport and a connector.
-class NET_EXPORT Transport : public Connector, public Reader, public Sender {
+class TransportMetadata {
  public:
-  Transport() = default;
-  virtual ~Transport() = default;
-
-  Transport(const Transport&) = delete;
-  Transport& operator=(const Transport&) = delete;
-
-  // TODO: Should return a promise.
-  virtual void Close() = 0;
+  virtual ~TransportMetadata() = default;
 
   virtual std::string GetName() const = 0;
 
@@ -85,6 +75,24 @@ class NET_EXPORT Transport : public Connector, public Reader, public Sender {
 
   // Active means the transport is a client (not a server) transport.
   virtual bool IsActive() const = 0;
+};
+
+// TODO: Make non-virtual.
+// TODO: Split per a stream and a message-oriented transport.
+// TODO: Split per a connected transport and a connector.
+class NET_EXPORT Transport : public Connector,
+                             public Reader,
+                             public Sender,
+                             public TransportMetadata {
+ public:
+  Transport() = default;
+  virtual ~Transport() = default;
+
+  Transport(const Transport&) = delete;
+  Transport& operator=(const Transport&) = delete;
+
+  // TODO: Should return a promise.
+  virtual void Close() = 0;
 };
 
 }  // namespace net
