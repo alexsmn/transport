@@ -8,27 +8,34 @@ namespace net {
 
 namespace {
 
+int GetBytesToRead(MessageReader& message_reader, const Logger& logger) {
+  for (;;) {
+    size_t bytes_to_read = 0;
+    bool ok = message_reader.GetBytesToRead(bytes_to_read);
+    if (ok) {
+      return bytes_to_read;
+    }
+
+    if (!message_reader.TryCorrectError()) {
+      logger.WriteF(LogSeverity::Warning,
+                    "Can't estimate remaining message size");
+      message_reader.Reset();
+      return ERR_FAILED;
+    }
+  }
+}
+
 int ReadMessage(std::span<const char>& buffer,
                 MessageReader& message_reader,
                 const Logger& logger,
                 ByteMessage& message) {
   for (;;) {
-    size_t bytes_to_read = 0;
-    bool ok = message_reader.GetBytesToRead(bytes_to_read);
-    if (!ok) {
-      if (message_reader.has_error_correction()) {
-        message_reader.SkipFirstByte();
-        continue;
-      } else {
-        logger.WriteF(LogSeverity::Warning,
-                      "Can't estimate remaining message size");
-        message_reader.Reset();
-        return ERR_FAILED;
-      }
-    }
-
-    if (bytes_to_read == 0)
+    int bytes_to_read = GetBytesToRead(message_reader, logger);
+    if (bytes_to_read < 0) {
+      return bytes_to_read;
+    } else if (bytes_to_read == 0) {
       break;
+    }
 
     if (bytes_to_read > buffer.size()) {
       logger.WriteF(LogSeverity::Warning, "Message is too short");
@@ -131,25 +138,16 @@ int MessageTransport::InternalRead(void* data, size_t len) {
     return ERR_INVALID_HANDLE;
 
   for (;;) {
-    size_t bytes_to_read = 0;
-    bool ok = message_reader_->GetBytesToRead(bytes_to_read);
-    if (!ok) {
-      if (message_reader_->has_error_correction()) {
-        message_reader_->SkipFirstByte();
-        continue;
-      } else {
-        logger_->WriteF(LogSeverity::Warning,
-                        "Can't estimate remaining message size");
-        message_reader_->Reset();
-        return ERR_FAILED;
-      }
+    int bytes_to_read = GetBytesToRead(*message_reader_, *logger_);
+    if (bytes_to_read < 0) {
+      return bytes_to_read;
+    } else if (bytes_to_read == 0) {
+      break;
     }
 
-    if (bytes_to_read == 0)
-      break;
-
-    int res = child_transport_->Read(
-        {static_cast<char*>(message_reader_->ptr()), bytes_to_read});
+    int res =
+        child_transport_->Read({static_cast<char*>(message_reader_->ptr()),
+                                static_cast<size_t>(bytes_to_read)});
     if (res <= 0)
       return res;
 

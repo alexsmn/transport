@@ -33,8 +33,7 @@ class MessageReader {
       : buffer_(buffer, capacity),
         complete_(false),
         logger_(NullLogger::GetInstance()),
-        error_correction_(false) {
-  }
+        error_correction_(false) {}
   virtual ~MessageReader() {}
 
   MessageReader(const MessageReader&) = delete;
@@ -50,7 +49,11 @@ class MessageReader {
   bool has_error_correction() const { return error_correction_; }
   void set_error_correction(bool correction) { error_correction_ = correction; }
 
-  void SetLogger(std::shared_ptr<const Logger> logger) { logger_ = std::move(logger); }
+  void SetLogger(std::shared_ptr<const Logger> logger) {
+    logger_ = std::move(logger);
+  }
+
+  bool TryCorrectError() { return error_correction_ && SkipFirstByte(); }
 
   // Number of bytes to pass for next read operation.
   bool GetBytesToRead(size_t& bytes_to_read) const {
@@ -66,44 +69,47 @@ class MessageReader {
   }
 
   // Skip read bytes.
-  void BytesRead(size_t count) {
-    buffer_.Write(NULL, count);
-  }
+  void BytesRead(size_t count) { buffer_.Write(nullptr, count); }
 
   // Reset buffer.
   void Reset() {
     buffer_.Clear();
     complete_ = false;
   }
- 
-  void SkipFirstByte() {
+
+  bool SkipFirstByte() {
     if (buffer_.size == 0)
-      return;
+      return false;
     if (buffer_.size >= 2)
       memmove(buffer_.data, buffer_.data + 1, buffer_.size - 1);
     buffer_.size--;
     buffer_.pos = 0;
+    return true;
   }
 
-  virtual MessageReader* Clone() = 0;
+  [[nodiscard]] virtual MessageReader* Clone() = 0;
 
-protected:
+ protected:
   // Calculate expected message size. Shall return in |expected| number of
   // bytes required to complete message, or 0 if message is complete.
   // Shall return false on error.
-  virtual bool GetBytesExpected(const void* buf, size_t len,
+  virtual bool GetBytesExpected(const void* buf,
+                                size_t len,
                                 size_t& expected) const = 0;
 
-  const Logger& logger() const { assert(logger_); return *logger_; }
+  const Logger& logger() const {
+    assert(logger_);
+    return *logger_;
+  }
 
-private:
-  ByteMessage		buffer_;
-  mutable bool	complete_;
+ private:
+  ByteMessage buffer_;
+  mutable bool complete_;
   std::shared_ptr<const Logger> logger_;
   bool error_correction_;
 };
 
-template<size_t MAX_SIZE>
+template <size_t MAX_SIZE>
 class MessageReaderImpl : public MessageReader {
  public:
   MessageReaderImpl() : MessageReader(data_, sizeof(data_)) {}
@@ -112,4 +118,4 @@ class MessageReaderImpl : public MessageReader {
   char data_[MAX_SIZE];
 };
 
-} // namespace net
+}  // namespace net
