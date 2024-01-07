@@ -7,9 +7,27 @@
 #include <cstring>
 #include <gmock/gmock.h>
 
+using namespace std::chrono_literals;
+using namespace testing;
+
 namespace net {
 
-using namespace testing;
+class MessageTransportTest : public Test {
+ public:
+  void InitChildTransport(bool message_oriented);
+  void ProcessPendingTasks();
+
+  boost::asio::io_context io_context_;
+
+  MockTransportHandlers message_transport_handlers_;
+
+  Transport::Handlers child_handlers_;
+  TransportMock* child_transport_ptr_ = nullptr;
+
+  std::unique_ptr<MessageReaderTransport> message_transport_;
+};
+
+namespace {
 
 class TestMessageReader : public MessageReaderImpl<1024> {
  public:
@@ -33,21 +51,21 @@ class TestMessageReader : public MessageReaderImpl<1024> {
   }
 };
 
-class MessageTransportTest : public Test {
- public:
-  void InitChildTransport(bool message_oriented);
-
-  MockTransportHandlers message_transport_handlers_;
-
-  Transport::Handlers child_handlers_;
-  TransportMock* child_transport_ptr_ = nullptr;
-
-  std::unique_ptr<MessageReaderTransport> message_transport_;
-};
+auto MakeReadImpl(const std::vector<char>& buffer) {
+  return [buffer](std::span<char> data) {
+    if (data.size() < buffer.size()) {
+      throw std::runtime_error{"The read buffer is too small"};
+    }
+    std::ranges::copy(buffer, data.begin());
+    return buffer.size();
+  };
+}
 
 MATCHER_P2(HasBytes, bytes, size, "") {
   return std::memcmp(arg, bytes, size) == 0;
 }
+
+}  // namespace
 
 void MessageTransportTest::InitChildTransport(bool message_oriented) {
   auto child_transport = std::make_unique<TransportMock>();
@@ -67,12 +85,21 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
   auto message_reader = std::make_unique<TestMessageReader>();
 
   message_transport_ = std::make_unique<MessageReaderTransport>(
-      std::move(child_transport), std::move(message_reader),
+      io_context_, std::move(child_transport), std::move(message_reader),
       NullLogger::GetInstance());
 
   message_transport_->Open(message_transport_handlers_.AsHandlers());
+  ProcessPendingTasks();
 
   EXPECT_CALL(*child_transport_ptr_, Close());
+}
+
+void MessageTransportTest::ProcessPendingTasks() {
+  // `while (io_context_.run_one())` doesn't work here because some tasks might
+  // be scheduled but not be pending.
+  io_context_.poll();
+  io_context_.poll();
+  io_context_.poll();
 }
 
 TEST_F(MessageTransportTest, CompositeMessage) {
@@ -91,6 +118,7 @@ TEST_F(MessageTransportTest, CompositeMessage) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
+  ProcessPendingTasks();
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
@@ -102,6 +130,7 @@ TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
 
   const char datagram[] = {5, 0, 0, 0};
   child_handlers_.on_message(datagram);
+  ProcessPendingTasks();
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
@@ -122,6 +151,7 @@ TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
+  ProcessPendingTasks();
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
@@ -138,20 +168,11 @@ TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
+  ProcessPendingTasks();
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
       .WillRepeatedly(Return(false));
-}
-
-auto MakeReadImpl(const std::vector<char>& buffer) {
-  return [buffer](std::span<char> data) {
-    if (data.size() < buffer.size()) {
-      throw std::runtime_error{"The read buffer is too small"};
-    }
-    std::ranges::copy(buffer, data.begin());
-    return buffer.size();
-  };
 }
 
 TEST_F(MessageTransportTest,
@@ -175,6 +196,7 @@ TEST_F(MessageTransportTest,
       .WillOnce(Invoke(MakeReadImpl({})));
 
   child_handlers_.on_data();
+  ProcessPendingTasks();
 }
 
 TEST_F(MessageTransportTest,
@@ -201,6 +223,7 @@ TEST_F(MessageTransportTest,
       .WillOnce(Invoke(MakeReadImpl({})));
 
   child_handlers_.on_data();
+  ProcessPendingTasks();
 }
 
 }  // namespace net
