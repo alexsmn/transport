@@ -2,6 +2,11 @@
 
 #include "net/base/net_errors.h"
 #include "net/logger.h"
+#include "net/message_reader.h"
+
+#include <base/threading/thread_collision_warner.h>
+#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/dispatch.hpp>
 
 namespace net {
 
@@ -61,12 +66,56 @@ int ReadMessage(std::span<const char>& buffer,
 
 }  // namespace
 
+// MessageReaderTransport::Core
+
+struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
+  Core(boost::asio::executor executor,
+       std::unique_ptr<Transport> child_transport,
+       std::unique_ptr<MessageReader> message_reader,
+       std::shared_ptr<const Logger> logger)
+      : executor_{std::move(executor)},
+        child_transport_{std::move(child_transport)},
+        message_reader_{std::move(message_reader)},
+        logger_{std::move(logger)} {}
+
+  void Open(const Handlers& handlers);
+  void Close();
+
+  int ReadMessage(void* data, size_t len);
+  promise<size_t> WriteMessage(std::span<const char> data);
+
+  // Child handlers.
+  void OnChildTransportOpened();
+  void OnChildTransportAccepted(std::unique_ptr<Transport> transport);
+  void OnChildTransportClosed(Error error);
+  void OnChildTransportDataReceived();
+  void OnChildTransportMessageReceived(std::span<const char> data);
+
+  const boost::asio::executor executor_;
+  const std::unique_ptr<Transport> child_transport_;
+  const std::unique_ptr<MessageReader> message_reader_;
+  const std::shared_ptr<const Logger> logger_;
+
+  Handlers handlers_;
+
+  DFAKE_MUTEX(mutex_);
+
+  // TODO: Move into Context.
+  std::vector<char> read_buffer_ =
+      std::vector<char>(message_reader_->message().capacity);
+
+  // TODO: Remove and replace with `weak_from_this`.
+  std::shared_ptr<bool> cancelation_;
+};
+
+// MessageReaderTransport
+
 MessageReaderTransport::MessageReaderTransport(
-    boost::asio::io_context& io_context,
+    boost::asio::executor executor,
     std::unique_ptr<Transport> child_transport,
     std::unique_ptr<MessageReader> message_reader,
     std::shared_ptr<const Logger> logger)
-    : core_{std::make_shared<Core>(io_context,
+    : core_{std::make_shared<Core>(std::move(executor),
                                    std::move(child_transport),
                                    std::move(message_reader),
                                    std::move(logger))} {
@@ -79,12 +128,25 @@ MessageReaderTransport::~MessageReaderTransport() {
   core_->Close();
 }
 
+MessageReader& MessageReaderTransport::message_reader() {
+  return *core_->message_reader_;
+}
+
+bool MessageReaderTransport::IsConnected() const {
+  return core_->child_transport_->IsConnected();
+}
+
+bool MessageReaderTransport::IsActive() const {
+  return core_->child_transport_->IsActive();
+}
+
 void MessageReaderTransport::Open(const Handlers& handlers) {
-  core_->strand_.dispatch(std::bind_front(&Core::Open, core_, handlers));
+  boost::asio::dispatch(core_->executor_,
+                        std::bind_front(&Core::Open, core_, handlers));
 }
 
 void MessageReaderTransport::Close() {
-  core_->strand_.dispatch(std::bind_front(&Core::Close, core_));
+  boost::asio::dispatch(core_->executor_, std::bind_front(&Core::Close, core_));
 }
 
 bool MessageReaderTransport::IsMessageOriented() const {
@@ -104,28 +166,26 @@ void MessageReaderTransport::Core::Open(const Handlers& handlers) {
   auto ref = shared_from_this();
 
   child_transport_->Open(
-      {.on_open =
-           strand_.wrap(std::bind_front(&Core::OnChildTransportOpened, ref)),
-       .on_close =
-           strand_.wrap(std::bind_front(&Core::OnChildTransportClosed, ref)),
-       .on_data = strand_.wrap(
+      {.on_open = boost::asio::bind_executor(
+           executor_, std::bind_front(&Core::OnChildTransportOpened, ref)),
+       .on_close = boost::asio::bind_executor(
+           executor_, std::bind_front(&Core::OnChildTransportClosed, ref)),
+       .on_data = boost::asio::bind_executor(
+           executor_,
            std::bind_front(&Core::OnChildTransportDataReceived, ref)),
        .on_message =
            [this, ref](std::span<const char> data) {
-             strand_.context().post(
+             boost::asio::dispatch(
+                 executor_,
                  std::bind_front(&Core::OnChildTransportMessageReceived, ref,
                                  std::vector(data.begin(), data.end())));
-             // OnChildTransportMessageReceived(data);
-             /*strand_.dispatch(
-                 std::bind_front(&Core::OnChildTransportMessageReceived, ref,
-                                 std::vector(data.begin(), data.end())));*/
            },
        .on_accept =
            [this, ref](std::unique_ptr<Transport> transport) {
              auto shared_transport =
                  std::make_shared<std::unique_ptr<Transport>>(
                      std::move(transport));
-             strand_.dispatch([this, ref, shared_transport] {
+             boost::asio::dispatch(executor_, [this, ref, shared_transport] {
                OnChildTransportAccepted(std::move(*shared_transport));
              });
            }});

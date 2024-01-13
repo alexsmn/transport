@@ -4,6 +4,7 @@
 #include "net/transport_delegate_mock.h"
 #include "net/transport_mock.h"
 
+#include <boost/asio/io_context.hpp>
 #include <cstring>
 #include <gmock/gmock.h>
 
@@ -85,8 +86,8 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
   auto message_reader = std::make_unique<TestMessageReader>();
 
   message_transport_ = std::make_unique<MessageReaderTransport>(
-      io_context_, std::move(child_transport), std::move(message_reader),
-      NullLogger::GetInstance());
+      io_context_.get_executor(), std::move(child_transport),
+      std::move(message_reader), NullLogger::GetInstance());
 
   message_transport_->Open(message_transport_handlers_.AsHandlers());
   ProcessPendingTasks();
