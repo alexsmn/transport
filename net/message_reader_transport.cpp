@@ -288,11 +288,10 @@ void MessageReaderTransport::Core::OnChildTransportClosed(Error error) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(child_transport_);
-  assert(cancelation_);
 
-  cancelation_ = nullptr;
+  auto cancelation = std::exchange(cancelation_, nullptr);
 
-  if (handlers_.on_close) {
+  if (handlers_.on_close && cancelation) {
     handlers_.on_close(error);
   }
 }
