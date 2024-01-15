@@ -40,7 +40,7 @@ class DeferredTransport final : public Transport {
         : executor_{std::move(executor)},
           underlying_transport_{std::move(underlying_transport)} {}
 
-    void Open(const Handlers& handlers);
+    promise<void> Open(const Handlers& handlers);
     void Close();
 
     void OnOpened();

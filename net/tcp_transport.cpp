@@ -21,7 +21,7 @@ class AsioTcpTransport::ActiveCore final
              Socket socket);
 
   // Core
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
@@ -51,15 +51,17 @@ AsioTcpTransport::ActiveCore::ActiveCore(boost::asio::io_context& io_context,
   connected_ = true;
 }
 
-void AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
+promise<void> AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  handlers_ = handlers;
-
   if (connected_) {
+    handlers_ = handlers;
     StartReading();
-    return;
+    return make_resolved_promise();
   }
+
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+  handlers_ = std::move(promise_handlers);
 
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
@@ -114,6 +116,8 @@ void AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
               StartReading();
             });
       }));
+
+  return p;
 }
 
 void AsioTcpTransport::ActiveCore::Cleanup() {
@@ -145,7 +149,7 @@ class AsioTcpTransport::PassiveCore final
 
   // Core
   virtual bool IsConnected() const override { return connected_; }
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual promise<size_t> Write(std::span<const char> data) override;
@@ -191,10 +195,11 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-void AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
+promise<void> AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  handlers_ = handlers;
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+  handlers_ = std::move(promise_handlers);
 
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
@@ -247,6 +252,8 @@ void AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
 
         StartAccepting();
       }));
+
+  return p;
 }
 
 void AsioTcpTransport::PassiveCore::Close() {
@@ -345,8 +352,6 @@ AsioTcpTransport::~AsioTcpTransport() {
 }
 
 promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-
   if (!core_) {
     core_ = active_
                 ? std::static_pointer_cast<Core>(std::make_shared<ActiveCore>(
@@ -355,9 +360,7 @@ promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
                       io_context_, logger_, host_, service_));
   }
 
-  core_->Open(handlers);
-
-  return p;
+  return core_->Open(handlers);
 }
 
 int AsioTcpTransport::GetLocalPort() const {

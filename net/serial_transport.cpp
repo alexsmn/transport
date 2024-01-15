@@ -1,7 +1,6 @@
 #include "net/serial_transport.h"
 
 #include "net/base/net_errors.h"
-#include "net/transport_util.h"
 
 #include <boost/asio/serial_port.hpp>
 
@@ -33,7 +32,7 @@ class SerialTransport::SerialPortCore final
                  const Options& options);
 
   // Core
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
 
  protected:
   virtual void Cleanup() override;
@@ -49,15 +48,15 @@ SerialTransport::SerialPortCore::SerialPortCore(
     const Options& options)
     : IoCore{io_context, std::move(logger)},
       device_{std::move(device)},
-      options_{std::move(options)} {}
+      options_{options} {}
 
-void SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
+promise<void> SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
   boost::system::error_code ec;
   io_object_.open(device_, ec);
   if (ec) {
     if (handlers.on_close)
-      handlers.on_close(net::ERR_FAILED);
-    return;
+      handlers.on_close(ERR_FAILED);
+    return make_error_promise(ERR_FAILED);
   }
 
   if (!SetOption(io_object_, options_.baud_rate) ||
@@ -67,8 +66,8 @@ void SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
       !SetOption(io_object_, options_.character_size)) {
     io_object_.close(ec);
     if (handlers.on_close)
-      handlers.on_close(net::ERR_FAILED);
-    return;
+      handlers.on_close(ERR_FAILED);
+    return make_error_promise(ERR_FAILED);
   }
 
   connected_ = true;
@@ -78,6 +77,8 @@ void SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
     handlers_.on_open();
 
   StartReading();
+
+  return make_resolved_promise();
 }
 
 void SerialTransport::SerialPortCore::Cleanup() {
@@ -100,13 +101,10 @@ SerialTransport::SerialTransport(boost::asio::io_context& io_context,
       options_{options} {}
 
 promise<void> SerialTransport::Open(const Handlers& handlers) {
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-
   core_ =
       std::make_shared<SerialPortCore>(io_context_, logger_, device_, options_);
-  core_->Open(promise_handlers);
 
-  return p;
+  return core_->Open(handlers);
 }
 
 std::string SerialTransport::GetName() const {

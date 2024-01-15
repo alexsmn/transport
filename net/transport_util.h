@@ -2,6 +2,9 @@
 
 #include "net/transport.h"
 
+#include <boost/asio/dispatch.hpp>
+#include <boost/asio/executor.hpp>
+
 namespace net {
 
 inline std::pair<promise<void>, Connector::Handlers> MakePromiseHandlers(
@@ -35,6 +38,16 @@ inline std::pair<promise<void>, Connector::Handlers> MakePromiseHandlers(
   };
 
   return {state->p, std::move(promise_handlers)};
+}
+
+template <class F>
+promise<void> DispatchPromise(const boost::asio::executor& ex, F&& f) {
+  promise<void> p;
+  boost::asio::dispatch(ex, [p, f = std::forward<F>(f)]() mutable {
+    f().then([p]() mutable { p.resolve(); },
+             [p](std::exception_ptr e) mutable { p.reject(e); });
+  });
+  return p;
 }
 
 }  // namespace net

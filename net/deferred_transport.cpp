@@ -16,24 +16,21 @@ DeferredTransport::DeferredTransport(
 }
 
 promise<void> DeferredTransport::Open(const Handlers& handlers) {
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-
-  boost::asio::dispatch(
-      core_->executor_,
-      std::bind_front(&Core::Open, core_, std::move(promise_handlers)));
-
-  return p;
+  return DispatchPromise(core_->executor_,
+                         std::bind_front(&Core::Open, core_, handlers));
 }
 
-void DeferredTransport::Core::Open(const Handlers& handlers) {
+promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
   assert(!connected_);
 
-  handlers_ = handlers;
-  connected_ = true;
-
   if (underlying_transport_->IsConnected()) {
-    return;
+    handlers_ = handlers;
+    return make_resolved_promise();
   }
+
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+  handlers_ = std::move(promise_handlers);
+  connected_ = true;
 
   underlying_transport_->Open(
       {.on_open = boost::asio::bind_executor(
@@ -51,6 +48,8 @@ void DeferredTransport::Core::Open(const Handlers& handlers) {
            },
        .on_accept = boost::asio::bind_executor(
            executor_, std::bind_front(&Core::OnAccepted, shared_from_this()))});
+
+  return p;
 }
 
 void DeferredTransport::Core::OnOpened() {

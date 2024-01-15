@@ -26,7 +26,7 @@ class AsioUdpTransport::UdpActiveCore
 
   // Core
   virtual bool IsConnected() const override { return connected_; }
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual promise<size_t> Write(std::span<const char> data) override;
@@ -59,11 +59,14 @@ AsioUdpTransport::UdpActiveCore::UdpActiveCore(
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-void AsioUdpTransport::UdpActiveCore::Open(const Handlers& handlers) {
-  handlers_ = handlers;
+promise<void> AsioUdpTransport::UdpActiveCore::Open(const Handlers& handlers) {
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+  handlers_ = std::move(promise_handlers);
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
   socket_->Open();
+
+  return p;
 }
 
 void AsioUdpTransport::UdpActiveCore::Close() {
@@ -183,7 +186,7 @@ class AsioUdpTransport::UdpPassiveCore final
 
   // Core
   virtual bool IsConnected() const override { return connected_; }
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual promise<size_t> Write(std::span<const char> data) override;
@@ -233,13 +236,16 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
 }
 
-void AsioUdpTransport::UdpPassiveCore::Open(const Handlers& handlers) {
+promise<void> AsioUdpTransport::UdpPassiveCore::Open(const Handlers& handlers) {
   logger_->WriteF(LogSeverity::Normal, "Open");
 
-  handlers_ = handlers;
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+  handlers_ = std::move(promise_handlers);
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
   socket_->Open();
+
+  return p;
 }
 
 void AsioUdpTransport::UdpPassiveCore::Close() {
@@ -496,11 +502,7 @@ promise<void> AsioUdpTransport::Open(const Handlers& handlers) {
                   logger_, udp_socket_factory_, host_, service_));
   }
 
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-
-  core_->Open(promise_handlers);
-
-  return p;
+  return core_->Open(handlers);
 }
 
 std::string AsioUdpTransport::GetName() const {

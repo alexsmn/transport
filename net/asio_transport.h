@@ -37,7 +37,7 @@ class AsioTransport::Core {
 
   virtual bool IsConnected() const = 0;
 
-  virtual void Open(const Handlers& handlers) = 0;
+  virtual promise<void> Open(const Handlers& handlers) = 0;
   virtual void Close() = 0;
 
   virtual int Read(std::span<char> data) = 0;
