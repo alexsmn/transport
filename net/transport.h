@@ -39,7 +39,7 @@ class Connector {
     AcceptHandler on_accept;
   };
 
-  virtual void Open(const Handlers& handlers) = 0;
+  virtual promise<void> Open(const Handlers& handlers) = 0;
 };
 
 class Sender {

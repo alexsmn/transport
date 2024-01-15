@@ -1,6 +1,7 @@
 #include "net/serial_transport.h"
 
 #include "net/base/net_errors.h"
+#include "net/transport_util.h"
 
 #include <boost/asio/serial_port.hpp>
 
@@ -98,10 +99,14 @@ SerialTransport::SerialTransport(boost::asio::io_context& io_context,
       device_{std::move(device)},
       options_{options} {}
 
-void SerialTransport::Open(const Handlers& handlers) {
+promise<void> SerialTransport::Open(const Handlers& handlers) {
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+
   core_ =
       std::make_shared<SerialPortCore>(io_context_, logger_, device_, options_);
-  core_->Open(handlers);
+  core_->Open(promise_handlers);
+
+  return p;
 }
 
 std::string SerialTransport::GetName() const {

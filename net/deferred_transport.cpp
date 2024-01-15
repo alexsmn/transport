@@ -1,5 +1,7 @@
 #include "net/deferred_transport.h"
 
+#include "net/transport_util.h"
+
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/dispatch.hpp>
 
@@ -13,9 +15,14 @@ DeferredTransport::DeferredTransport(
   assert(core_->underlying_transport_);
 }
 
-void DeferredTransport::Open(const Handlers& handlers) {
-  boost::asio::dispatch(core_->executor_,
-                        std::bind_front(&Core::Open, core_, handlers));
+promise<void> DeferredTransport::Open(const Handlers& handlers) {
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+
+  boost::asio::dispatch(
+      core_->executor_,
+      std::bind_front(&Core::Open, core_, std::move(promise_handlers)));
+
+  return p;
 }
 
 void DeferredTransport::Core::Open(const Handlers& handlers) {

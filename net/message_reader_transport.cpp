@@ -3,6 +3,7 @@
 #include "net/base/net_errors.h"
 #include "net/logger.h"
 #include "net/message_reader.h"
+#include "net/transport_util.h"
 
 #include <base/threading/thread_collision_warner.h>
 #include <boost/asio/bind_executor.hpp>
@@ -140,9 +141,14 @@ bool MessageReaderTransport::IsActive() const {
   return core_->child_transport_->IsActive();
 }
 
-void MessageReaderTransport::Open(const Handlers& handlers) {
-  boost::asio::dispatch(core_->executor_,
-                        std::bind_front(&Core::Open, core_, handlers));
+net::promise<void> MessageReaderTransport::Open(const Handlers& handlers) {
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+
+  boost::asio::dispatch(
+      core_->executor_,
+      std::bind_front(&Core::Open, core_, std::move(promise_handlers)));
+
+  return p;
 }
 
 void MessageReaderTransport::Close() {

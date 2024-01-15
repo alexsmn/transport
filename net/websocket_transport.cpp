@@ -1,5 +1,7 @@
 #include "net/websocket_transport.h"
 
+#include "net/transport_util.h"
+
 #include <boost/asio/spawn.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
@@ -119,7 +121,7 @@ class WebSocketTransport::Connection : public Transport {
   ~Connection();
 
   // Transport
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return OK; }
   virtual promise<size_t> Write(std::span<const char> data) override;
@@ -138,10 +140,14 @@ WebSocketTransport::Connection::~Connection() {
     core_->Close();
 }
 
-void WebSocketTransport::Connection::Open(const Handlers& handlers) {
+promise<void> WebSocketTransport::Connection::Open(const Handlers& handlers) {
   assert(!opened_);
+
   opened_ = true;
-  core_->Open(handlers);
+
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+  core_->Open(promise_handlers);
+  return p;
 }
 
 void WebSocketTransport::Connection::Close() {
@@ -285,9 +291,12 @@ WebSocketTransport::~WebSocketTransport() {
     core_->Close();
 }
 
-void WebSocketTransport::Open(const Handlers& handlers) {
+promise<void> WebSocketTransport::Open(const Handlers& handlers) {
   assert(core_);
-  core_->Open(handlers);
+
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+  core_->Open(promise_handlers);
+  return p;
 }
 
 void WebSocketTransport::Close() {

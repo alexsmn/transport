@@ -16,7 +16,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-void QueueTransport::Open(const Handlers& handlers) {
+promise<void> QueueTransport::Open(const Handlers& handlers) {
   handlers_ = handlers;
 
   if (active_) {
@@ -31,6 +31,8 @@ void QueueTransport::Open(const Handlers& handlers) {
   if (auto on_open = std::move(handlers_.on_open)) {
     on_open();
   }
+
+  return make_resolved_promise();
 }
 
 void QueueTransport::Close() {

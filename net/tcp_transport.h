@@ -20,7 +20,7 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
   int GetLocalPort() const;
 
   // Transport overrides
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
   virtual std::string GetName() const override;
   virtual bool IsActive() const override { return active_; }
 

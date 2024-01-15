@@ -8,8 +8,8 @@ class DelegatingTransport : public Transport {
  public:
   explicit DelegatingTransport(Transport& delegate) : delegate_{delegate} {}
 
-  virtual void Open(const Handlers& handlers) override {
-    delegate_.Open(handlers);
+  virtual promise<void> Open(const Handlers& handlers) override {
+    return delegate_.Open(handlers);
   }
 
   virtual void Close() override { delegate_.Close(); }

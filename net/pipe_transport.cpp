@@ -23,7 +23,7 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-void PipeTransport::Open(const Handlers& handlers) {
+promise<void> PipeTransport::Open(const Handlers& handlers) {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
   HANDLE handle;
@@ -39,7 +39,7 @@ void PipeTransport::Open(const Handlers& handlers) {
 
   if (handle == INVALID_HANDLE_VALUE) {
     handlers.on_close(ERR_FAILED);
-    return;
+    return make_error_promise(ERR_FAILED);
   }
 
   if (server_) {
@@ -48,7 +48,7 @@ void PipeTransport::Open(const Handlers& handlers) {
       if (error != ERROR_PIPE_LISTENING) {
         CloseHandle(handle);
         handlers.on_close(ERR_FAILED);
-        return;
+        return make_error_promise(ERR_FAILED);
       }
     }
   }
@@ -63,6 +63,8 @@ void PipeTransport::Open(const Handlers& handlers) {
   if (auto on_open = std::move(handlers_.on_open)) {
     on_open();
   }
+
+  return make_resolved_promise();
 }
 
 void PipeTransport::Close() {

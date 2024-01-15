@@ -1,9 +1,10 @@
-#include "udp_transport.h"
-
-#include "logger.h"
-#include "udp_socket_impl.h"
+#include "net/udp_transport.h"
 
 #include <map>
+
+#include "net/logger.h"
+#include "net/transport_util.h"
+#include "net/udp_socket_impl.h"
 
 std::string ToString(const net::UdpSocket::Endpoint& endpoint) {
   std::stringstream stream;
@@ -142,7 +143,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   ~AcceptedTransport();
 
   // Transport
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual promise<size_t> Write(std::span<const char> data) override;
@@ -384,14 +385,20 @@ AsioUdpTransport::AcceptedTransport::~AcceptedTransport() {
     core_->RemoveAcceptedTransport(endpoint_);
 }
 
-void AsioUdpTransport::AcceptedTransport::Open(const Handlers& handlers) {
+promise<void> AsioUdpTransport::AcceptedTransport::Open(
+    const Handlers& handlers) {
   assert(!connected_);
 
-  if (connected_ || !core_)
-    return;
+  if (connected_ || !core_) {
+    return make_resolved_promise();
+  }
+
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
 
   connected_ = true;
-  handlers_ = handlers;
+  handlers_ = std::move(promise_handlers);
+
+  return p;
 }
 
 void AsioUdpTransport::AcceptedTransport::Close() {
@@ -475,9 +482,10 @@ AsioUdpTransport::AsioUdpTransport(std::shared_ptr<const Logger> logger,
       service_{std::move(service)},
       active_{active} {}
 
-void AsioUdpTransport::Open(const Handlers& handlers) {
-  if (core_)
+promise<void> AsioUdpTransport::Open(const Handlers& handlers) {
+  if (core_) {
     core_->Close();
+  }
 
   if (!core_) {
     core_ =
@@ -488,7 +496,11 @@ void AsioUdpTransport::Open(const Handlers& handlers) {
                   logger_, udp_socket_factory_, host_, service_));
   }
 
-  core_->Open(handlers);
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+
+  core_->Open(promise_handlers);
+
+  return p;
 }
 
 std::string AsioUdpTransport::GetName() const {

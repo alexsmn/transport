@@ -23,7 +23,7 @@ class InprocessTransportHost::Client : public Transport {
     return std::format("client:{}", channel_name_);
   }
 
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
 
   virtual void Close() override;
 
@@ -74,15 +74,15 @@ class InprocessTransportHost::Server : public Transport {
     return std::format("server:{}", channel_name_);
   }
 
-  virtual void Open(const Handlers& handlers) override {
+  virtual promise<void> Open(const Handlers& handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      return;
+      return make_error_promise(ERR_ADDRESS_IN_USE);
     }
 
     if (!host_.listeners_.try_emplace(channel_name_, this).second) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      return;
+      return make_error_promise(ERR_ADDRESS_IN_USE);
     }
 
     handlers_ = handlers;
@@ -91,6 +91,8 @@ class InprocessTransportHost::Server : public Transport {
     if (auto on_open = std::move(handlers_.on_open)) {
       on_open();
     }
+
+    return make_resolved_promise();
   }
 
   virtual void Close() override {
@@ -142,10 +144,10 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  virtual void Open(const Handlers& handlers) override {
+  virtual promise<void> Open(const Handlers& handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      return;
+      return make_error_promise(ERR_ADDRESS_IN_USE);
     }
 
     handlers_ = handlers;
@@ -154,6 +156,8 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     // Accepted transport doesn't trigger `on_open` by design.
     assert(!handlers_.on_open);
     handlers_.on_open = nullptr;
+
+    return make_resolved_promise();
   }
 
   virtual void Close() override {
@@ -200,16 +204,16 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
 // InprocessTransportHost::Client
 
-void InprocessTransportHost::Client::Open(const Handlers& handlers) {
+promise<void> InprocessTransportHost::Client::Open(const Handlers& handlers) {
   if (accepted_client_) {
     handlers.on_close(ERR_ADDRESS_IN_USE);
-    return;
+    return make_error_promise(ERR_ADDRESS_IN_USE);
   }
 
   auto* server = host_.FindServer(channel_name_);
   if (!server) {
     handlers.on_close(ERR_ADDRESS_INVALID);
-    return;
+    return make_error_promise(ERR_ADDRESS_IN_USE);
   }
 
   handlers_ = handlers;
@@ -219,6 +223,8 @@ void InprocessTransportHost::Client::Open(const Handlers& handlers) {
   if (auto on_open = std::move(handlers_.on_open)) {
     on_open();
   }
+
+  return make_resolved_promise();
 }
 
 void InprocessTransportHost::Client::Close() {

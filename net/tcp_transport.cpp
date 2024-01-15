@@ -1,6 +1,7 @@
-#include "tcp_transport.h"
+#include "net/tcp_transport.h"
 
-#include "logger.h"
+#include "net/logger.h"
+#include "net/transport_util.h"
 
 namespace net {
 
@@ -343,7 +344,9 @@ AsioTcpTransport::~AsioTcpTransport() {
     core_->Close();
 }
 
-void AsioTcpTransport::Open(const Handlers& handlers) {
+promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+
   if (!core_) {
     core_ = active_
                 ? std::static_pointer_cast<Core>(std::make_shared<ActiveCore>(
@@ -353,6 +356,8 @@ void AsioTcpTransport::Open(const Handlers& handlers) {
   }
 
   core_->Open(handlers);
+
+  return p;
 }
 
 int AsioTcpTransport::GetLocalPort() const {

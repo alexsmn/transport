@@ -6,6 +6,7 @@
 #include "net/message_reader_transport.h"
 #include "net/message_utils.h"
 #include "net/session_message_reader.h"
+#include "net/transport_util.h"
 
 #include <algorithm>
 #include <cassert>
@@ -231,16 +232,20 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-void Session::Open(const Handlers& handlers) {
+promise<void> Session::Open(const Handlers& handlers) {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
 
   logger_->Write(LogSeverity::Normal, "Opening session");
 
-  handlers_ = handlers;
+  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
+
+  handlers_ = std::move(promise_handlers);
   state_ = OPENING;
   StartConnecting();
+
+  return p;
 }
 
 int Session::Read(std::span<char> data) {

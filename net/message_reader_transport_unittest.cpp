@@ -77,7 +77,8 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       .WillRepeatedly(Return(message_oriented));
 
   EXPECT_CALL(*child_transport_ptr_, Open(_))
-      .WillOnce(DoAll(SaveArg<0>(&child_handlers_)));
+      .WillOnce(
+          DoAll(SaveArg<0>(&child_handlers_), Return(make_resolved_promise())));
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
