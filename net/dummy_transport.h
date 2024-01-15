@@ -7,7 +7,7 @@ namespace net {
 class DummyTransport : public Transport {
  public:
   // Transport
-  virtual void Open(const Handlers& handlers) override;
+  virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual promise<size_t> Write(std::span<const char> data) override;
@@ -22,13 +22,15 @@ class DummyTransport : public Transport {
   Handlers handlers_;
 };
 
-inline void DummyTransport::Open(const Handlers& handlers) {
+inline promise<void> DummyTransport::Open(const Handlers& handlers) {
   opened_ = true;
   handlers_ = handlers;
 
   if (auto on_open = std::move(handlers_.on_open)) {
     on_open();
   }
+
+  return make_resolved_promise();
 }
 
 inline void DummyTransport::Close() {
