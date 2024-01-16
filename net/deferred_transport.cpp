@@ -23,6 +23,8 @@ promise<void> DeferredTransport::Open(const Handlers& handlers) {
 promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
   assert(!connected_);
 
+  connected_ = true;
+
   if (underlying_transport_->IsConnected()) {
     handlers_ = handlers;
     return make_resolved_promise();
@@ -30,7 +32,6 @@ promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
 
   auto [p, promise_handlers] = MakePromiseHandlers(handlers);
   handlers_ = std::move(promise_handlers);
-  connected_ = true;
 
   underlying_transport_->Open(
       {.on_open = boost::asio::bind_executor(

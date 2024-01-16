@@ -19,7 +19,9 @@ struct PromiseHandlers : std::enable_shared_from_this<PromiseHandlers> {
     // `state` instance.
     auto ref = shared_from_this();
 
-    on_open();
+    if (on_open) {
+      on_open();
+    }
 
     if (!promise_set) {
       promise_set = true;
@@ -32,7 +34,9 @@ struct PromiseHandlers : std::enable_shared_from_this<PromiseHandlers> {
     // `state` instance.
     auto ref = shared_from_this();
 
-    on_close(error);
+    if (on_close) {
+      on_close(error);
+    }
 
     if (!promise_set) {
       promise_set = true;
