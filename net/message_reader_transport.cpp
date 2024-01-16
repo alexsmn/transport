@@ -126,7 +126,7 @@ MessageReaderTransport::MessageReaderTransport(
 }
 
 MessageReaderTransport::~MessageReaderTransport() {
-  core_->Close();
+  boost::asio::dispatch(core_->executor_, std::bind_front(&Core::Close, core_));
 }
 
 MessageReader& MessageReaderTransport::message_reader() {

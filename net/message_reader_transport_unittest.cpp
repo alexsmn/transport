@@ -1,6 +1,7 @@
 #include "net/message_reader_transport.h"
 
 #include "net/message_reader.h"
+#include "net/test/immediate_executor.h"
 #include "net/transport_delegate_mock.h"
 #include "net/transport_mock.h"
 
@@ -16,9 +17,8 @@ namespace net {
 class MessageTransportTest : public Test {
  public:
   void InitChildTransport(bool message_oriented);
-  void ProcessPendingTasks();
 
-  boost::asio::io_context io_context_;
+  ImmediateExecutor executor_;
 
   MockTransportHandlers message_transport_handlers_;
 
@@ -87,21 +87,12 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
   auto message_reader = std::make_unique<TestMessageReader>();
 
   message_transport_ = std::make_unique<MessageReaderTransport>(
-      io_context_.get_executor(), std::move(child_transport),
-      std::move(message_reader), NullLogger::GetInstance());
+      executor_, std::move(child_transport), std::move(message_reader),
+      NullLogger::GetInstance());
 
   message_transport_->Open(message_transport_handlers_.AsHandlers());
-  ProcessPendingTasks();
 
   EXPECT_CALL(*child_transport_ptr_, Close());
-}
-
-void MessageTransportTest::ProcessPendingTasks() {
-  // `while (io_context_.run_one())` doesn't work here because some tasks might
-  // be scheduled but not be pending.
-  io_context_.poll();
-  io_context_.poll();
-  io_context_.poll();
 }
 
 TEST_F(MessageTransportTest, CompositeMessage) {
@@ -120,7 +111,6 @@ TEST_F(MessageTransportTest, CompositeMessage) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
-  ProcessPendingTasks();
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
@@ -132,7 +122,6 @@ TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
 
   const char datagram[] = {5, 0, 0, 0};
   child_handlers_.on_message(datagram);
-  ProcessPendingTasks();
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
@@ -153,7 +142,6 @@ TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
-  ProcessPendingTasks();
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
@@ -170,7 +158,6 @@ TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
-  ProcessPendingTasks();
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
@@ -198,7 +185,6 @@ TEST_F(MessageTransportTest,
       .WillOnce(Invoke(MakeReadImpl({})));
 
   child_handlers_.on_data();
-  ProcessPendingTasks();
 }
 
 TEST_F(MessageTransportTest,
@@ -225,7 +211,6 @@ TEST_F(MessageTransportTest,
       .WillOnce(Invoke(MakeReadImpl({})));
 
   child_handlers_.on_data();
-  ProcessPendingTasks();
 }
 
 }  // namespace net
