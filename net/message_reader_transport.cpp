@@ -93,7 +93,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   void OnChildTransportMessageReceived(std::span<const char> data);
 
   const boost::asio::executor executor_;
-  const std::unique_ptr<Transport> child_transport_;
+  std::unique_ptr<Transport> child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
   const std::shared_ptr<const Logger> logger_;
 
@@ -126,7 +126,8 @@ MessageReaderTransport::MessageReaderTransport(
 }
 
 MessageReaderTransport::~MessageReaderTransport() {
-  boost::asio::dispatch(core_->executor_, std::bind_front(&Core::Close, core_));
+  boost::asio::dispatch(core_->executor_,
+                        std::bind_front(&Core::Close, core_));
 }
 
 MessageReader& MessageReaderTransport::message_reader() {

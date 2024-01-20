@@ -100,17 +100,13 @@ void DeferredTransport::Close() {
 }
 
 void DeferredTransport::Core::Close() {
-  // So far `Close` can be called repeatedly.
-
   auto additional_close_handler =
       std::exchange(additional_close_handler_, nullptr);
 
   handlers_ = {};
   connected_ = false;
 
-  if (underlying_transport_) {
-    underlying_transport_->Close();
-  }
+  underlying_transport_->Close();
 
   if (additional_close_handler) {
     additional_close_handler(OK);

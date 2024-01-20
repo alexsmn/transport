@@ -253,8 +253,9 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
 // AsioTransport
 
 inline AsioTransport::~AsioTransport() {
-  if (core_)
+  if (core_) {
     core_->Close();
+  }
 }
 
 inline void AsioTransport::Close() {

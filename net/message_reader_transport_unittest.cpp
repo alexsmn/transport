@@ -20,7 +20,7 @@ class MessageTransportTest : public Test {
 
   ImmediateExecutor executor_;
 
-  MockTransportHandlers message_transport_handlers_;
+  StrictMock<MockTransportHandlers> message_transport_handlers_;
 
   Transport::Handlers child_handlers_;
   TransportMock* child_transport_ptr_ = nullptr;
@@ -104,8 +104,10 @@ TEST_F(MessageTransportTest, CompositeMessage) {
 
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message1)));
+
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message2)));
+
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message3)));
 
@@ -136,6 +138,7 @@ TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
 
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message1)));
+
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message2)))
       .WillOnce(Invoke([&] { message_transport_.reset(); }));
@@ -149,12 +152,19 @@ TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
 
   const char message1[] = {1, 0};
   const char message2[] = {2, 0, 0};
+  const char message3[] = {3, 0, 0, 0};
 
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message1)));
+
   EXPECT_CALL(message_transport_handlers_.on_message,
               Call(ElementsAreArray(message2)))
       .WillOnce(Invoke([&] { message_transport_->Close(); }));
+
+  // It's allowed for the following messages to be dropped or be received.
+  EXPECT_CALL(message_transport_handlers_.on_message,
+              Call(ElementsAreArray(message3)))
+      .Times(0);
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
