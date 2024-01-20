@@ -47,4 +47,9 @@ inline promise<T> make_error_promise(Error error) {
   return promise_hpp::make_rejected_promise<T>(net_exception{error});
 }
 
+template <class C>
+inline promise<void> make_all_promise(C&& container) {
+  return promise_hpp::make_all_promise_void(std::forward<C>(container));
+}
+
 }  // namespace net
