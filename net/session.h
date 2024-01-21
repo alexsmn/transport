@@ -27,7 +27,7 @@ class NET_EXPORT Session final : public Transport {
     virtual void OnSessionTransportError(Error error) = 0;
   };
 
-  explicit Session(boost::asio::io_service& io_service);
+  explicit Session(const boost::asio::any_io_executor& executor);
   virtual ~Session();
 
   // Assign new session transport. If there is another one, delete it.
@@ -157,7 +157,7 @@ class NET_EXPORT Session final : public Transport {
   net::Error OnTransportAccepted(std::unique_ptr<Transport> transport);
   void OnTransportMessageReceived(std::span<const char> data);
 
-  boost::asio::io_service& io_service_;
+  boost::asio::any_io_executor executor_;
 
   std::shared_ptr<const Logger> logger_;
 

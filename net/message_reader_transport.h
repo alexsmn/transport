@@ -1,8 +1,8 @@
 #pragma once
 
+#include "net/executor.h"
 #include "net/transport.h"
 
-#include <boost/asio/executor.hpp>
 #include <memory>
 
 namespace net {
@@ -18,7 +18,7 @@ class MessageReader;
 // transport messages.
 class MessageReaderTransport : public Transport {
  public:
-  MessageReaderTransport(boost::asio::executor executor,
+  MessageReaderTransport(const Executor& executor,
                          std::unique_ptr<Transport> child_transport,
                          std::unique_ptr<MessageReader> message_reader,
                          std::shared_ptr<const Logger> logger);

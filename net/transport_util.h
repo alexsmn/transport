@@ -67,8 +67,8 @@ inline std::pair<promise<void>, Connector::Handlers> MakePromiseHandlers(
   return {state->promise, std::move(promise_handlers)};
 }
 
-template <class F>
-promise<void> DispatchPromise(const boost::asio::executor& ex, F&& f) {
+template <typename E, typename F>
+inline promise<void> DispatchPromise(const E& ex, F&& f) {
   promise<void> p;
   boost::asio::dispatch(ex, [p, f = std::forward<F>(f)]() mutable {
     f().then([p]() mutable { p.resolve(); },

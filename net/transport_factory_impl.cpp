@@ -113,9 +113,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    return std::make_unique<AsioTcpTransport>(io_context_, std::move(logger),
-                                              std::string{host},
-                                              std::to_string(port), active);
+    return std::make_unique<AsioTcpTransport>(
+        boost::asio::make_strand(io_context_), std::move(logger),
+        std::string{host}, std::to_string(port), active);
 
   } else if (protocol == TransportString::UDP) {
     // UDP;Passive;Host=0.0.0.0;Port=3000
@@ -164,8 +164,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    return std::make_unique<SerialTransport>(io_context_, std::move(logger),
-                                             std::string{device}, options);
+    return std::make_unique<SerialTransport>(
+        boost::asio::make_strand(io_context_), std::move(logger),
+        std::string{device}, options);
 
   } else if (protocol == TransportString::PIPE) {
 #ifdef OS_WIN
@@ -178,7 +179,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    auto transport = std::make_unique<PipeTransport>(io_context_);
+    auto transport =
+        std::make_unique<PipeTransport>(boost::asio::make_strand(io_context_));
     transport->Init(LR"(\\.\pipe\)" + name, !active);
     return transport;
 

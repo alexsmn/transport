@@ -6,8 +6,8 @@ using namespace std::chrono_literals;
 
 namespace net {
 
-QueueTransport::QueueTransport(boost::asio::io_service& io_service)
-    : io_service_{io_service}, timer_{io_service} {
+QueueTransport::QueueTransport(const Executor& executor)
+    : executor_{executor}, timer_{executor} {
   active_ = false;
 }
 
@@ -91,7 +91,7 @@ void QueueTransport::OnAccept(QueueTransport& transport) {
   if (!handlers_.on_accept)
     return;
 
-  auto t = std::make_unique<QueueTransport>(io_service_);
+  auto t = std::make_unique<QueueTransport>(executor_);
   t->peer_ = &transport;
   t->connected_ = true;
   t->active_ = false;

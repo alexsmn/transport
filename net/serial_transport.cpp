@@ -26,7 +26,7 @@ inline bool SetOption(boost::asio::serial_port& serial_port,
 class SerialTransport::SerialPortCore final
     : public AsioTransport::IoCore<boost::asio::serial_port> {
  public:
-  SerialPortCore(boost::asio::io_context& io_context,
+  SerialPortCore(const Executor& executor,
                  std::shared_ptr<const Logger> logger,
                  std::string device,
                  const Options& options);
@@ -42,11 +42,11 @@ class SerialTransport::SerialPortCore final
 };
 
 SerialTransport::SerialPortCore::SerialPortCore(
-    boost::asio::io_context& io_context,
+    const Executor& executor,
     std::shared_ptr<const Logger> logger,
     std::string device,
     const Options& options)
-    : IoCore{io_context, std::move(logger)},
+    : IoCore{executor, std::move(logger)},
       device_{std::move(device)},
       options_{options} {}
 
@@ -91,18 +91,18 @@ void SerialTransport::SerialPortCore::Cleanup() {
   io_object_.close(ec);
 }
 
-SerialTransport::SerialTransport(boost::asio::io_context& io_context,
+SerialTransport::SerialTransport(const Executor& executor,
                                  std::shared_ptr<const Logger> logger,
                                  std::string device,
                                  const Options& options)
-    : io_context_{io_context},
+    : executor_{executor},
       logger_{std::move(logger)},
       device_{std::move(device)},
       options_{options} {}
 
 promise<void> SerialTransport::Open(const Handlers& handlers) {
   core_ =
-      std::make_shared<SerialPortCore>(io_context_, logger_, device_, options_);
+      std::make_shared<SerialPortCore>(executor_, logger_, device_, options_);
 
   return core_->Open(handlers);
 }

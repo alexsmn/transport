@@ -87,8 +87,8 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
   auto message_reader = std::make_unique<TestMessageReader>();
 
   message_transport_ = std::make_unique<MessageReaderTransport>(
-      executor_, std::move(child_transport), std::move(message_reader),
-      NullLogger::GetInstance());
+      boost::asio::system_executor{}, std::move(child_transport),
+      std::move(message_reader), NullLogger::GetInstance());
 
   message_transport_->Open(message_transport_handlers_.AsHandlers());
 

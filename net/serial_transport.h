@@ -17,7 +17,7 @@ class NET_EXPORT SerialTransport final : public AsioTransport {
     std::optional<boost::asio::serial_port::character_size> character_size;
   };
 
-  SerialTransport(boost::asio::io_context& io_context,
+  SerialTransport(const Executor& executor,
                   std::shared_ptr<const Logger> logger,
                   std::string device,
                   const Options& options);
@@ -30,7 +30,7 @@ class NET_EXPORT SerialTransport final : public AsioTransport {
  private:
   class SerialPortCore;
 
-  boost::asio::io_context& io_context_;
+  Executor executor_;
   const std::shared_ptr<const Logger> logger_;
 
   const std::string device_;

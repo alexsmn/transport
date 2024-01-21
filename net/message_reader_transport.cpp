@@ -70,11 +70,11 @@ int ReadMessage(std::span<const char>& buffer,
 // MessageReaderTransport::Core
 
 struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
-  Core(boost::asio::executor executor,
+  Core(const Executor& executor,
        std::unique_ptr<Transport> child_transport,
        std::unique_ptr<MessageReader> message_reader,
        std::shared_ptr<const Logger> logger)
-      : executor_{std::move(executor)},
+      : executor_{executor},
         child_transport_{std::move(child_transport)},
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
@@ -92,7 +92,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   void OnChildTransportDataReceived();
   void OnChildTransportMessageReceived(std::span<const char> data);
 
-  const boost::asio::executor executor_;
+  Executor executor_;
   std::unique_ptr<Transport> child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
   const std::shared_ptr<const Logger> logger_;
@@ -112,11 +112,11 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
 // MessageReaderTransport
 
 MessageReaderTransport::MessageReaderTransport(
-    boost::asio::executor executor,
+    const Executor& executor,
     std::unique_ptr<Transport> child_transport,
     std::unique_ptr<MessageReader> message_reader,
     std::shared_ptr<const Logger> logger)
-    : core_{std::make_shared<Core>(std::move(executor),
+    : core_{std::make_shared<Core>(executor,
                                    std::move(child_transport),
                                    std::move(message_reader),
                                    std::move(logger))} {
@@ -126,8 +126,7 @@ MessageReaderTransport::MessageReaderTransport(
 }
 
 MessageReaderTransport::~MessageReaderTransport() {
-  boost::asio::dispatch(core_->executor_,
-                        std::bind_front(&Core::Close, core_));
+  boost::asio::dispatch(core_->executor_, std::bind_front(&Core::Close, core_));
 }
 
 MessageReader& MessageReaderTransport::message_reader() {

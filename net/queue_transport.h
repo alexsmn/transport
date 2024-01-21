@@ -11,7 +11,7 @@ namespace net {
 
 class NET_EXPORT QueueTransport final : public Transport {
  public:
-  explicit QueueTransport(boost::asio::io_service& io_service);
+  explicit QueueTransport(const Executor& executor);
 
   void SetActive(QueueTransport& peer);
 
@@ -34,7 +34,7 @@ class NET_EXPORT QueueTransport final : public Transport {
   void OnMessage(const void* data, size_t size);
   void OnAccept(QueueTransport& transport);
 
-  boost::asio::io_service& io_service_;
+  Executor executor_;
 
   Handlers handlers_;
 

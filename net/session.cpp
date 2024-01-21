@@ -30,10 +30,10 @@ inline bool MessageIdLess(uint16_t left, uint16_t right) {
 
 // Session
 
-Session::Session(boost::asio::io_service& io_service)
-    : io_service_{io_service},
+Session::Session(const boost::asio::any_io_executor& executor)
+    : executor_{executor},
       logger_(NullLogger::GetInstance()),
-      timer_{io_service},
+      timer_{executor},
       reconnection_period_{1s} {
   timer_.StartRepeating(50ms, [this] { OnTimer(); });
 }
@@ -112,7 +112,7 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
 
   if (transport && !transport->IsMessageOriented()) {
     transport = std::make_unique<MessageReaderTransport>(
-        io_service_.get_executor(), std::move(transport),
+        executor_, std::move(transport),
         std::make_unique<SessionMessageReader>(), logger_);
   }
 
@@ -649,7 +649,7 @@ void Session::SendDataMessage(const SendingMessage& message) {
 }
 
 net::Error Session::OnTransportAccepted(std::unique_ptr<Transport> transport) {
-  auto session = std::make_unique<Session>(io_service_);
+  auto session = std::make_unique<Session>(executor_);
   session->accepted_ = true;
   session->parent_session_ = this;
   child_sessions_.insert(session.release());

@@ -7,14 +7,16 @@ namespace net {
 
 class NET_EXPORT AsioTcpTransport final : public AsioTransport {
  public:
-  AsioTcpTransport(boost::asio::io_context& io_context,
+  AsioTcpTransport(const boost::asio::any_io_executor& executor,
                    std::shared_ptr<const Logger> logger,
                    std::string host,
                    std::string service,
                    bool active);
-  AsioTcpTransport(boost::asio::io_context& io_context,
-                   std::shared_ptr<const Logger> logger,
+
+  // Uses `socket` executor.
+  AsioTcpTransport(std::shared_ptr<const Logger> logger,
                    boost::asio::ip::tcp::socket socket);
+
   ~AsioTcpTransport();
 
   int GetLocalPort() const;
@@ -25,7 +27,7 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
   virtual bool IsActive() const override { return active_; }
 
  private:
-  boost::asio::io_context& io_context_;
+  boost::asio::any_io_executor executor_;
   const std::shared_ptr<const Logger> logger_;
   const std::string host_;
   const std::string service_;

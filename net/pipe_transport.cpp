@@ -10,8 +10,7 @@ using namespace std::chrono_literals;
 
 namespace net {
 
-PipeTransport::PipeTransport(boost::asio::io_service& io_service)
-    : timer_{io_service} {}
+PipeTransport::PipeTransport(const Executor& executor) : timer_{executor} {}
 
 PipeTransport::~PipeTransport() {
   if (handle_ != INVALID_HANDLE_VALUE)
