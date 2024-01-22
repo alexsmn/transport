@@ -7,7 +7,7 @@ namespace net {
 
 class NET_EXPORT AsioTcpTransport final : public AsioTransport {
  public:
-  AsioTcpTransport(const boost::asio::any_io_executor& executor,
+  AsioTcpTransport(const Executor& executor,
                    std::shared_ptr<const Logger> logger,
                    std::string host,
                    std::string service,
@@ -27,14 +27,10 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
   virtual bool IsActive() const override { return active_; }
 
  private:
-  boost::asio::any_io_executor executor_;
-  const std::shared_ptr<const Logger> logger_;
-  const std::string host_;
-  const std::string service_;
-  const bool active_ = false;
-
   class ActiveCore;
   class PassiveCore;
+
+  const bool active_;
 };
 
 }  // namespace net

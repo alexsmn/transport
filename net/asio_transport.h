@@ -111,6 +111,7 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 
 template <class IoObject>
 inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
+  // Should be only called under the same executor as `io_object_`.
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   size_t count = std::min(data.size(), read_buffer_.size());
@@ -260,22 +261,19 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
 // AsioTransport
 
 inline AsioTransport::~AsioTransport() {
-  if (core_) {
-    core_->Close();
-  }
+  core_->Close();
 }
 
 inline void AsioTransport::Close() {
   core_->Close();
-  core_ = nullptr;
 }
 
 inline int AsioTransport::Read(std::span<char> data) {
-  return core_ ? core_->Read(data) : ERR_FAILED;
+  return core_->Read(data);
 }
 
 inline promise<size_t> AsioTransport::Write(std::span<const char> data) {
-  return core_ ? core_->Write(data) : make_error_promise<size_t>(ERR_FAILED);
+  return core_->Write(data);
 }
 
 inline bool AsioTransport::IsMessageOriented() const {
@@ -283,7 +281,7 @@ inline bool AsioTransport::IsMessageOriented() const {
 }
 
 inline bool AsioTransport::IsConnected() const {
-  return core_ && core_->IsConnected();
+  return core_->IsConnected();
 }
 
 }  // namespace net

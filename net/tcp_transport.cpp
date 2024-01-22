@@ -343,37 +343,34 @@ void AsioTcpTransport::PassiveCore::ProcessError(
 
 // AsioTcpTransport
 
-AsioTcpTransport::AsioTcpTransport(const boost::asio::any_io_executor& executor,
+AsioTcpTransport::AsioTcpTransport(const Executor& executor,
                                    std::shared_ptr<const Logger> logger,
                                    std::string host,
                                    std::string service,
                                    bool active)
-    : executor_{executor},
-      logger_(std::move(logger)),
-      host_{std::move(host)},
-      service_{std::move(service)},
-      active_{active} {}
+    : active_{active} {
+  if (active_) {
+    core_ = std::make_shared<ActiveCore>(executor, std::move(logger),
+                                         std::move(host), std::move(service));
+  } else {
+    core_ = std::make_shared<PassiveCore>(executor, std::move(logger),
+                                          std::move(host), std::move(service));
+  }
+}
 
 AsioTcpTransport::AsioTcpTransport(std::shared_ptr<const Logger> logger,
                                    boost::asio::ip::tcp::socket socket)
-    : executor_{socket.get_executor()}, logger_{std::move(logger)} {
-  core_ = std::make_shared<ActiveCore>(logger_, std::move(socket));
+    : active_{false} {
+  core_ = std::make_shared<ActiveCore>(std::move(logger), std::move(socket));
 }
 
 AsioTcpTransport::~AsioTcpTransport() {
-  if (core_)
+  if (core_) {
     core_->Close();
+  }
 }
 
 promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
-  if (!core_) {
-    core_ = active_
-                ? std::static_pointer_cast<Core>(std::make_shared<ActiveCore>(
-                      executor_, logger_, host_, service_))
-                : std::static_pointer_cast<Core>(std::make_shared<PassiveCore>(
-                      executor_, logger_, host_, service_));
-  }
-
   return core_->Open(handlers);
 }
 

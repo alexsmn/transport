@@ -1,11 +1,10 @@
 #include "net/transport.h"
+#include "net/test/debug_logger.h"
 #include "net/transport_factory_impl.h"
 #include "net/transport_string.h"
 
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/post.hpp>
-#include <boost/asio/thread_pool.hpp>
 #include <gmock/gmock.h>
 #include <ranges>
 
@@ -21,8 +20,6 @@ class TransportTest : public Test {
   virtual void SetUp() override;
   virtual void TearDown() override;
 
-  boost::asio::thread_pool thread_pool_{kThreadCount};
-
   boost::asio::io_context io_context_;
   boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
       io_context_work_guard_ = boost::asio::make_work_guard(io_context_);
@@ -35,7 +32,9 @@ class TransportTest : public Test {
     TransportFactory& transport_factory_;
 
     std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
-        TransportString{"TCP;Passive;Port=4321"});
+        // TODO: Random port.
+        TransportString{"TCP;Passive;Port=4321"},
+        std::make_shared<ProxyLogger>(kLogger, "Server"));
   };
 
   struct Client {
@@ -44,11 +43,19 @@ class TransportTest : public Test {
     TransportFactory& transport_factory_;
 
     std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
-        TransportString{"TCP;Active;Port=4321"});
+        // TODO: Random port.
+        TransportString{"TCP;Active;Port=4321"},
+        // TODO: Client ID.
+        std::make_shared<ProxyLogger>(kLogger, "Client"));
   };
+
+  std::vector<std::jthread> threads_;
 
   Server server_{transport_factory_};
   std::vector<std::unique_ptr<Client>> clients_;
+
+  static inline std::shared_ptr<Logger> kLogger =
+      std::make_shared<DebugLogger>();
 
   static const int kThreadCount = 10;
   static const int kClientCount = 100;
@@ -72,15 +79,11 @@ TransportTest::TransportTest() {}
 
 void TransportTest::SetUp() {
   for (int i = 0; i < kClientCount; ++i) {
-    auto client = std::make_unique<Client>(transport_factory_);
-    clients_.emplace_back(std::move(client));
+    clients_.emplace_back(std::make_unique<Client>(transport_factory_));
   }
 
   for (int i = 0; i < kThreadCount; ++i) {
-    boost::asio::post(thread_pool_,
-                      // Cannot use `std::bind_front` since `io_context::run`
-                      // returns a non-void value.
-                      [&io_context = io_context_] { io_context.run(); });
+    threads_.emplace_back([&io_context = io_context_] { io_context.run(); });
   }
 }
 
