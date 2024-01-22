@@ -102,6 +102,10 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
                         [this, ref = shared_from_this()] {
                           DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
+                          if (closed_) {
+                            return;
+                          }
+
                           closed_ = true;
                           handlers_ = {};
 
@@ -118,6 +122,8 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
   std::copy(read_buffer_.begin(), read_buffer_.begin() + count, data.data());
   read_buffer_.erase_begin(count);
 
+  // Must start reading, since reading might have stopped if the buffer was
+  // full.
   StartReading();
 
   return count;
@@ -148,97 +154,91 @@ inline promise<size_t> AsioTransport::IoCore<IoObject>::Write(
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartReading() {
-  boost::asio::dispatch(io_object_.get_executor(), [this,
-                                                    ref = shared_from_this()] {
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-    if (closed_ || reading_)
-      return;
+  if (closed_ || reading_)
+    return;
 
-    assert(reading_buffer_.empty());
+  assert(reading_buffer_.empty());
 
-    reading_buffer_.resize(read_buffer_.capacity() - read_buffer_.size());
-    if (reading_buffer_.empty())
-      return;
+  reading_buffer_.resize(read_buffer_.capacity() - read_buffer_.size());
+  if (reading_buffer_.empty())
+    return;
 
-    reading_ = true;
-    boost::asio::async_read(
-        io_object_, boost::asio::buffer(reading_buffer_),
-        boost::asio::transfer_at_least(1),
-        [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                         std::size_t bytes_transferred) {
-          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  reading_ = true;
+  boost::asio::async_read(
+      io_object_, boost::asio::buffer(reading_buffer_),
+      boost::asio::transfer_at_least(1),
+      [this, ref = shared_from_this()](const boost::system::error_code& ec,
+                                       std::size_t bytes_transferred) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-          if (closed_)
-            return;
+        if (closed_)
+          return;
 
-          assert(reading_);
-          reading_ = false;
+        assert(reading_);
+        reading_ = false;
 
-          if (ec) {
-            if (ec != boost::asio::error::operation_aborted)
-              ProcessError(MapSystemError(ec.value()));
-            return;
-          }
+        if (ec) {
+          if (ec != boost::asio::error::operation_aborted)
+            ProcessError(MapSystemError(ec.value()));
+          return;
+        }
 
-          if (bytes_transferred == 0) {
-            ProcessError(OK);
-            return;
-          }
+        if (bytes_transferred == 0) {
+          ProcessError(OK);
+          return;
+        }
 
-          read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
-                              reading_buffer_.begin() + bytes_transferred);
-          reading_buffer_.clear();
+        read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
+                            reading_buffer_.begin() + bytes_transferred);
+        reading_buffer_.clear();
 
-          if (handlers_.on_data)
-            handlers_.on_data();
+        if (handlers_.on_data)
+          handlers_.on_data();
 
-          StartReading();
-        });
-  });
+        StartReading();
+      });
 }
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartWriting() {
-  boost::asio::dispatch(io_object_.get_executor(), [this,
-                                                    ref = shared_from_this()] {
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-    if (closed_ || writing_)
-      return;
+  if (closed_ || writing_)
+    return;
 
-    assert(writing_buffer_.empty());
+  assert(writing_buffer_.empty());
 
-    if (write_buffer_.empty())
-      return;
+  if (write_buffer_.empty())
+    return;
 
-    writing_ = true;
-    writing_buffer_.swap(write_buffer_);
+  writing_ = true;
+  writing_buffer_.swap(write_buffer_);
 
-    boost::asio::async_write(
-        io_object_, boost::asio::buffer(writing_buffer_),
-        [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                         std::size_t bytes_transferred) {
-          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  boost::asio::async_write(
+      io_object_, boost::asio::buffer(writing_buffer_),
+      [this, ref = shared_from_this()](const boost::system::error_code& ec,
+                                       std::size_t bytes_transferred) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-          if (closed_)
-            return;
+        if (closed_)
+          return;
 
-          assert(writing_);
-          writing_ = false;
+        assert(writing_);
+        writing_ = false;
 
-          if (ec) {
-            if (ec != boost::asio::error::operation_aborted)
-              ProcessError(MapSystemError(ec.value()));
-            return;
-          }
+        if (ec) {
+          if (ec != boost::asio::error::operation_aborted)
+            ProcessError(MapSystemError(ec.value()));
+          return;
+        }
 
-          assert(bytes_transferred == writing_buffer_.size());
-          writing_buffer_.clear();
+        assert(bytes_transferred == writing_buffer_.size());
+        writing_buffer_.clear();
 
-          StartWriting();
-        });
-  });
+        StartWriting();
+      });
 }
 
 template <class IoObject>

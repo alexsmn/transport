@@ -21,8 +21,6 @@ class TransportTest : public Test {
   virtual void TearDown() override;
 
   boost::asio::io_context io_context_;
-  boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
-      io_context_work_guard_ = boost::asio::make_work_guard(io_context_);
 
   TransportFactoryImpl transport_factory_{io_context_};
 
@@ -53,6 +51,10 @@ class TransportTest : public Test {
 
   Server server_{transport_factory_};
   std::vector<std::unique_ptr<Client>> clients_;
+
+  // Must be the latest member.
+  boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
+      io_context_work_guard_ = boost::asio::make_work_guard(io_context_);
 
   static inline std::shared_ptr<Logger> kLogger =
       std::make_shared<DebugLogger>();

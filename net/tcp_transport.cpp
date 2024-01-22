@@ -25,6 +25,10 @@ class AsioTcpTransport::ActiveCore final
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
 
+  void StartResolving();
+  void StartConnecting(Resolver::iterator iterator);
+
+  // ActiveCore
   virtual void Cleanup() override;
 
   std::string host_;
@@ -65,61 +69,70 @@ promise<void> AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
         auto [p, promise_handlers] = MakePromiseHandlers(handlers);
         handlers_ = std::move(promise_handlers);
 
-        logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
-                        host_.c_str(), service_.c_str());
-
-        resolver_.async_resolve(
-            host_, service_,
-            [this, ref = shared_from_this()](
-                const boost::system::error_code& error,
-                Resolver::iterator iterator) {
-              DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-              if (closed_)
-                return;
-
-              if (error) {
-                if (error != boost::asio::error::operation_aborted) {
-                  logger_->Write(LogSeverity::Warning, "DNS resolution error");
-                  ProcessError(MapSystemError(error.value()));
-                }
-                return;
-              }
-
-              logger_->Write(LogSeverity::Normal, "DNS resolution completed");
-
-              boost::asio::async_connect(
-                  io_object_, iterator,
-                  [this, ref = shared_from_this()](
-                      const boost::system::error_code& error,
-                      Resolver::iterator iterator) {
-                    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-                    if (closed_)
-                      return;
-
-                    if (error) {
-                      if (error != boost::asio::error::operation_aborted) {
-                        logger_->Write(LogSeverity::Warning, "Connect error");
-                        ProcessError(MapSystemError(error.value()));
-                      }
-                      return;
-                    }
-
-                    logger_->WriteF(LogSeverity::Normal, "Connected to %s",
-                                    iterator->host_name().c_str());
-
-                    connected_ = true;
-
-                    if (handlers_.on_open) {
-                      handlers_.on_open();
-                    }
-
-                    StartReading();
-                  });
-            });
+        StartResolving();
 
         return p;
+      });
+}
+
+void AsioTcpTransport::ActiveCore::StartResolving() {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+  logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
+                  host_.c_str(), service_.c_str());
+
+  resolver_.async_resolve(
+      host_, service_,
+      [this, ref = shared_from_this()](const boost::system::error_code& error,
+                                       Resolver::iterator iterator) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+        if (closed_)
+          return;
+
+        if (error) {
+          if (error != boost::asio::error::operation_aborted) {
+            logger_->Write(LogSeverity::Warning, "DNS resolution error");
+            ProcessError(MapSystemError(error.value()));
+          }
+          return;
+        }
+
+        logger_->Write(LogSeverity::Normal, "DNS resolution completed");
+
+        StartConnecting(std::move(iterator));
+      });
+}
+
+void AsioTcpTransport::ActiveCore::StartConnecting(
+    Resolver::iterator iterator) {
+  boost::asio::async_connect(
+      io_object_, iterator,
+      [this, ref = shared_from_this()](const boost::system::error_code& error,
+                                       Resolver::iterator iterator) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+        if (closed_)
+          return;
+
+        if (error) {
+          if (error != boost::asio::error::operation_aborted) {
+            logger_->Write(LogSeverity::Warning, "Connect error");
+            ProcessError(MapSystemError(error.value()));
+          }
+          return;
+        }
+
+        logger_->WriteF(LogSeverity::Normal, "Connected to %s",
+                        iterator->host_name().c_str());
+
+        connected_ = true;
+
+        if (handlers_.on_open) {
+          handlers_.on_open();
+        }
+
+        StartReading();
       });
 }
 
@@ -129,6 +142,8 @@ void AsioTcpTransport::ActiveCore::Cleanup() {
                           DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
                           assert(closed_);
+
+                          logger_->Write(LogSeverity::Normal, "Cleanup");
 
                           connected_ = false;
 
@@ -164,6 +179,8 @@ class AsioTcpTransport::PassiveCore final
   using Socket = boost::asio::ip::tcp::socket;
   using Resolver = boost::asio::ip::tcp::resolver;
 
+  void StartResolving();
+  boost::system::error_code Bind(Resolver::iterator iterator);
   void StartAccepting();
 
   void ProcessError(const boost::system::error_code& ec);
@@ -206,60 +223,81 @@ promise<void> AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
         auto [p, promise_handlers] = MakePromiseHandlers(handlers);
         handlers_ = std::move(promise_handlers);
 
-        logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
-                        host_.c_str(), service_.c_str());
-
-        Resolver::query query{host_, service_};
-        resolver_.async_resolve(
-            query, [this, ref = shared_from_this()](
-                       const boost::system::error_code& error,
-                       Resolver::iterator iterator) {
-              DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-              if (closed_)
-                return;
-
-              if (error) {
-                if (error != boost::asio::error::operation_aborted) {
-                  logger_->Write(LogSeverity::Warning, "DNS resolution error");
-                  ProcessError(error);
-                }
-                return;
-              }
-
-              logger_->Write(LogSeverity::Normal, "DNS resolution completed");
-
-              boost::system::error_code ec = boost::asio::error::fault;
-              for (Resolver::iterator end; iterator != end; ++iterator) {
-                acceptor_.open(iterator->endpoint().protocol(), ec);
-                if (ec)
-                  continue;
-                acceptor_.set_option(Socket::reuse_address{true}, ec);
-                acceptor_.bind(iterator->endpoint(), ec);
-                if (!ec)
-                  acceptor_.listen(Socket::max_listen_connections, ec);
-                if (!ec)
-                  break;
-                acceptor_.close();
-              }
-
-              if (ec) {
-                logger_->Write(LogSeverity::Warning, "Bind error");
-                ProcessError(ec);
-                return;
-              }
-
-              logger_->Write(LogSeverity::Normal, "Bind completed");
-
-              connected_ = true;
-              if (handlers_.on_open)
-                handlers_.on_open();
-
-              StartAccepting();
-            });
+        StartResolving();
 
         return p;
       });
+}
+
+void AsioTcpTransport::PassiveCore::StartResolving() {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+  logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
+                  host_.c_str(), service_.c_str());
+
+  Resolver::query query{host_, service_};
+  resolver_.async_resolve(query, [this, ref = shared_from_this()](
+                                     const boost::system::error_code& error,
+                                     Resolver::iterator iterator) {
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+    if (closed_) {
+      return;
+    }
+
+    if (error) {
+      if (error != boost::asio::error::operation_aborted) {
+        logger_->Write(LogSeverity::Warning, "DNS resolution error");
+        ProcessError(error);
+      }
+      return;
+    }
+
+    logger_->Write(LogSeverity::Normal, "DNS resolution completed");
+
+    if (auto ec = Bind(std::move(iterator)); ec) {
+      logger_->Write(LogSeverity::Warning, "Bind error");
+      ProcessError(ec);
+      return;
+    }
+
+    logger_->Write(LogSeverity::Normal, "Bind completed");
+
+    connected_ = true;
+    if (handlers_.on_open)
+      handlers_.on_open();
+
+    StartAccepting();
+  });
+}
+
+boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
+    Resolver::iterator iterator) {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+  logger_->Write(LogSeverity::Normal, "Bind");
+
+  boost::system::error_code ec = boost::asio::error::fault;
+
+  for (Resolver::iterator end; iterator != end; ++iterator) {
+    acceptor_.open(iterator->endpoint().protocol(), ec);
+    if (ec)
+      continue;
+
+    acceptor_.set_option(Socket::reuse_address{true}, ec);
+    // TODO: Log endpoint.
+    acceptor_.bind(iterator->endpoint(), ec);
+
+    if (!ec)
+      acceptor_.listen(Socket::max_listen_connections, ec);
+
+    if (!ec)
+      break;
+
+    acceptor_.close();
+  }
+
+  return ec;
 }
 
 void AsioTcpTransport::PassiveCore::Close() {
@@ -267,8 +305,9 @@ void AsioTcpTransport::PassiveCore::Close() {
                         [this, ref = shared_from_this()] {
                           DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-                          if (closed_)
+                          if (closed_) {
                             return;
+                          }
 
                           logger_->Write(LogSeverity::Normal, "Close");
 
@@ -288,57 +327,58 @@ promise<size_t> AsioTcpTransport::PassiveCore::Write(
 }
 
 void AsioTcpTransport::PassiveCore::StartAccepting() {
-  boost::asio::dispatch(
-      acceptor_.get_executor(), [this, ref = shared_from_this()] {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+  if (closed_) {
+    return;
+  }
+
+  // TODO: Use different executor.
+  acceptor_.async_accept(
+      [this, ref = shared_from_this()](const boost::system::error_code& error,
+                                       Socket peer) {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
+        assert(peer.get_executor() == acceptor_.get_executor());
+
+        if (closed_) {
           return;
+        }
 
-        acceptor_.async_accept([this, outer_ref = shared_from_this()](
-                                   const boost::system::error_code& error,
-                                   Socket peer) {
-          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-          assert(peer.get_executor() == acceptor_.get_executor());
-
-          if (closed_)
-            return;
-
-          if (error) {
-            if (error != boost::asio::error::operation_aborted) {
-              logger_->Write(LogSeverity::Warning, "Accept connection error");
-              ProcessError(error);
-            }
-            return;
+        if (error) {
+          if (error != boost::asio::error::operation_aborted) {
+            logger_->Write(LogSeverity::Warning, "Accept connection error");
+            ProcessError(error);
           }
+          return;
+        }
 
-          logger_->Write(LogSeverity::Normal, "Connection accepted");
+        logger_->Write(LogSeverity::Normal, "Connection accepted");
 
-          if (handlers_.on_accept) {
-            auto accepted_transport =
-                std::make_unique<AsioTcpTransport>(logger_, std::move(peer));
-            handlers_.on_accept(std::move(accepted_transport));
-          }
+        if (handlers_.on_accept) {
+          auto accepted_transport =
+              std::make_unique<AsioTcpTransport>(logger_, std::move(peer));
+          handlers_.on_accept(std::move(accepted_transport));
+        }
 
-          StartAccepting();
-        });
+        StartAccepting();
       });
 }
 
 void AsioTcpTransport::PassiveCore::ProcessError(
     const boost::system::error_code& ec) {
-  boost::asio::dispatch(acceptor_.get_executor(),
-                        [this, ref = shared_from_this(), ec] {
-                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-                          connected_ = false;
-                          closed_ = true;
+  if (closed_) {
+    return;
+  }
 
-                          if (handlers_.on_close) {
-                            handlers_.on_close(MapSystemError(ec.value()));
-                          }
-                        });
+  connected_ = false;
+  closed_ = true;
+
+  if (handlers_.on_close) {
+    handlers_.on_close(MapSystemError(ec.value()));
+  }
 }
 
 // AsioTcpTransport
