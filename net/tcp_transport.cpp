@@ -17,6 +17,8 @@ class AsioTcpTransport::ActiveCore final
              const std::string& host,
              const std::string& service);
 
+  // A constructor for a socket accepted by a passive TCP transport.
+  // Uses the executor of the socket.
   ActiveCore(std::shared_ptr<const Logger> logger, Socket socket);
 
   // Core
@@ -65,6 +67,8 @@ promise<void> AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
           StartReading();
           return make_resolved_promise();
         }
+
+        logger_->WriteF(LogSeverity::Normal, "Open");
 
         auto [p, promise_handlers] = MakePromiseHandlers(handlers);
         handlers_ = std::move(promise_handlers);
@@ -220,6 +224,8 @@ promise<void> AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
       acceptor_.get_executor(), [this, ref = shared_from_this(), handlers] {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
+        logger_->WriteF(LogSeverity::Normal, "Open");
+
         auto [p, promise_handlers] = MakePromiseHandlers(handlers);
         handlers_ = std::move(promise_handlers);
 
@@ -345,6 +351,9 @@ void AsioTcpTransport::PassiveCore::StartAccepting() {
           return;
         }
 
+        // TODO: Log connection information.
+        logger_->Write(LogSeverity::Normal, "Accept incoming connection");
+
         if (error) {
           if (error != boost::asio::error::operation_aborted) {
             logger_->Write(LogSeverity::Warning, "Accept connection error");
@@ -373,11 +382,20 @@ void AsioTcpTransport::PassiveCore::ProcessError(
     return;
   }
 
+  auto error = MapSystemError(ec.value());
+
+  if (error != OK) {
+    logger_->WriteF(LogSeverity::Warning, "Error: %s",
+                    ErrorToShortString(error).c_str());
+  } else {
+    logger_->WriteF(LogSeverity::Normal, "Graceful close");
+  }
+
   connected_ = false;
   closed_ = true;
 
   if (handlers_.on_close) {
-    handlers_.on_close(MapSystemError(ec.value()));
+    handlers_.on_close(error);
   }
 }
 
@@ -388,8 +406,8 @@ AsioTcpTransport::AsioTcpTransport(const Executor& executor,
                                    std::string host,
                                    std::string service,
                                    bool active)
-    : active_{active} {
-  if (active_) {
+    : type_{active ? Type::ACTIVE : Type::PASSIVE} {
+  if (active) {
     core_ = std::make_shared<ActiveCore>(executor, std::move(logger),
                                          std::move(host), std::move(service));
   } else {
@@ -400,14 +418,12 @@ AsioTcpTransport::AsioTcpTransport(const Executor& executor,
 
 AsioTcpTransport::AsioTcpTransport(std::shared_ptr<const Logger> logger,
                                    boost::asio::ip::tcp::socket socket)
-    : active_{false} {
+    : type_{Type::ACCEPTED} {
   core_ = std::make_shared<ActiveCore>(std::move(logger), std::move(socket));
 }
 
 AsioTcpTransport::~AsioTcpTransport() {
-  if (core_) {
-    core_->Close();
-  }
+  // The base class closes the core on destruction.
 }
 
 promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
@@ -415,13 +431,23 @@ promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
 }
 
 int AsioTcpTransport::GetLocalPort() const {
-  return core_ && !active_
+  return core_ && type_ == Type::PASSIVE
              ? std::static_pointer_cast<PassiveCore>(core_)->GetLocalPort()
              : 0;
 }
 
 std::string AsioTcpTransport::GetName() const {
-  return "TCP";
+  switch (type_) {
+    case Type::ACTIVE:
+      return "TCP Active";
+    case Type::PASSIVE:
+      return "TCP Passive";
+    case Type::ACCEPTED:
+      return "TCP Accepted";
+    default:
+      assert(false);
+      return "TCP Unknown";
+  }
 }
 
 }  // namespace net

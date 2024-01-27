@@ -13,7 +13,8 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
                    std::string service,
                    bool active);
 
-  // Uses `socket` executor.
+  // A constructor for a socket accepted by a passive TCP transport.
+  // Uses the executor of the socket.
   AsioTcpTransport(std::shared_ptr<const Logger> logger,
                    boost::asio::ip::tcp::socket socket);
 
@@ -24,13 +25,14 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
   // Transport overrides
   virtual promise<void> Open(const Handlers& handlers) override;
   virtual std::string GetName() const override;
-  virtual bool IsActive() const override { return active_; }
+  virtual bool IsActive() const override { return type_ == Type::ACTIVE; }
 
  private:
   class ActiveCore;
   class PassiveCore;
 
-  const bool active_;
+  enum class Type { ACTIVE, PASSIVE, ACCEPTED };
+  const Type type_;
 };
 
 }  // namespace net

@@ -1,5 +1,6 @@
 #include "net/deferred_transport.h"
 
+#include "net/logger.h"
 #include "net/transport_util.h"
 
 #include <boost/asio/bind_executor.hpp>
@@ -7,12 +8,49 @@
 
 namespace net {
 
+// DeferredTransport::Core
+
+struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
+  Core(const Executor& executor,
+       std::unique_ptr<Transport> underlying_transport)
+      : executor_{executor},
+        underlying_transport_{std::move(underlying_transport)} {}
+
+  promise<void> Open(const Handlers& handlers);
+  void Close();
+
+  void OnOpened();
+  void OnClosed(Error error);
+  void OnData();
+  void OnMessage(std::span<const char> data);
+  void OnAccepted(std::unique_ptr<Transport> transport);
+
+  Executor executor_;
+  std::unique_ptr<Transport> underlying_transport_;
+  Handlers handlers_;
+  CloseHandler additional_close_handler_;
+  std::atomic<bool> opened_ = false;
+};
+
+// DeferredTransport
+
 DeferredTransport::DeferredTransport(
-    boost::asio::executor executor,
+    const Executor& executor,
     std::unique_ptr<Transport> underlying_transport)
-    : core_{std::make_shared<Core>(std::move(executor),
-                                   std::move(underlying_transport))} {
+    : core_{std::make_shared<Core>(executor, std::move(underlying_transport))} {
   assert(core_->underlying_transport_);
+}
+
+void DeferredTransport::AllowReOpen() {
+  core_->opened_ = false;
+}
+
+void DeferredTransport::set_additional_close_handler(CloseHandler handler) {
+  core_->additional_close_handler_ = std::move(handler);
+}
+
+bool DeferredTransport::IsConnected() const {
+  return core_->opened_;
 }
 
 promise<void> DeferredTransport::Open(const Handlers& handlers) {
@@ -21,9 +59,9 @@ promise<void> DeferredTransport::Open(const Handlers& handlers) {
 }
 
 promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
-  assert(!connected_);
+  assert(!opened_);
 
-  connected_ = true;
+  opened_ = true;
 
   if (underlying_transport_->IsConnected()) {
     handlers_ = handlers;
@@ -54,13 +92,13 @@ promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
 }
 
 void DeferredTransport::Core::OnOpened() {
-  if (connected_ && handlers_.on_open) {
+  if (opened_ && handlers_.on_open) {
     handlers_.on_open();
   }
 }
 
 void DeferredTransport::Core::OnClosed(Error error) {
-  if (!connected_) {
+  if (!opened_) {
     return;
   }
 
@@ -78,19 +116,19 @@ void DeferredTransport::Core::OnClosed(Error error) {
 }
 
 void DeferredTransport::Core::OnData() {
-  if (connected_ && handlers_.on_data) {
+  if (opened_ && handlers_.on_data) {
     handlers_.on_data();
   }
 }
 
 void DeferredTransport::Core::OnMessage(std::span<const char> data) {
-  if (connected_ && handlers_.on_message) {
+  if (opened_ && handlers_.on_message) {
     handlers_.on_message(data);
   }
 }
 
 void DeferredTransport::Core::OnAccepted(std::unique_ptr<Transport> transport) {
-  if (connected_ && handlers_.on_accept) {
+  if (opened_ && handlers_.on_accept) {
     handlers_.on_accept(std::move(transport));
   }
 }
@@ -104,7 +142,7 @@ void DeferredTransport::Core::Close() {
       std::exchange(additional_close_handler_, nullptr);
 
   handlers_ = {};
-  connected_ = false;
+  opened_ = false;
 
   underlying_transport_->Close();
 
@@ -114,13 +152,13 @@ void DeferredTransport::Core::Close() {
 }
 
 int DeferredTransport::Read(std::span<char> data) {
-  return core_->connected_ ? core_->underlying_transport_->Read(data)
-                           : ERR_ACCESS_DENIED;
+  return core_->opened_ ? core_->underlying_transport_->Read(data)
+                        : ERR_ACCESS_DENIED;
 }
 
 promise<size_t> DeferredTransport::Write(std::span<const char> data) {
-  return core_->connected_ ? core_->underlying_transport_->Write(data)
-                           : make_error_promise<size_t>(ERR_ACCESS_DENIED);
+  return core_->opened_ ? core_->underlying_transport_->Write(data)
+                        : make_error_promise<size_t>(ERR_ACCESS_DENIED);
 }
 
 std::string DeferredTransport::GetName() const {

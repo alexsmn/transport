@@ -1,6 +1,7 @@
 #pragma once
 
 #include "net/executor.h"
+#include "net/logger.h"
 #include "net/transport.h"
 
 #include <base/threading/thread_collision_warner.h>
@@ -86,7 +87,7 @@ class AsioTransport::IoCore : public Core,
   std::vector<char> reading_buffer_;
 
   bool writing_ = false;
-  // The buffer being curently written with sync operation.
+  // The buffer being currently written with sync operation.
   std::vector<char> writing_buffer_;
 };
 
@@ -105,6 +106,8 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
                           if (closed_) {
                             return;
                           }
+
+                          logger_->WriteF(LogSeverity::Normal, "Close");
 
                           closed_ = true;
                           handlers_ = {};
@@ -243,19 +246,28 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
-  boost::asio::dispatch(io_object_.get_executor(),
-                        [this, ref = shared_from_this(), error] {
-                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  boost::asio::dispatch(
+      io_object_.get_executor(), [this, ref = shared_from_this(), error] {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-                          auto on_close = handlers_.on_close;
-                          closed_ = true;
-                          handlers_ = {};
+        assert(!closed_);
 
-                          Cleanup();
+        if (error != OK) {
+          logger_->WriteF(LogSeverity::Warning, "Error: %s",
+                          ErrorToShortString(error).c_str());
+        } else {
+          logger_->WriteF(LogSeverity::Normal, "Graceful close");
+        }
 
-                          if (on_close)
-                            on_close(error);
-                        });
+        auto on_close = handlers_.on_close;
+        closed_ = true;
+        handlers_ = {};
+
+        Cleanup();
+
+        if (on_close)
+          on_close(error);
+      });
 }
 
 // AsioTransport
