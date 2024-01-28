@@ -17,6 +17,10 @@ class TransportMock : public Transport {
         .WillByDefault(Return(make_error_promise<size_t>(net::ERR_ABORTED)));
   }
 
+  ~TransportMock() { Destroy(); }
+
+  MOCK_METHOD(void, Destroy, ());
+
   MOCK_METHOD(promise<void>, Open, (const Handlers& handlers), (override));
   MOCK_METHOD(void, Close, (), (override));
   MOCK_METHOD(int, Read, (std::span<char> data), (override));

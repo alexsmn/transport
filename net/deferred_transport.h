@@ -12,6 +12,7 @@ class DeferredTransport final : public Transport {
  public:
   DeferredTransport(const Executor& executor,
                     std::unique_ptr<Transport> underlying_transport);
+  ~DeferredTransport();
 
   // Used for active transports only.
   void AllowReOpen();
