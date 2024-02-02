@@ -6,13 +6,13 @@
 
 namespace net {
 
-class connector {
+class acceptor {
  public:
-  explicit connector(std::unique_ptr<Transport> transport)
+  explicit acceptor(std::unique_ptr<Transport> transport)
       : transport_(std::move(transport)) {}
 
-  connector(connector&&) = default;
-  connector& operator=(connector&&) = default;
+  acceptor(acceptor&&) = default;
+  acceptor& operator=(acceptor&&) = default;
 
   promise<void> open(const Transport::Handlers& handlers) {
     return transport_->Open(handlers);
