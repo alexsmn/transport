@@ -89,39 +89,40 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
 TransportFactoryImpl::~TransportFactoryImpl() = default;
 
 std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
-    const TransportString& ts,
+    const TransportString& transport_string,
+    const net::Executor& executor,
     std::shared_ptr<const Logger> logger) {
   if (!logger)
     logger = NullLogger::GetInstance();
 
   logger->WriteF(LogSeverity::Normal, "Create transport: %s",
-                 ts.ToString().c_str());
+                 transport_string.ToString().c_str());
 
-  auto protocol = ts.GetProtocol();
-  bool active = ts.IsActive();
+  auto protocol = transport_string.GetProtocol();
+  bool active = transport_string.IsActive();
 
   if (protocol == TransportString::PROTOCOL_COUNT)
     protocol = TransportString::TCP;
 
   if (protocol == TransportString::TCP) {
     // TCP;Active;Host=localhost;Port=3000
-    auto host = ts.GetParamStr(TransportString::kParamHost);
+    auto host = transport_string.GetParamStr(TransportString::kParamHost);
 
-    int port = ts.GetParamInt(TransportString::kParamPort);
+    int port = transport_string.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
       logger->Write(LogSeverity::Warning, "TCP port is not specified");
       return nullptr;
     }
 
-    return std::make_unique<AsioTcpTransport>(
-        boost::asio::make_strand(io_context_), std::move(logger),
-        std::string{host}, std::to_string(port), active);
+    return std::make_unique<AsioTcpTransport>(executor, std::move(logger),
+                                              std::string{host},
+                                              std::to_string(port), active);
 
   } else if (protocol == TransportString::UDP) {
     // UDP;Passive;Host=0.0.0.0;Port=3000
-    auto host = ts.GetParamStr(TransportString::kParamHost);
+    auto host = transport_string.GetParamStr(TransportString::kParamHost);
 
-    int port = ts.GetParamInt(TransportString::kParamPort);
+    int port = transport_string.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
       logger->Write(LogSeverity::Warning, "UDP port is not specified");
       return nullptr;
@@ -134,7 +135,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
   } else if (protocol == TransportString::SERIAL) {
     // SERIAL;Name=COM2
 
-    const std::string_view device = ts.GetParamStr(TransportString::kParamName);
+    const std::string_view device =
+        transport_string.GetParamStr(TransportString::kParamName);
     if (device.empty()) {
       logger->Write(LogSeverity::Warning, "Serial port name is not specified");
       return nullptr;
@@ -143,44 +145,42 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     SerialTransport::Options options;
 
     try {
-      if (ts.HasParam(TransportString::kParamBaudRate))
+      if (transport_string.HasParam(TransportString::kParamBaudRate))
         options.baud_rate.emplace(
-            ts.GetParamInt(TransportString::kParamBaudRate));
-      if (ts.HasParam(TransportString::kParamByteSize))
+            transport_string.GetParamInt(TransportString::kParamBaudRate));
+      if (transport_string.HasParam(TransportString::kParamByteSize))
         options.character_size.emplace(
-            ts.GetParamInt(TransportString::kParamByteSize));
-      if (ts.HasParam(TransportString::kParamParity))
-        options.parity.emplace(
-            ParseParity(ts.GetParamStr(TransportString::kParamParity)));
-      if (ts.HasParam(TransportString::kParamStopBits))
-        options.stop_bits.emplace(
-            ParseStopBits(ts.GetParamStr(TransportString::kParamStopBits)));
-      if (ts.HasParam(TransportString::kParamFlowControl))
+            transport_string.GetParamInt(TransportString::kParamByteSize));
+      if (transport_string.HasParam(TransportString::kParamParity))
+        options.parity.emplace(ParseParity(
+            transport_string.GetParamStr(TransportString::kParamParity)));
+      if (transport_string.HasParam(TransportString::kParamStopBits))
+        options.stop_bits.emplace(ParseStopBits(
+            transport_string.GetParamStr(TransportString::kParamStopBits)));
+      if (transport_string.HasParam(TransportString::kParamFlowControl))
         options.flow_control.emplace(ParseFlowControl(
-            ts.GetParamStr(TransportString::kParamFlowControl)));
+            transport_string.GetParamStr(TransportString::kParamFlowControl)));
 
     } catch (const std::runtime_error& e) {
       logger->WriteF(LogSeverity::Warning, "Error: %s", e.what());
       return nullptr;
     }
 
-    return std::make_unique<SerialTransport>(
-        boost::asio::make_strand(io_context_), std::move(logger),
-        std::string{device}, options);
+    return std::make_unique<SerialTransport>(executor, std::move(logger),
+                                             std::string{device}, options);
 
   } else if (protocol == TransportString::PIPE) {
 #ifdef OS_WIN
     // Protocol=PIPE;Mode=Active;Name=mypipe
 
-    const auto& name = base::SysNativeMBToWide(
-        AsStringPiece(ts.GetParamStr(TransportString::kParamName)));
+    const auto& name = base::SysNativeMBToWide(AsStringPiece(
+        transport_string.GetParamStr(TransportString::kParamName)));
     if (name.empty()) {
       logger->Write(LogSeverity::Warning, "Pipe name is not specified");
       return nullptr;
     }
 
-    auto transport =
-        std::make_unique<PipeTransport>(boost::asio::make_strand(io_context_));
+    auto transport = std::make_unique<PipeTransport>(executor);
     transport->Init(LR"(\\.\pipe\)" + name, !active);
     return transport;
 
@@ -192,9 +192,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
   } else if (protocol == TransportString::WEB_SOCKET) {
     // WS;Passive;Host=0.0.0.0;Port=3000
-    auto host = ts.GetParamStr(TransportString::kParamHost);
+    auto host = transport_string.GetParamStr(TransportString::kParamHost);
 
-    int port = ts.GetParamInt(TransportString::kParamPort);
+    int port = transport_string.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
       logger->Write(LogSeverity::Warning, "UDP port is not specified");
       return nullptr;
@@ -209,7 +209,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     }
 
     // INPROCESS;Passive;Name=Abc
-    auto name = ts.GetParamStr(TransportString::kParamName);
+    auto name = transport_string.GetParamStr(TransportString::kParamName);
 
     return active ? inprocess_transport_host_->CreateClient(name)
                   : inprocess_transport_host_->CreateServer(name);

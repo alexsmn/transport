@@ -14,6 +14,9 @@ static const char kParamDelimiter = ';';
 static const char* kProtocolNames[] = {"TCP",  "UDP", "SERIAL",
                                        "PIPE", "WS",  "INPROCESS"};
 
+static_assert(std::size(kProtocolNames) == TransportString::PROTOCOL_COUNT,
+              "NotEnoughProtocolNames");
+
 static std::string_view Trim(std::string_view str) {
   auto f = str.find_first_not_of(' ');
   if (f == std::string_view::npos)
@@ -82,29 +85,30 @@ TransportString::TransportString(std::string_view str) {
 }
 
 TransportString::Protocol TransportString::GetProtocol() const {
-  static_assert(std::size(kProtocolNames) == PROTOCOL_COUNT,
-                "NotEnoughProtocolNames");
-  for (int i = 0; i < PROTOCOL_COUNT; ++i) {
+  for (size_t i = 0; i < std::size(kProtocolNames); ++i) {
     if (HasParam(kProtocolNames[i]))
       return static_cast<Protocol>(i);
   }
   return PROTOCOL_COUNT;
 }
 
-void TransportString::SetActive(bool active) {
+TransportString& TransportString::SetActive(bool active) {
   RemoveParam(kParamActive);
   RemoveParam(kParamPassive);
-  SetParam(active ? kParamActive : kParamPassive);
+
+  return SetParam(active ? kParamActive : kParamPassive);
 }
 
-void TransportString::SetProtocol(Protocol protocol) {
-  for (int i = 0; i < PROTOCOL_COUNT; ++i)
-    RemoveParam(kProtocolNames[i]);
-  SetParam(kProtocolNames[protocol]);
+TransportString& TransportString::SetProtocol(Protocol protocol) {
+  for (const auto& protocol_name : kProtocolNames) {
+    RemoveParam(protocol_name);
+  }
+
+  return SetParam(kProtocolNames[protocol]);
 }
 
-void TransportString::SetParam(std::string_view name, int value) {
-  SetParam(name, std::to_string(value));
+TransportString& TransportString::SetParam(std::string_view name, int value) {
+  return SetParam(name, std::to_string(value));
 }
 
 std::string_view TransportString::GetParamStr(std::string_view name) const {
@@ -125,9 +129,9 @@ bool StringToNumber(std::string_view name, T& value) {
 int TransportString::GetParamInt(std::string_view name) const {
   auto str = GetParamStr(name);
 
-  int value = 0;
-  if (StringToNumber(str, value))
+  if (int value = 0; StringToNumber(str, value)) {
     return value;
+  }
 
   return 0;
 }
@@ -150,10 +154,11 @@ std::string TransportString::ToString() const {
   // Fill parameters in predefined order.
   std::string str;
 
-  typedef std::set<std::string, CompareNoCase> ParamSet;
+  using ParamSet = std::set<std::string, CompareNoCase>;
   ParamSet unpassed_params;
-  for (const auto& p : param_map_)
-    unpassed_params.emplace(p.first);
+  for (const auto& [param_name, _] : param_map_) {
+    unpassed_params.emplace(param_name);
+  }
 
   Protocol protocol = GetProtocol();
   if (protocol != PROTOCOL_COUNT) {
@@ -161,18 +166,17 @@ std::string TransportString::ToString() const {
     unpassed_params.erase(kProtocolNames[protocol]);
   }
 
-  for (int i = 0; i < std::size(kParamOrder); ++i) {
-    const auto& param = kParamOrder[i];
-    unpassed_params.erase(param);
-    if (HasParam(param)) {
-      const auto& value = GetParamStr(param);
-      AppendConnectionString(str, param, value);
+  for (const char* param_name : kParamOrder) {
+    unpassed_params.erase(param_name);
+    if (HasParam(param_name)) {
+      const auto& value = GetParamStr(param_name);
+      AppendConnectionString(str, param_name, value);
     }
   }
 
-  for (const auto& param : unpassed_params) {
-    const auto& value = GetParamStr(param);
-    AppendConnectionString(str, param, value);
+  for (const auto& param_name : unpassed_params) {
+    const auto& value = GetParamStr(param_name);
+    AppendConnectionString(str, param_name, value);
   }
 
   return str;
@@ -181,27 +185,32 @@ std::string TransportString::ToString() const {
 int TransportString::ParseSerialPortNumber(std::string_view str) {
   const std::string_view kPrefix = "COM";
 
-  if (!str.starts_with(kPrefix))
+  if (!str.starts_with(kPrefix)) {
     return 0;
+  }
 
   auto number_string = str.substr(kPrefix.size());
   unsigned number = 0;
-  if (!StringToNumber(number_string, number))
+  if (!StringToNumber(number_string, number)) {
     return 0;
+  }
 
   return static_cast<int>(number);
 }
 
-void TransportString::SetParam(std::string_view name) {
-  SetParam(name, std::string_view{});
+TransportString& TransportString::SetParam(std::string_view name) {
+  return SetParam(name, std::string_view{});
 }
 
-void TransportString::SetParam(std::string_view name, std::string_view value) {
-  param_map_[std::string{name}] = std::string{value};
+TransportString& TransportString::SetParam(std::string_view name,
+                                           std::string_view value) {
+  param_map_.insert_or_assign(std::string{name}, value);
+  return *this;
 }
 
-void TransportString::RemoveParam(std::string_view name) {
+TransportString& TransportString::RemoveParam(std::string_view name) {
   param_map_.erase(std::string{name});
+  return *this;
 }
 
 bool TransportString::HasParam(std::string_view name) const {

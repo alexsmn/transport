@@ -22,15 +22,11 @@ class AsioUdpTransport final : public AsioTransport {
   virtual bool IsMessageOriented() const override { return true; }
 
  private:
-  const std::shared_ptr<const Logger> logger_;
-  const UdpSocketFactory udp_socket_factory_;
-  const std::string host_;
-  const std::string service_;
-  const bool active_ = false;
-
   class UdpActiveCore;
   class UdpPassiveCore;
   class AcceptedTransport;
+
+const bool active_;
 };
 
 }  // namespace net

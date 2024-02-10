@@ -482,26 +482,18 @@ AsioUdpTransport::AsioUdpTransport(std::shared_ptr<const Logger> logger,
                                    std::string host,
                                    std::string service,
                                    bool active)
-    : logger_{std::move(logger)},
-      udp_socket_factory_{std::move(udp_socket_factory)},
-      host_{std::move(host)},
-      service_{std::move(service)},
-      active_{active} {}
+    : active_{active} {
+  if (active_) {
+    core_ = std::make_shared<UdpActiveCore>(
+        std::move(udp_socket_factory), std::move(host), std::move(service));
+  } else {
+    core_ = std::make_shared<UdpPassiveCore>(
+        std::move(logger), std::move(udp_socket_factory), std::move(host),
+        std::move(service));
+  }
+}
 
 promise<void> AsioUdpTransport::Open(const Handlers& handlers) {
-  if (core_) {
-    core_->Close();
-  }
-
-  if (!core_) {
-    core_ =
-        active_
-            ? std::static_pointer_cast<Core>(std::make_shared<UdpActiveCore>(
-                  udp_socket_factory_, host_, service_))
-            : std::static_pointer_cast<Core>(std::make_shared<UdpPassiveCore>(
-                  logger_, udp_socket_factory_, host_, service_));
-  }
-
   return core_->Open(handlers);
 }
 

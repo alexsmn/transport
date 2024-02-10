@@ -18,9 +18,10 @@ class InterceptingTransportFactory : public TransportFactory {
 
   virtual std::unique_ptr<Transport> CreateTransport(
       const TransportString& transport_string,
+      const net::Executor& executor,
       std::shared_ptr<const Logger> logger = nullptr) override {
     auto transport = underlying_transport_factory_.CreateTransport(
-        transport_string, std::move(logger));
+        transport_string, executor, std::move(logger));
 
     if (transport && interceptor_) {
       return std::make_unique<InterceptingTransport>(std::move(transport),

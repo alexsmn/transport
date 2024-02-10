@@ -11,6 +11,7 @@ class MockTransportFactory : public TransportFactory {
   MOCK_METHOD(std::unique_ptr<Transport>,
               CreateTransport,
               (const TransportString& transport_string,
+               const net::Executor& executor,
                std::shared_ptr<const Logger> logger));
 };
 

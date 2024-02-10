@@ -5,6 +5,7 @@
 
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/strand.hpp>
 #include <gmock/gmock.h>
 #include <ranges>
 
@@ -12,7 +13,8 @@ using namespace testing;
 
 namespace net {
 
-class TransportTest : public Test {
+// The test parameter is a transport string with no active/passive parameter.
+class TransportTest : public TestWithParam<std::string /*transport_string*/> {
  public:
   TransportTest();
 
@@ -27,29 +29,31 @@ class TransportTest : public Test {
   struct Server {
     promise<void> Init();
 
+    Executor executor_;
     TransportFactory& transport_factory_;
 
     std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
-        // TODO: Random port.
-        TransportString{"TCP;Passive;Port=4321"},
+        TransportString{GetParam() + ";Passive"},
+        executor_,
         std::make_shared<ProxyLogger>(kLogger, "Server"));
   };
 
   struct Client {
     promise<void> Init();
 
+    Executor executor_;
     TransportFactory& transport_factory_;
 
     std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
-        // TODO: Random port.
-        TransportString{"TCP;Active;Port=4321"},
+        TransportString{GetParam() + ";Active"},
+        executor_,
         // TODO: Client ID.
         std::make_shared<ProxyLogger>(kLogger, "Client"));
   };
 
   std::vector<std::jthread> threads_;
 
-  Server server_{transport_factory_};
+  Server server_{boost::asio::make_strand(io_context_), transport_factory_};
   std::vector<std::unique_ptr<Client>> clients_;
 
   // Must be the latest member.
@@ -62,6 +66,11 @@ class TransportTest : public Test {
   static const int kThreadCount = 10;
   static const int kClientCount = 100;
 };
+
+INSTANTIATE_TEST_SUITE_P(AllTransportTests,
+                         TransportTest,
+                         // TODO: Random port.
+                         testing::Values("TCP;Port=4321", "UDP;Port=4322"));
 
 // TransportTest::Server
 
@@ -81,7 +90,9 @@ TransportTest::TransportTest() {}
 
 void TransportTest::SetUp() {
   for (int i = 0; i < kClientCount; ++i) {
-    clients_.emplace_back(std::make_unique<Client>(transport_factory_));
+    clients_.emplace_back(std::make_unique<Client>(
+        /*executor=*/boost::asio::make_strand(io_context_),
+        transport_factory_));
   }
 
   for (int i = 0; i < kThreadCount; ++i) {
@@ -91,7 +102,7 @@ void TransportTest::SetUp() {
 
 void TransportTest::TearDown() {}
 
-TEST_F(TransportTest, Test) {
+TEST_P(TransportTest, Test) {
   // Connect all.
 
   server_.Init().get();

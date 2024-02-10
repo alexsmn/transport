@@ -22,7 +22,7 @@ class NET_EXPORT TransportString {
     PROTOCOL_COUNT
   };
 
-  TransportString() : valid_(true) {}
+  TransportString() = default;
   explicit TransportString(std::string_view str);
 
   bool is_valid() const { return valid_; }
@@ -33,13 +33,13 @@ class NET_EXPORT TransportString {
   bool IsActive() const { return !HasParam(kParamPassive); }
   Protocol GetProtocol() const;
 
-  void SetParam(std::string_view name);
-  void SetParam(std::string_view name, std::string_view value);
-  void SetParam(std::string_view name, int value);
-  void SetActive(bool active);
-  void SetProtocol(Protocol protocol);
+  TransportString& SetParam(std::string_view name);
+  TransportString& SetParam(std::string_view name, std::string_view value);
+  TransportString& SetParam(std::string_view name, int value);
+  TransportString& SetActive(bool active);
+  TransportString& SetProtocol(Protocol protocol);
 
-  void RemoveParam(std::string_view name);
+  TransportString& RemoveParam(std::string_view name);
 
   std::string ToString() const;
 
@@ -67,7 +67,7 @@ class NET_EXPORT TransportString {
     bool operator()(const std::string& left, const std::string& right) const;
   };
 
-  typedef std::map<std::string, std::string, CompareNoCase> ParamMap;
+  using ParamMap = std::map<std::string, std::string, CompareNoCase>;
 
   ParamMap param_map_;
 
