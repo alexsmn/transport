@@ -58,7 +58,7 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
 }
 
 promise<void> AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
-  return DispatchPromise(
+  return DispatchAsPromise(
       io_object_.get_executor(), [this, ref = shared_from_this(), handlers] {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
@@ -220,7 +220,7 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
 }
 
 promise<void> AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
-  return DispatchPromise(
+  return DispatchAsPromise(
       acceptor_.get_executor(), [this, ref = shared_from_this(), handlers] {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 

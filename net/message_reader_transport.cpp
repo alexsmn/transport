@@ -142,7 +142,7 @@ bool MessageReaderTransport::IsActive() const {
 }
 
 net::promise<void> MessageReaderTransport::Open(const Handlers& handlers) {
-  return DispatchPromise(core_->executor_,
+  return DispatchAsPromise(core_->executor_,
                          std::bind_front(&Core::Open, core_, handlers));
 }
 

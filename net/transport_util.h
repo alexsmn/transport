@@ -68,7 +68,7 @@ inline std::pair<promise<void>, Connector::Handlers> MakePromiseHandlers(
 }
 
 template <typename E, typename F>
-inline promise<void> DispatchPromise(const E& ex, F&& f) {
+inline promise<void> DispatchAsPromise(const E& ex, F&& f) {
   promise<void> p;
   boost::asio::dispatch(ex, [p, f = std::forward<F>(f)]() mutable {
     f().then([p]() mutable { p.resolve(); },
