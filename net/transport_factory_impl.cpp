@@ -58,10 +58,6 @@ boost::asio::serial_port::flow_control::type ParseFlowControl(
     throw std::invalid_argument{"Wrong flow control string"};
 }
 
-base::StringPiece AsStringPiece(std::string_view str) {
-  return base::StringPiece{str.data(), str.size()};
-}
-
 }  // namespace
 
 std::shared_ptr<TransportFactory> CreateTransportFactory() {
@@ -173,8 +169,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 #ifdef OS_WIN
     // Protocol=PIPE;Mode=Active;Name=mypipe
 
-    const auto& name = base::SysNativeMBToWide(AsStringPiece(
-        transport_string.GetParamStr(TransportString::kParamName)));
+    const auto& name = base::SysNativeMBToWide(
+        transport_string.GetParamStr(TransportString::kParamName));
     if (name.empty()) {
       logger->Write(LogSeverity::Warning, "Pipe name is not specified");
       return nullptr;
