@@ -61,7 +61,10 @@ endif()
 
 target_include_directories(net PUBLIC "..")
 
-target_link_libraries(net PRIVATE Boost::boost Boost::coroutine)
+target_link_libraries(net PRIVATE
+  Boost::boost
+  Boost::coroutine
+)
 
 find_package(ChromiumBase REQUIRED)
 target_link_libraries(net PRIVATE ChromiumBase::base)
