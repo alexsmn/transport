@@ -64,7 +64,8 @@ promise<void> AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
 
         if (connected_) {
           handlers_ = handlers;
-          StartReading();
+          boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+                                boost::asio::detached);
           return make_resolved_promise();
         }
 
@@ -139,7 +140,8 @@ void AsioTcpTransport::ActiveCore::StartConnecting(
           handlers_.on_open();
         }
 
-        StartReading();
+        boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+                              boost::asio::detached);
       });
 }
 

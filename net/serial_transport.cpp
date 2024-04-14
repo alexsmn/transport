@@ -77,7 +77,7 @@ promise<void> SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
   if (handlers_.on_open)
     handlers_.on_open();
 
-  StartReading();
+  auto _ = StartReading();
 
   return make_resolved_promise();
 }
