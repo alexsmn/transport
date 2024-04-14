@@ -4,8 +4,10 @@
 #include "net/logger.h"
 #include "net/transport.h"
 
+#include <base/auto_reset.h>
 #include <base/threading/thread_collision_warner.h>
 #include <boost/asio.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/circular_buffer.hpp>
 #include <memory>
 
@@ -61,8 +63,8 @@ class AsioTransport::IoCore : public Core,
  protected:
   IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
 
-  void StartReading();
-  void StartWriting();
+  boost::asio::awaitable<void> StartReading();
+  boost::asio::awaitable<void> StartWriting();
 
   void ProcessError(Error error);
 
@@ -127,7 +129,8 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 
   // Must start reading, since reading might have stopped if the buffer was
   // full.
-  StartReading();
+  boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+                        boost::asio::detached);
 
   return count;
 }
@@ -146,7 +149,8 @@ inline promise<size_t> AsioTransport::IoCore<IoObject>::Write(
         write_buffer_.insert(write_buffer_.end(), copied_data.begin(),
                              copied_data.end());
 
-        StartWriting();
+        boost::asio::co_spawn(io_object_.get_executor(), StartWriting(),
+                              boost::asio::detached);
 
         // TODO: Handle properly.
         p.resolve(copied_data.size());
@@ -156,121 +160,111 @@ inline promise<size_t> AsioTransport::IoCore<IoObject>::Write(
 }
 
 template <class IoObject>
-inline void AsioTransport::IoCore<IoObject>::StartReading() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+inline boost::asio::awaitable<void>
+AsioTransport::IoCore<IoObject>::StartReading() {
+  if (closed_ || reading_) {
+    co_return;
+  }
 
-  if (closed_ || reading_)
-    return;
+  auto ref = shared_from_this();
+  base::AutoReset reading{&reading_, true};
 
-  assert(reading_buffer_.empty());
+  for (;;) {
+    reading_buffer_.resize(read_buffer_.capacity() - read_buffer_.size());
+    if (reading_buffer_.empty()) {
+      co_return;
+    }
 
-  reading_buffer_.resize(read_buffer_.capacity() - read_buffer_.size());
-  if (reading_buffer_.empty())
-    return;
+    auto [ec, bytes_transferred] = co_await io_object_.async_read_some(
+        boost::asio::buffer(reading_buffer_),
+        boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  reading_ = true;
-  boost::asio::async_read(
-      io_object_, boost::asio::buffer(reading_buffer_),
-      boost::asio::transfer_at_least(1),
-      [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                       std::size_t bytes_transferred) {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
-          return;
+    if (closed_) {
+      co_return;
+    }
 
-        assert(reading_);
-        reading_ = false;
+    if (ec) {
+      if (ec != boost::asio::error::operation_aborted) {
+        ProcessError(MapSystemError(ec.value()));
+      }
+      co_return;
+    }
 
-        if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
-            ProcessError(MapSystemError(ec.value()));
-          return;
-        }
+    if (bytes_transferred == 0) {
+      ProcessError(OK);
+      co_return;
+    }
 
-        if (bytes_transferred == 0) {
-          ProcessError(OK);
-          return;
-        }
+    read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
+                        reading_buffer_.begin() + bytes_transferred);
+    reading_buffer_.clear();
 
-        read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
-                            reading_buffer_.begin() + bytes_transferred);
-        reading_buffer_.clear();
-
-        // `on_data` may close the transport and reset `handlers_`. It's
-        // important to hold a reference to the handler.
-        if (auto on_data = handlers_.on_data) {
-          on_data();
-        }
-
-        StartReading();
-      });
+    // `on_data` may close the transport and reset `handlers_`. It's
+    // important to hold a reference to the handler.
+    if (auto on_data = handlers_.on_data) {
+      on_data();
+    }
+  }
 }
 
 template <class IoObject>
-inline void AsioTransport::IoCore<IoObject>::StartWriting() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+inline boost::asio::awaitable<void>
+AsioTransport::IoCore<IoObject>::StartWriting() {
+  if (closed_ || writing_) {
+    co_return;
+  }
 
-  if (closed_ || writing_)
-    return;
+  auto ref = shared_from_this();
+  base::AutoReset writing{&writing_, true};
 
-  assert(writing_buffer_.empty());
+  while (!write_buffer_.empty()) {
+    writing_buffer_.swap(write_buffer_);
 
-  if (write_buffer_.empty())
-    return;
+    auto [ec, bytes_transferred] = co_await boost::asio::async_write(
+        io_object_, boost::asio::buffer(writing_buffer_),
+        boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  writing_ = true;
-  writing_buffer_.swap(write_buffer_);
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  boost::asio::async_write(
-      io_object_, boost::asio::buffer(writing_buffer_),
-      [this, ref = shared_from_this()](const boost::system::error_code& ec,
-                                       std::size_t bytes_transferred) {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+    if (closed_) {
+      co_return;
+    }
 
-        if (closed_)
-          return;
+    if (ec) {
+      if (ec != boost::asio::error::operation_aborted) {
+        ProcessError(MapSystemError(ec.value()));
+      }
+      co_return;
+    }
 
-        assert(writing_);
-        writing_ = false;
-
-        if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
-            ProcessError(MapSystemError(ec.value()));
-          return;
-        }
-
-        assert(bytes_transferred == writing_buffer_.size());
-        writing_buffer_.clear();
-
-        StartWriting();
-      });
+    assert(bytes_transferred == writing_buffer_.size());
+    writing_buffer_.clear();
+  }
 }
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
-  boost::asio::dispatch(
-      io_object_.get_executor(), [this, ref = shared_from_this(), error] {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        assert(!closed_);
+  assert(!closed_);
 
-        if (error != OK) {
-          logger_->WriteF(LogSeverity::Warning, "Error: %s",
-                          ErrorToShortString(error).c_str());
-        } else {
-          logger_->WriteF(LogSeverity::Normal, "Graceful close");
-        }
+  if (error != OK) {
+    logger_->WriteF(LogSeverity::Warning, "Error: %s",
+                    ErrorToShortString(error).c_str());
+  } else {
+    logger_->WriteF(LogSeverity::Normal, "Graceful close");
+  }
 
-        auto on_close = handlers_.on_close;
-        closed_ = true;
-        handlers_ = {};
+  auto on_close = handlers_.on_close;
+  closed_ = true;
+  handlers_ = {};
 
-        Cleanup();
+  Cleanup();
 
-        if (on_close)
-          on_close(error);
-      });
+  if (on_close)
+    on_close(error);
 }
 
 // AsioTransport
