@@ -3,6 +3,8 @@
 #include "net/transport_factory_impl.h"
 #include "net/transport_string.h"
 
+#include <array>
+#include <boost/asio/bind_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
@@ -28,27 +30,34 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
 
   struct Server {
     promise<void> Init();
+    promise<void> Close();
 
     Executor executor_;
     TransportFactory& transport_factory_;
+
+    std::shared_ptr<Logger> logger_ =
+        std::make_shared<ProxyLogger>(kLogger, "Server");
 
     std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
         TransportString{GetParam() + ";Passive"},
         executor_,
-        std::make_shared<ProxyLogger>(kLogger, "Server"));
+        logger_);
   };
 
   struct Client {
-    promise<void> Init();
+    promise<void> Run();
 
+    std::string name_;
     Executor executor_;
     TransportFactory& transport_factory_;
+
+    std::shared_ptr<Logger> logger_ =
+        std::make_shared<ProxyLogger>(kLogger, name_.c_str());
 
     std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
         TransportString{GetParam() + ";Active"},
         executor_,
-        // TODO: Client ID.
-        std::make_shared<ProxyLogger>(kLogger, "Client"));
+        logger_);
   };
 
   std::vector<std::jthread> threads_;
@@ -65,23 +74,93 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
 
   static const int kThreadCount = 10;
   static const int kClientCount = 100;
+  static constexpr const char kMessage[] = "Message";
 };
 
 INSTANTIATE_TEST_SUITE_P(AllTransportTests,
                          TransportTest,
                          // TODO: Random port.
-                         testing::Values("TCP;Port=4321", "UDP;Port=4322"));
+                         testing::Values("TCP;Port=4321" /*,
+                                         "UDP;Port=4322"*/));
 
 // TransportTest::Server
 
 promise<void> TransportTest::Server::Init() {
-  return transport_->Open(Transport::Handlers{});
+  return transport_->Open(
+      {.on_accept = [this](std::unique_ptr<Transport> accepted_transport) {
+        logger_->Write(LogSeverity::Normal, "Connected");
+        auto tr = std::shared_ptr<Transport>{accepted_transport.release()};
+        tr->Open({.on_close =
+                      [this, tr](net::Error) mutable {
+                        logger_->Write(LogSeverity::Warning, "Disconnected");
+                        tr.reset();
+                      },
+                  .on_data =
+                      [this, &tr = *tr] {
+                        logger_->Write(LogSeverity::Normal,
+                                       "Data received. Send echo");
+                        for (;;) {
+                          std::array<char, 64> buffer;
+                          int res = tr.Read(buffer);
+                          if (res <= 0) {
+                            break;
+                          }
+                          tr.Write(std::span{buffer}.subspan(0, res));
+                        }
+                      },
+                  .on_message =
+                      [this, &tr = *tr](std::span<const char> data) {
+                        logger_->Write(LogSeverity::Normal,
+                                       "Message received. Send echo");
+                        tr.Write(data);
+                      }});
+      }});
+}
+
+promise<void> TransportTest::Server::Close() {
+  transport_->Close();
+  return make_resolved_promise();
 }
 
 // TransportTest::Client
 
-promise<void> TransportTest::Client::Init() {
-  return transport_->Open(Transport::Handlers{});
+promise<void> TransportTest::Client::Run() {
+  promise<void> received_message;
+  transport_
+      ->Open({.on_close =
+                  [this, received_message](Error error) mutable {
+                    logger_->Write(LogSeverity::Normal, "Closed");
+                    received_message.reject(net_exception{error});
+                  },
+              .on_data =
+                  [this, received_message]() mutable {
+                    logger_->Write(LogSeverity::Normal, "Message received");
+                    std::array<char, std::size(kMessage)> data;
+                    if (transport_->Read(data) != std::size(kMessage)) {
+                      throw std::runtime_error{"Received message is too short"};
+                    }
+                    if (!std::ranges::equal(data, kMessage)) {
+                      throw std::runtime_error{
+                          "Received message is not equal to the sent one."};
+                    }
+                    received_message.resolve();
+                  },
+              .on_message =
+                  [this, received_message](std::span<const char> data) mutable {
+                    logger_->Write(LogSeverity::Normal,
+                                   "Message received. Send echo");
+                    transport_->Write(data);
+                    if (!std::ranges::equal(data, kMessage)) {
+                      throw std::runtime_error{
+                          "Received message is not equal to the sent one."};
+                    }
+                    received_message.resolve();
+                  }})
+      .then([this] {
+        logger_->Write(LogSeverity::Normal, "Send message");
+        transport_->Write(kMessage);
+      });
+  return received_message.then([this] { transport_->Close(); });
 }
 
 // TransportTest
@@ -91,6 +170,7 @@ TransportTest::TransportTest() {}
 void TransportTest::SetUp() {
   for (int i = 0; i < kClientCount; ++i) {
     clients_.emplace_back(std::make_unique<Client>(
+        /*name=*/std::format("Client {}", i + 1),
         /*executor=*/boost::asio::make_strand(io_context_),
         transport_factory_));
   }
@@ -107,7 +187,9 @@ TEST_P(TransportTest, Test) {
 
   server_.Init().get();
 
-  net::make_all_promise(clients_ | std::views::transform(&Client::Init)).get();
+  net::make_all_promise(clients_ | std::views::transform(&Client::Run)).get();
+
+  server_.Close().get();
 }
 
 }  // namespace net

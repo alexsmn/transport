@@ -197,8 +197,11 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
                             reading_buffer_.begin() + bytes_transferred);
         reading_buffer_.clear();
 
-        if (handlers_.on_data)
-          handlers_.on_data();
+        // `on_data` may close the transport and reset `handlers_`. It's
+        // important to hold a reference to the handler.
+        if (auto on_data = handlers_.on_data) {
+          on_data();
+        }
 
         StartReading();
       });

@@ -1,6 +1,7 @@
 #include "net/udp_transport.h"
 
 #include <map>
+#include <ranges>
 
 #include "net/logger.h"
 #include "net/transport_util.h"
@@ -323,9 +324,8 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
 
   std::vector<AcceptedTransport*> accepted_transports;
   accepted_transports.reserve(accepted_transports_.size());
-  std::transform(accepted_transports_.begin(), accepted_transports_.end(),
-                 std::back_inserter(accepted_transports),
-                 [](auto& p) { return p.second; });
+  std::ranges::copy(accepted_transports_ | std::views::values,
+                    std::back_inserter(accepted_transports));
 
   for (auto* accepted_transport : accepted_transports)
     accepted_transport->ProcessError(error);
