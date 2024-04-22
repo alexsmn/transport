@@ -77,8 +77,8 @@ std::shared_ptr<TransportFactory> CreateTransportFactory() {
 TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
     : io_context_{io_context} {
   udp_socket_factory_ =
-      [&io_context](UdpSocketContext&& context) -> std::shared_ptr<UdpSocket> {
-    return std::make_shared<UdpSocketImpl>(io_context, std::move(context));
+      [](UdpSocketContext&& context) -> std::shared_ptr<UdpSocket> {
+    return std::make_shared<UdpSocketImpl>(std::move(context));
   };
 }
 
@@ -125,7 +125,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     }
 
     return std::make_unique<AsioUdpTransport>(
-        std::move(logger), udp_socket_factory_, std::string{host},
+        executor, std::move(logger), udp_socket_factory_, std::string{host},
         std::to_string(port), active);
 
   } else if (protocol == TransportString::SERIAL) {

@@ -80,8 +80,7 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
 INSTANTIATE_TEST_SUITE_P(AllTransportTests,
                          TransportTest,
                          // TODO: Random port.
-                         testing::Values("TCP;Port=4321" /*,
-                                         "UDP;Port=4322"*/));
+                         testing::Values("TCP;Port=4321", "UDP;Port=4322"));
 
 // TransportTest::Server
 

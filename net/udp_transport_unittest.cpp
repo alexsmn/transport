@@ -54,11 +54,12 @@ class AsioUdpTransportTest : public Test {
 void AsioUdpTransportTest::SetUp() {}
 
 void AsioUdpTransportTest::OpenTransport(bool active) {
-  transport_ = std::make_unique<AsioUdpTransport>(NullLogger::GetInstance(),
-                                                  udp_socket_factory,
-                                                  /*host*/ std::string{},
-                                                  /*service*/ std::string{},
-                                                  /*active*/ active);
+  transport_ = std::make_unique<AsioUdpTransport>(
+      boost::asio::system_executor{}, NullLogger::GetInstance(),
+      udp_socket_factory,
+      /*host*/ std::string{},
+      /*service*/ std::string{},
+      /*active*/ active);
 
   EXPECT_CALL(*socket, Open());
   transport_->Open(transport_handlers_.AsHandlers());

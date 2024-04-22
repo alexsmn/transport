@@ -21,7 +21,8 @@ class AsioUdpTransport::UdpActiveCore
     : public Core,
       public std::enable_shared_from_this<UdpActiveCore> {
  public:
-  UdpActiveCore(UdpSocketFactory udp_socket_factory,
+  UdpActiveCore(const Executor& executor,
+                UdpSocketFactory udp_socket_factory,
                 std::string host,
                 std::string service);
 
@@ -40,6 +41,7 @@ class AsioUdpTransport::UdpActiveCore
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::Error& error);
 
+  const Executor executor_;
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
   const std::string service_;
@@ -53,10 +55,12 @@ class AsioUdpTransport::UdpActiveCore
 };
 
 AsioUdpTransport::UdpActiveCore::UdpActiveCore(
+    const Executor& executor,
     UdpSocketFactory udp_socket_factory,
     std::string host,
     std::string service)
-    : udp_socket_factory_{std::move(udp_socket_factory)},
+    : executor_{executor},
+      udp_socket_factory_{std::move(udp_socket_factory)},
       host_{std::move(host)},
       service_{std::move(service)} {}
 
@@ -116,6 +120,7 @@ void AsioUdpTransport::UdpActiveCore::OnSocketClosed(
 
 UdpSocketContext AsioUdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
   return {
+      executor_,
       host_,
       service_,
       true,
@@ -179,7 +184,8 @@ class AsioUdpTransport::UdpPassiveCore final
     : public Core,
       public std::enable_shared_from_this<UdpPassiveCore> {
  public:
-  UdpPassiveCore(std::shared_ptr<const Logger> logger,
+  UdpPassiveCore(const Executor& executor,
+                 std::shared_ptr<const Logger> logger,
                  UdpSocketFactory udp_socket_factory,
                  std::string host,
                  std::string service);
@@ -205,6 +211,7 @@ class AsioUdpTransport::UdpPassiveCore final
   void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
   void CloseAllAcceptedTransports(Error error);
 
+  const Executor executor_;
   const std::shared_ptr<const Logger> logger_;
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
@@ -224,11 +231,13 @@ class AsioUdpTransport::UdpPassiveCore final
 // AsioUdpTransport::UdpPassiveCore
 
 AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
+    const Executor& executor,
     std::shared_ptr<const Logger> logger,
     UdpSocketFactory udp_socket_factory,
     std::string host,
     std::string service)
-    : logger_{std::make_shared<ProxyLogger>(std::move(logger))},
+    : executor_{executor},
+      logger_{std::make_shared<ProxyLogger>(std::move(logger))},
       udp_socket_factory_{std::move(udp_socket_factory)},
       host_{std::move(host)},
       service_{std::move(service)} {}
@@ -358,6 +367,7 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
 
 UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
   return {
+      executor_,
       host_,
       service_,
       false,
@@ -477,19 +487,21 @@ void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {
 
 // AsioUdpTransport
 
-AsioUdpTransport::AsioUdpTransport(std::shared_ptr<const Logger> logger,
+AsioUdpTransport::AsioUdpTransport(const Executor& executor,
+                                   std::shared_ptr<const Logger> logger,
                                    UdpSocketFactory udp_socket_factory,
                                    std::string host,
                                    std::string service,
                                    bool active)
     : active_{active} {
   if (active_) {
-    core_ = std::make_shared<UdpActiveCore>(
-        std::move(udp_socket_factory), std::move(host), std::move(service));
+    core_ =
+        std::make_shared<UdpActiveCore>(executor, std::move(udp_socket_factory),
+                                        std::move(host), std::move(service));
   } else {
     core_ = std::make_shared<UdpPassiveCore>(
-        std::move(logger), std::move(udp_socket_factory), std::move(host),
-        std::move(service));
+        executor, std::move(logger), std::move(udp_socket_factory),
+        std::move(host), std::move(service));
   }
 }
 

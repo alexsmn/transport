@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base/threading/thread_collision_warner.h"
 #include "net/udp_socket.h"
 
 #include <memory>
@@ -11,8 +12,7 @@ class UdpSocketImpl : private UdpSocketContext,
                       public UdpSocket,
                       public std::enable_shared_from_this<UdpSocketImpl> {
  public:
-  UdpSocketImpl(boost::asio::io_context& io_context,
-                UdpSocketContext&& context);
+  UdpSocketImpl(UdpSocketContext&& context);
 
   // UdpSocket
   virtual void Open() override;
@@ -26,10 +26,10 @@ class UdpSocketImpl : private UdpSocketContext,
 
   void ProcessError(const boost::system::error_code& ec);
 
-  boost::asio::io_context& io_context_;
+  DFAKE_MUTEX(mutex_);
 
-  Resolver resolver_{io_context_};
-  Socket socket_{io_context_};
+  Resolver resolver_{executor_};
+  Socket socket_{executor_};
 
   bool connected_ = false;
   bool closed_ = false;
@@ -44,17 +44,16 @@ class UdpSocketImpl : private UdpSocketContext,
   bool writing_ = false;
 };
 
-inline UdpSocketImpl::UdpSocketImpl(boost::asio::io_context& io_context,
-                                    UdpSocketContext&& context)
-    : UdpSocketContext{std::move(context)},
-      io_context_{io_context},
-      read_buffer_(1024 * 1024) {}
+inline UdpSocketImpl::UdpSocketImpl(UdpSocketContext&& context)
+    : UdpSocketContext{std::move(context)}, read_buffer_(1024 * 1024) {}
 
 inline void UdpSocketImpl::Open() {
   Resolver::query query{host_, service_};
   resolver_.async_resolve(query, [this, ref = shared_from_this()](
                                      const boost::system::error_code& error,
                                      Resolver::iterator iterator) {
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
     if (closed_)
       return;
 
@@ -95,18 +94,25 @@ inline void UdpSocketImpl::Open() {
 }
 
 inline void UdpSocketImpl::Close() {
-  if (closed_)
-    return;
+  boost::asio::dispatch(socket_.get_executor(),
+                        [this, ref = shared_from_this()] {
+                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  closed_ = true;
-  connected_ = false;
-  writing_ = false;
-  write_queue_ = {};
-  socket_.close();
+                          if (closed_)
+                            return;
+
+                          closed_ = true;
+                          connected_ = false;
+                          writing_ = false;
+                          write_queue_ = {};
+                          socket_.close();
+                        });
 }
 
 inline promise<size_t> UdpSocketImpl::SendTo(const Endpoint& endpoint,
                                              Datagram&& datagram) {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
   auto size = datagram.size();
 
   write_queue_.emplace(endpoint, std::move(datagram));
@@ -117,6 +123,8 @@ inline promise<size_t> UdpSocketImpl::SendTo(const Endpoint& endpoint,
 }
 
 inline void UdpSocketImpl::StartReading() {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
   if (closed_)
     return;
 
@@ -129,6 +137,8 @@ inline void UdpSocketImpl::StartReading() {
       boost::asio::buffer(read_buffer_), read_endpoint_,
       [this, ref = shared_from_this()](const boost::system::error_code& error,
                                        std::size_t bytes_transferred) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
         reading_ = false;
 
         if (closed_)
@@ -152,6 +162,8 @@ inline void UdpSocketImpl::StartReading() {
 }
 
 inline void UdpSocketImpl::StartWriting() {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
   if (closed_)
     return;
 
@@ -173,6 +185,8 @@ inline void UdpSocketImpl::StartWriting() {
       boost::asio::buffer(write_buffer_), write_endpoint_,
       [this, ref = shared_from_this()](const boost::system::error_code& error,
                                        std::size_t bytes_transferred) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
         if (closed_)
           return;
 
@@ -191,6 +205,8 @@ inline void UdpSocketImpl::StartWriting() {
 }
 
 inline void UdpSocketImpl::ProcessError(const boost::system::error_code& ec) {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
   connected_ = false;
   closed_ = true;
   writing_ = false;
