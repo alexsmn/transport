@@ -1,11 +1,12 @@
 #include "net/udp_transport.h"
 
-#include <map>
-#include <ranges>
-
+#include "base/threading/thread_collision_warner.h"
 #include "net/logger.h"
 #include "net/transport_util.h"
 #include "net/udp_socket_impl.h"
+
+#include <map>
+#include <ranges>
 
 std::string ToString(const net::UdpSocket::Endpoint& endpoint) {
   std::stringstream stream;
@@ -75,8 +76,10 @@ promise<void> AsioUdpTransport::UdpActiveCore::Open(const Handlers& handlers) {
 }
 
 void AsioUdpTransport::UdpActiveCore::Close() {
-  connected_ = false;
-  socket_->Close();
+  boost::asio::dispatch(executor_, [this, ref = shared_from_this()] {
+    connected_ = false;
+    socket_->Close();
+  });
 }
 
 int AsioUdpTransport::UdpActiveCore::Read(std::span<char> data) {
@@ -88,7 +91,8 @@ int AsioUdpTransport::UdpActiveCore::Read(std::span<char> data) {
 promise<size_t> AsioUdpTransport::UdpActiveCore::Write(
     std::span<const char> data) {
   std::vector<char> datagram(data.begin(), data.end());
-  return socket_->SendTo(peer_endpoint_, std::move(datagram));
+  return to_promise(executor_,
+                    socket_->SendTo(peer_endpoint_, std::move(datagram)));
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
@@ -217,6 +221,8 @@ class AsioUdpTransport::UdpPassiveCore final
   const std::string host_;
   const std::string service_;
 
+  DFAKE_MUTEX(mutex_);
+
   std::shared_ptr<UdpSocket> socket_;
 
   Handlers handlers_;
@@ -259,13 +265,17 @@ promise<void> AsioUdpTransport::UdpPassiveCore::Open(const Handlers& handlers) {
 }
 
 void AsioUdpTransport::UdpPassiveCore::Close() {
-  logger_->Write(LogSeverity::Normal, "Close");
+  boost::asio::dispatch(executor_, [this, ref = shared_from_this()] {
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  connected_ = false;
+    logger_->Write(LogSeverity::Normal, "Close");
 
-  socket_->Close();
+    connected_ = false;
 
-  CloseAllAcceptedTransports(OK);
+    socket_->Close();
+
+    CloseAllAcceptedTransports(OK);
+  });
 }
 
 int AsioUdpTransport::UdpPassiveCore::Read(std::span<char> data) {
@@ -284,32 +294,42 @@ promise<size_t> AsioUdpTransport::UdpPassiveCore::Write(
 promise<size_t> AsioUdpTransport::UdpPassiveCore::InternalWrite(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  return socket_->SendTo(endpoint, std::move(datagram));
+  return to_promise(executor_, socket_->SendTo(endpoint, std::move(datagram)));
 }
 
 void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
     const UdpSocket::Endpoint& endpoint) {
-  logger_->WriteF(LogSeverity::Normal, "Remove transport from endpoint %s",
-                  ToString(endpoint).c_str());
+  boost::asio::dispatch(executor_, [this, endpoint, ref = shared_from_this()] {
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  assert(accepted_transports_.find(endpoint) != accepted_transports_.end());
+    logger_->WriteF(
+        LogSeverity::Normal,
+        "Remove transport from endpoint %s. There are %d accepted transports",
+        ToString(endpoint).c_str(),
+        static_cast<int>(accepted_transports_.size()));
 
-  accepted_transports_.erase(endpoint);
+    assert(accepted_transports_.contains(endpoint));
+
+    accepted_transports_.erase(endpoint);
+  });
 }
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  {
-    auto i = accepted_transports_.find(endpoint);
-    if (i != accepted_transports_.end()) {
-      i->second->ProcessDatagram(std::move(datagram));
-      return;
-    }
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
+  if (auto i = accepted_transports_.find(endpoint);
+      i != accepted_transports_.end()) {
+    i->second->ProcessDatagram(std::move(datagram));
+    return;
   }
 
-  logger_->WriteF(LogSeverity::Normal, "Accept new transport from endpoint %s",
-                  ToString(endpoint).c_str());
+  logger_->WriteF(
+      LogSeverity::Normal,
+      "Accept new transport from endpoint %s. There are %d accepted transports",
+      ToString(endpoint).c_str(),
+      static_cast<int>(accepted_transports_.size()));
 
   if (handlers_.on_accept) {
     auto accepted_transport =
@@ -319,14 +339,15 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
   }
 
   // Accepted transport can be deleted from the callback above.
-  {
-    auto i = accepted_transports_.find(endpoint);
-    if (i != accepted_transports_.end())
-      i->second->ProcessDatagram(std::move(datagram));
+  if (auto i = accepted_transports_.find(endpoint);
+      i != accepted_transports_.end()) {
+    i->second->ProcessDatagram(std::move(datagram));
   }
 }
 
 void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
   logger_->WriteF(LogSeverity::Normal, "Close %d accepted transports - %s",
                   static_cast<int>(accepted_transports_.size()),
                   ErrorToString(error).c_str());
@@ -336,12 +357,15 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
   std::ranges::copy(accepted_transports_ | std::views::values,
                     std::back_inserter(accepted_transports));
 
-  for (auto* accepted_transport : accepted_transports)
+  for (auto* accepted_transport : accepted_transports) {
     accepted_transport->ProcessError(error);
+  }
 }
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
   logger_->WriteF(LogSeverity::Normal, "Opened with endpoint %s",
                   ToString(endpoint).c_str());
 
@@ -354,6 +378,8 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+
   logger_->WriteF(LogSeverity::Normal, "Closed - %s", error.message().c_str());
 
   auto net_error = net::MapSystemError(error.value());

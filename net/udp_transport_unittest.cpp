@@ -17,9 +17,10 @@ class MockUdpSocket : public UdpSocket {
  public:
   MOCK_METHOD(void, Open, (), (override));
   MOCK_METHOD(void, Close, (), (override));
-  MOCK_METHOD(promise<size_t>,
+
+  MOCK_METHOD(boost::asio::awaitable<size_t>,
               SendTo,
-              (const Endpoint& endpoint, Datagram&& datagram),
+              (const Endpoint& endpoint, Datagram datagram),
               (override));
 };
 

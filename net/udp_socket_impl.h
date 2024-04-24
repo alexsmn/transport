@@ -12,13 +12,14 @@ class UdpSocketImpl : private UdpSocketContext,
                       public UdpSocket,
                       public std::enable_shared_from_this<UdpSocketImpl> {
  public:
-  UdpSocketImpl(UdpSocketContext&& context);
+  explicit UdpSocketImpl(UdpSocketContext&& context);
+  ~UdpSocketImpl();
 
   // UdpSocket
   virtual void Open() override;
   virtual void Close() override;
-  virtual promise<size_t> SendTo(const Endpoint& endpoint,
-                                 Datagram&& datagram) override;
+  virtual boost::asio::awaitable<size_t> SendTo(const Endpoint& endpoint,
+                                                Datagram datagram) override;
 
  private:
   boost::asio::awaitable<void> StartReading();
@@ -46,6 +47,10 @@ class UdpSocketImpl : private UdpSocketContext,
 
 inline UdpSocketImpl::UdpSocketImpl(UdpSocketContext&& context)
     : UdpSocketContext{std::move(context)}, read_buffer_(1024 * 1024) {}
+
+inline UdpSocketImpl::~UdpSocketImpl() {
+  assert(closed_);
+}
 
 inline void UdpSocketImpl::Open() {
   Resolver::query query{host_, service_};
@@ -111,17 +116,20 @@ inline void UdpSocketImpl::Close() {
                         });
 }
 
-inline promise<size_t> UdpSocketImpl::SendTo(const Endpoint& endpoint,
-                                             Datagram&& datagram) {
+inline boost::asio::awaitable<size_t> UdpSocketImpl::SendTo(
+    const Endpoint& endpoint,
+    Datagram datagram) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   auto size = datagram.size();
 
   write_queue_.emplace(endpoint, std::move(datagram));
-  StartWriting();
 
-  // TODO: Property async operation.
-  return make_resolved_promise(size);
+  boost::asio::co_spawn(socket_.get_executor(), StartWriting(),
+                        boost::asio::detached);
+
+  // TODO: Proper async operation.
+  co_return size;
 }
 
 inline boost::asio::awaitable<void> UdpSocketImpl::StartReading() {
@@ -169,17 +177,13 @@ inline boost::asio::awaitable<void> UdpSocketImpl::StartWriting() {
     co_return;
   }
 
-  if (write_queue_.empty()) {
-    co_return;
-  }
-
   if (writing_) {
     co_return;
   }
 
   auto ref = shared_from_this();
 
-  for (;;) {
+  while (!write_queue_.empty()) {
     writing_ = true;
 
     auto [endpoint, datagram] = std::move(write_queue_.front());

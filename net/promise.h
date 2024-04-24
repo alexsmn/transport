@@ -2,6 +2,8 @@
 
 #include "net/base/net_errors.h"
 
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/co_spawn.hpp>
 #include <promise.hpp/promise.hpp>
 
 namespace net {
@@ -50,6 +52,21 @@ inline promise<T> make_error_promise(Error error) {
 template <class C>
 inline promise<void> make_all_promise(C&& container) {
   return promise_hpp::make_all_promise_void(std::forward<C>(container));
+}
+
+template <class E, class T>
+inline promise<T> to_promise(const E& executor, boost::asio::awaitable<T> aw) {
+  promise<size_t> p;
+  boost::asio::co_spawn(
+      executor, std::move(aw),
+      [p](std::exception_ptr e, size_t bytes_written) mutable {
+        if (e) {
+          p.reject(e);
+        } else {
+          p.resolve(bytes_written);
+        }
+      });
+  return p;
 }
 
 }  // namespace net
