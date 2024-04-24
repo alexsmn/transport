@@ -21,8 +21,8 @@ class UdpSocketImpl : private UdpSocketContext,
                                  Datagram&& datagram) override;
 
  private:
-  void StartReading();
-  void StartWriting();
+  boost::asio::awaitable<void> StartReading();
+  boost::asio::awaitable<void> StartWriting();
 
   void ProcessError(const boost::system::error_code& ec);
 
@@ -88,8 +88,10 @@ inline void UdpSocketImpl::Open() {
     connected_ = true;
     open_handler_(iterator->endpoint());
 
-    if (!active_)
-      StartReading();
+    if (!active_) {
+      boost::asio::co_spawn(socket_.get_executor(), StartReading(),
+                            boost::asio::detached);
+    }
   });
 }
 
@@ -122,86 +124,92 @@ inline promise<size_t> UdpSocketImpl::SendTo(const Endpoint& endpoint,
   return make_resolved_promise(size);
 }
 
-inline void UdpSocketImpl::StartReading() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+inline boost::asio::awaitable<void> UdpSocketImpl::StartReading() {
+  if (closed_) {
+    co_return;
+  }
 
-  if (closed_)
-    return;
+  if (reading_) {
+    co_return;
+  }
 
-  if (reading_)
-    return;
+  auto ref = shared_from_this();
 
-  reading_ = true;
+  for (;;) {
+    reading_ = true;
 
-  socket_.async_receive_from(
-      boost::asio::buffer(read_buffer_), read_endpoint_,
-      [this, ref = shared_from_this()](const boost::system::error_code& error,
-                                       std::size_t bytes_transferred) {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+    auto [error, bytes_transferred] = co_await socket_.async_receive_from(
+        boost::asio::buffer(read_buffer_), read_endpoint_,
+        boost::asio::as_tuple(boost::asio::use_awaitable));
 
-        reading_ = false;
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
-          return;
+    reading_ = false;
 
-        if (error) {
-          ProcessError(error);
-          return;
-        }
+    if (closed_) {
+      co_return;
+    }
 
-        assert(bytes_transferred != 0);
+    if (error) {
+      ProcessError(error);
+      co_return;
+    }
 
-        {
-          std::vector<char> datagram(read_buffer_.begin(),
-                                     read_buffer_.begin() + bytes_transferred);
-          message_handler_(read_endpoint_, std::move(datagram));
-        }
+    assert(bytes_transferred != 0);
 
-        StartReading();
-      });
+    std::vector<char> datagram(read_buffer_.begin(),
+                               read_buffer_.begin() + bytes_transferred);
+
+    message_handler_(read_endpoint_, std::move(datagram));
+  }
 }
 
-inline void UdpSocketImpl::StartWriting() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+inline boost::asio::awaitable<void> UdpSocketImpl::StartWriting() {
+  if (closed_) {
+    co_return;
+  }
 
-  if (closed_)
-    return;
+  if (write_queue_.empty()) {
+    co_return;
+  }
 
-  if (write_queue_.empty())
-    return;
+  if (writing_) {
+    co_return;
+  }
 
-  if (writing_)
-    return;
+  auto ref = shared_from_this();
 
-  writing_ = true;
+  for (;;) {
+    writing_ = true;
 
-  auto [endpoint, datagram] = std::move(write_queue_.front());
-  write_queue_.pop();
+    auto [endpoint, datagram] = std::move(write_queue_.front());
+    write_queue_.pop();
 
-  write_endpoint_ = endpoint;
-  write_buffer_ = std::move(datagram);
+    write_endpoint_ = endpoint;
+    write_buffer_ = std::move(datagram);
 
-  socket_.async_send_to(
-      boost::asio::buffer(write_buffer_), write_endpoint_,
-      [this, ref = shared_from_this()](const boost::system::error_code& error,
-                                       std::size_t bytes_transferred) {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+    auto [error, bytes_transferred] = co_await socket_.async_send_to(
+        boost::asio::buffer(write_buffer_), write_endpoint_,
+        boost::asio::as_tuple(boost::asio::use_awaitable));
 
-        if (closed_)
-          return;
+    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        writing_ = false;
-        write_buffer_.clear();
-        write_buffer_.shrink_to_fit();
+    if (closed_) {
+      co_return;
+    }
 
-        if (error) {
-          ProcessError(error);
-          return;
-        }
+    writing_ = false;
+    write_buffer_.clear();
+    write_buffer_.shrink_to_fit();
 
-        StartReading();
-        StartWriting();
-      });
+    if (error) {
+      ProcessError(error);
+      co_return;
+    }
+
+    boost::asio::co_spawn(socket_.get_executor(), StartReading(),
+                          boost::asio::detached);
+  }
 }
 
 inline void UdpSocketImpl::ProcessError(const boost::system::error_code& ec) {
