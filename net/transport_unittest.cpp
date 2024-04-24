@@ -30,7 +30,6 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
 
   struct Server {
     promise<void> Init();
-    promise<void> Close();
 
     Executor executor_;
     TransportFactory& transport_factory_;
@@ -80,6 +79,7 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
 INSTANTIATE_TEST_SUITE_P(AllTransportTests,
                          TransportTest,
                          // TODO: Random port.
+                         // TODO: Implement send retries and enable UDP tests.
                          testing::Values("TCP;Port=4321" /*,
                                          "UDP;Port=4322"*/));
 
@@ -115,11 +115,6 @@ promise<void> TransportTest::Server::Init() {
                         tr.Write(data);
                       }});
       }});
-}
-
-promise<void> TransportTest::Server::Close() {
-  transport_->Close();
-  return make_resolved_promise();
 }
 
 // TransportTest::Client
@@ -188,8 +183,6 @@ TEST_P(TransportTest, Test) {
   server_.Init().get();
 
   net::make_all_promise(clients_ | std::views::transform(&Client::Run)).get();
-
-  server_.Close().get();
 }
 
 }  // namespace net
