@@ -84,13 +84,13 @@ int PipeTransport::Read(std::span<char> data) {
   return bytes_read;
 }
 
-promise<size_t> PipeTransport::Write(std::span<const char> data) {
+boost::asio::awaitable<size_t> PipeTransport::Write(std::vector<char> data) {
   DWORD bytes_written = 0;
   if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
-    return make_error_promise<size_t>(ERR_FAILED);
+    throw net_exception{ERR_FAILED};
   }
 
-  return make_resolved_promise(static_cast<size_t>(bytes_written));
+  co_return bytes_written;
 }
 
 void PipeTransport::OnTimer() {

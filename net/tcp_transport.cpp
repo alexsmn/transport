@@ -173,8 +173,9 @@ class AsioTcpTransport::PassiveCore final
   virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual boost::asio::awaitable<size_t> Write(
-      std::span<const char> data) override;
+
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override;
 
  private:
   using Socket = boost::asio::ip::tcp::socket;
@@ -322,7 +323,7 @@ int AsioTcpTransport::PassiveCore::Read(std::span<char> data) {
 }
 
 boost::asio::awaitable<size_t> AsioTcpTransport::PassiveCore::Write(
-    std::span<const char> data) {
+    std::vector<char> data) {
   throw net_exception{ERR_ACCESS_DENIED};
 }
 

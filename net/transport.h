@@ -47,7 +47,8 @@ class Sender {
   virtual ~Sender() = default;
 
   // Returns amount of bytes written or an error.
-  virtual promise<size_t> Write(std::span<const char> data) = 0;
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) = 0;
 };
 
 class Reader {

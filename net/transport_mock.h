@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/test/coroutine_util.h"
 #include "net/transport.h"
 
 #include <gmock/gmock.h>
@@ -11,10 +12,12 @@ class TransportMock : public Transport {
   TransportMock() {
     using namespace testing;
 
-    ON_CALL(*this, Open(_)).WillByDefault(Return(make_resolved_promise()));
+    ON_CALL(*this, Open(/*handlers=*/_))
+        .WillByDefault(Return(make_resolved_promise()));
 
-    ON_CALL(*this, Write(_))
-        .WillByDefault(Return(make_error_promise<size_t>(net::ERR_ABORTED)));
+    ON_CALL(*this, Write(/*data=*/_))
+        .WillByDefault(
+            Invoke(std::bind_front(&CoReturn<size_t>, net::ERR_ABORTED)));
   }
 
   ~TransportMock() { Destroy(); }
@@ -24,7 +27,12 @@ class TransportMock : public Transport {
   MOCK_METHOD(promise<void>, Open, (const Handlers& handlers), (override));
   MOCK_METHOD(void, Close, (), (override));
   MOCK_METHOD(int, Read, (std::span<char> data), (override));
-  MOCK_METHOD(promise<size_t>, Write, (std::span<const char> data), (override));
+
+  MOCK_METHOD(boost::asio::awaitable<size_t>,
+              Write,
+              (std::vector<char> data),
+              (override));
+
   MOCK_METHOD(std::string, GetName, (), (const override));
   MOCK_METHOD(bool, IsMessageOriented, (), (const override));
   MOCK_METHOD(bool, IsConnected, (), (const override));

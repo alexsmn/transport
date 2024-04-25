@@ -15,10 +15,12 @@ class UdpSocket {
 
   virtual ~UdpSocket() = default;
 
-  virtual boost::asio::awaitable<void> Open() = 0;
-  virtual boost::asio::awaitable<void> Close() = 0;
-  virtual boost::asio::awaitable<size_t> SendTo(Endpoint endpoint,
-                                                Datagram datagram) = 0;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open() = 0;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Close() = 0;
+
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> SendTo(
+      Endpoint endpoint,
+      Datagram datagram) = 0;
 };
 
 struct UdpSocketContext {

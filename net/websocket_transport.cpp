@@ -20,7 +20,7 @@ class WebSocketTransport::ConnectionCore
   void Open(const Handlers& handlers);
   void Close();
 
-  promise<size_t> Write(const void* data, size_t len);
+  boost::asio::awaitable<size_t> Write(std::vector<char> data);
 
  private:
   void StartReading();
@@ -84,17 +84,17 @@ void WebSocketTransport::ConnectionCore::StartReading() {
   });
 }
 
-promise<size_t> WebSocketTransport::ConnectionCore::Write(const void* data,
-                                                          size_t len) {
-  write_queue_.emplace(static_cast<const char*>(data),
-                       static_cast<const char*>(data) + len);
+boost::asio::awaitable<size_t> WebSocketTransport::ConnectionCore::Write(
+    std::vector<char> data) {
+  auto data_size = data.size();
+  write_queue_.emplace(std::move(data));
 
   if (!writing_) {
     StartWriting();
   }
 
   // TODO: Proper async.
-  return make_resolved_promise(len);
+  co_return data_size;
 }
 
 void WebSocketTransport::ConnectionCore::StartWriting() {
@@ -139,7 +139,7 @@ class WebSocketTransport::Connection : public Transport {
   virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return OK; }
-  virtual promise<size_t> Write(std::span<const char> data) override;
+  virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
   virtual std::string GetName() const override { return "WebSocket"; }
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return true; }
@@ -176,10 +176,10 @@ void WebSocketTransport::Connection::Close() {
   core_->Close();
 }
 
-promise<size_t> WebSocketTransport::Connection::Write(
-    std::span<const char> data) {
+boost::asio::awaitable<size_t> WebSocketTransport::Connection::Write(
+    std::vector<char> data) {
   assert(opened_);
-  return core_->Write(data.data(), data.size());
+  return core_->Write(std::move(data));
 }
 
 // WebSocketTransport::Core

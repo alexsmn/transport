@@ -45,15 +45,17 @@ int QueueTransport::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-promise<size_t> QueueTransport::Write(std::span<const char> data) {
-  assert(!data.empty());
+boost::asio::awaitable<size_t> QueueTransport::Write(std::vector<char> data) {
+  if (data.empty()) {
+    throw net_exception{ERR_INVALID_ARGUMENT};
+  }
 
   if (!connected_ || !peer_) {
-    return make_error_promise<size_t>(net::ERR_FAILED);
+    throw net_exception{net::ERR_FAILED};
   }
 
   peer_->read_queue_.emplace(data.begin(), data.end());
-  return make_resolved_promise(data.size());
+  co_return data.size();
 }
 
 void QueueTransport::Exec() {

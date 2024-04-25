@@ -84,7 +84,7 @@ bool DeferredTransport::IsConnected() const {
 
 promise<void> DeferredTransport::Open(const Handlers& handlers) {
   return DispatchAsPromise(core_->executor_,
-                         std::bind_front(&Core::Open, core_, handlers));
+                           std::bind_front(&Core::Open, core_, handlers));
 }
 
 promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
@@ -197,9 +197,13 @@ int DeferredTransport::Read(std::span<char> data) {
                         : ERR_ACCESS_DENIED;
 }
 
-promise<size_t> DeferredTransport::Write(std::span<const char> data) {
-  return core_->opened_ ? core_->underlying_transport_->Write(data)
-                        : make_error_promise<size_t>(ERR_ACCESS_DENIED);
+boost::asio::awaitable<size_t> DeferredTransport::Write(
+    std::vector<char> data) {
+  if (!core_->opened_) {
+    throw net_exception{ERR_ACCESS_DENIED};
+  }
+
+  return core_->underlying_transport_->Write(std::move(data));
 }
 
 std::string DeferredTransport::GetName() const {

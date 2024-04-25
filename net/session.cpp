@@ -9,6 +9,8 @@
 #include "net/transport_util.h"
 
 #include <algorithm>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <cassert>
 
 using namespace std::chrono_literals;
@@ -253,9 +255,9 @@ int Session::Read(std::span<char> data) {
   return ERR_NOT_IMPLEMENTED;
 }
 
-promise<size_t> Session::Write(std::span<const char> data) {
+boost::asio::awaitable<size_t> Session::Write(std::vector<char> data) {
   Send(data.data(), data.size());
-  return make_resolved_promise<size_t>(data.size());
+  co_return data.size();
 }
 
 std::string Session::GetName() const {
@@ -582,7 +584,11 @@ void Session::SendInternal(const void* data, size_t size) {
   num_messages_sent_++;
 
   // Ignores result.
-  transport()->Write({static_cast<const char*>(data), size});
+  boost::asio::co_spawn(executor_,
+                        transport()->Write(std::vector<char>{
+                            static_cast<const char*>(data),
+                            static_cast<const char*>(data) + size}),
+                        boost::asio::detached);
 }
 
 void Session::SendAck(uint16_t recv_id) {
@@ -628,7 +634,12 @@ void Session::SendClose() {
   num_bytes_sent_ += msg.size;
   num_messages_sent_++;
 
-  transport_->Write({reinterpret_cast<const char*>(msg.data), msg.size});
+  boost::asio::co_spawn(
+      executor_,
+      transport_->Write(std::vector<char>{
+          reinterpret_cast<const char*>(msg.data),
+          reinterpret_cast<const char*>(msg.data) + msg.size}),
+      boost::asio::detached);
 }
 
 void Session::SendDataMessage(const SendingMessage& message) {
@@ -702,7 +713,13 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
     msg.WriteT(session_id);
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
-    transport()->Write({reinterpret_cast<const char*>(msg.data), msg.size});
+
+    boost::asio::co_spawn(
+        executor_,
+        transport()->Write(std::vector<char>{
+            reinterpret_cast<const char*>(msg.data),
+            reinterpret_cast<const char*>(msg.data) + msg.size}),
+        boost::asio::detached);
   }
 
   // Send pending messages. Shall be sent after create session response.
@@ -755,13 +772,20 @@ void Session::OnRestore(const SessionID& session_id) {
     msg.WriteLong(error);
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
+
     // Ignores promise.
-    transport->Write({reinterpret_cast<const char*>(msg.data), msg.size});
+    boost::asio::co_spawn(
+        executor_,
+        transport->Write(std::vector<char>{
+            reinterpret_cast<const char*>(msg.data),
+            reinterpret_cast<const char*>(msg.data) + msg.size}),
+        boost::asio::detached);
   }
 
   // Send pending messages. Shall be sent after restore session response.
-  if (new_session)
+  if (new_session) {
     new_session->SendPossible();
+  }
 }
 
 }  // namespace net

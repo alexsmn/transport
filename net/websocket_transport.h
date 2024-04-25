@@ -8,7 +8,7 @@ class io_context;
 
 namespace net {
 
-class WebSocketTransport : public Transport {
+class WebSocketTransport final : public Transport {
  public:
   WebSocketTransport(boost::asio::io_context& io_context,
                      std::string host,
@@ -18,10 +18,13 @@ class WebSocketTransport : public Transport {
   virtual promise<void> Open(const Handlers& handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return 0; }
-  virtual promise<size_t> Write(std::span<const char> data) override {
-    return make_resolved_promise<size_t>(data.size());
+
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override {
+    co_return data.size();
   }
-  virtual std::string GetName() const override { return "Websocket"; }
+
+  virtual std::string GetName() const override { return "WebSocket"; }
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return false; }
   virtual bool IsActive() const override { return false; }
