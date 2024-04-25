@@ -177,7 +177,7 @@ void TransportTest::SetUp() {
 
 void TransportTest::TearDown() {}
 
-TEST_P(TransportTest, Test) {
+TEST_P(TransportTest, StressTest) {
   // Connect all.
 
   server_.Init().get();
