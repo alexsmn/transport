@@ -56,16 +56,30 @@ inline promise<void> make_all_promise(C&& container) {
 
 template <class E, class T>
 inline promise<T> to_promise(const E& executor, boost::asio::awaitable<T> aw) {
-  promise<size_t> p;
-  boost::asio::co_spawn(
-      executor, std::move(aw),
-      [p](std::exception_ptr e, size_t bytes_written) mutable {
-        if (e) {
-          p.reject(e);
-        } else {
-          p.resolve(bytes_written);
-        }
-      });
+  promise<T> p;
+  boost::asio::co_spawn(executor, std::move(aw),
+                        [p](std::exception_ptr e, T result) mutable {
+                          if (e) {
+                            p.reject(e);
+                          } else {
+                            p.resolve(result);
+                          }
+                        });
+  return p;
+}
+
+template <class E>
+inline promise<void> to_promise(const E& executor,
+                                boost::asio::awaitable<void> aw) {
+  promise<void> p;
+  boost::asio::co_spawn(executor, std::move(aw),
+                        [p](std::exception_ptr e) mutable {
+                          if (e) {
+                            p.reject(e);
+                          } else {
+                            p.resolve();
+                          }
+                        });
   return p;
 }
 

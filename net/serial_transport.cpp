@@ -33,7 +33,7 @@ class SerialTransport::SerialPortCore final
                  const Options& options);
 
   // Core
-  virtual promise<void> Open(const Handlers& handlers) override;
+  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
 
  protected:
   virtual void Cleanup() override;
@@ -51,13 +51,15 @@ SerialTransport::SerialPortCore::SerialPortCore(
       device_{std::move(device)},
       options_{options} {}
 
-promise<void> SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
+boost::asio::awaitable<void> SerialTransport::SerialPortCore::Open(
+    Handlers handlers) {
   boost::system::error_code ec;
   io_object_.open(device_, ec);
   if (ec) {
-    if (handlers.on_close)
+    if (handlers.on_close) {
       handlers.on_close(ERR_FAILED);
-    return make_error_promise(ERR_FAILED);
+    }
+    throw net_exception{ERR_FAILED};
   }
 
   if (!SetOption(io_object_, options_.baud_rate) ||
@@ -66,20 +68,21 @@ promise<void> SerialTransport::SerialPortCore::Open(const Handlers& handlers) {
       !SetOption(io_object_, options_.stop_bits) ||
       !SetOption(io_object_, options_.character_size)) {
     io_object_.close(ec);
-    if (handlers.on_close)
+    if (handlers.on_close) {
       handlers.on_close(ERR_FAILED);
-    return make_error_promise(ERR_FAILED);
+    }
+    throw net_exception{ERR_FAILED};
   }
 
   connected_ = true;
 
-  handlers_ = handlers;
-  if (handlers_.on_open)
+  handlers_ = std::move(handlers);
+
+  if (handlers_.on_open) {
     handlers_.on_open();
+  }
 
   auto _ = StartReading();
-
-  return make_resolved_promise();
 }
 
 void SerialTransport::SerialPortCore::Cleanup() {
@@ -105,7 +108,7 @@ promise<void> SerialTransport::Open(const Handlers& handlers) {
   core_ =
       std::make_shared<SerialPortCore>(executor_, logger_, device_, options_);
 
-  return core_->Open(handlers);
+  return to_promise(core_->GetExecutor(), core_->Open(handlers));
 }
 
 std::string SerialTransport::GetName() const {

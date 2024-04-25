@@ -22,7 +22,7 @@ class AsioTcpTransport::ActiveCore final
   ActiveCore(std::shared_ptr<const Logger> logger, Socket socket);
 
   // Core
-  virtual promise<void> Open(const Handlers& handlers) override;
+  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
@@ -57,38 +57,32 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
   connected_ = true;
 }
 
-promise<void> AsioTcpTransport::ActiveCore::Open(const Handlers& handlers) {
-  return DispatchAsPromise(
-      io_object_.get_executor(), [this, ref = shared_from_this(), handlers] {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::Open(
+    Handlers handlers) {
+  auto ref = shared_from_this();
 
-        if (connected_) {
-          handlers_ = handlers;
-          boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
-                                boost::asio::detached);
-          return make_resolved_promise();
-        }
+  if (connected_) {
+    handlers_ = handlers;
+    boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+                          boost::asio::detached);
+    co_return;
+  }
 
-        logger_->WriteF(LogSeverity::Normal, "Open");
+  logger_->WriteF(LogSeverity::Normal, "Open");
 
-        auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-        handlers_ = std::move(promise_handlers);
+  handlers_ = std::move(handlers);
 
-        boost::asio::co_spawn(io_object_.get_executor(), StartResolving(),
-                              boost::asio::detached);
-
-        return p;
-      });
+  co_await StartResolving();
 }
 
 boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
+  auto ref = shared_from_this();
+
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
 
   auto [error, iterator] = co_await resolver_.async_resolve(
       host_, service_, boost::asio::as_tuple(boost::asio::use_awaitable));
-
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (closed_) {
     co_return;
@@ -104,9 +98,7 @@ boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
 
   logger_->Write(LogSeverity::Normal, "DNS resolution completed");
 
-  boost::asio::co_spawn(io_object_.get_executor(),
-                        StartConnecting(std::move(iterator)),
-                        boost::asio::detached);
+  co_await StartConnecting(std::move(iterator));
 }
 
 boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
@@ -176,11 +168,13 @@ class AsioTcpTransport::PassiveCore final
   int GetLocalPort() const;
 
   // Core
+  virtual Executor GetExecutor() override { return acceptor_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
-  virtual promise<void> Open(const Handlers& handlers) override;
+  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual promise<size_t> Write(std::span<const char> data) override;
+  virtual boost::asio::awaitable<size_t> Write(
+      std::span<const char> data) override;
 
  private:
   using Socket = boost::asio::ip::tcp::socket;
@@ -222,21 +216,15 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-promise<void> AsioTcpTransport::PassiveCore::Open(const Handlers& handlers) {
-  return DispatchAsPromise(
-      acceptor_.get_executor(), [this, ref = shared_from_this(), handlers] {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::Open(
+    Handlers handlers) {
+  auto ref = shared_from_this();
 
-        logger_->WriteF(LogSeverity::Normal, "Open");
+  logger_->WriteF(LogSeverity::Normal, "Open");
 
-        auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-        handlers_ = std::move(promise_handlers);
+  handlers_ = std::move(handlers);
 
-        boost::asio::co_spawn(acceptor_.get_executor(), StartResolving(),
-                              boost::asio::detached);
-
-        return p;
-      });
+  co_await StartResolving();
 }
 
 boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
@@ -333,9 +321,9 @@ int AsioTcpTransport::PassiveCore::Read(std::span<char> data) {
   return ERR_ACCESS_DENIED;
 }
 
-promise<size_t> AsioTcpTransport::PassiveCore::Write(
+boost::asio::awaitable<size_t> AsioTcpTransport::PassiveCore::Write(
     std::span<const char> data) {
-  return make_error_promise<size_t>(ERR_ACCESS_DENIED);
+  throw net_exception{ERR_ACCESS_DENIED};
 }
 
 boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::StartAccepting() {
@@ -426,7 +414,7 @@ AsioTcpTransport::~AsioTcpTransport() {
 }
 
 promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
-  return core_->Open(handlers);
+  return to_promise(core_->GetExecutor(), core_->Open(handlers));
 }
 
 int AsioTcpTransport::GetLocalPort() const {

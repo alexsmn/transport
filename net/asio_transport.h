@@ -39,13 +39,15 @@ class AsioTransport::Core {
  public:
   virtual ~Core() {}
 
+  virtual Executor GetExecutor() = 0;
+
   virtual bool IsConnected() const = 0;
 
-  virtual promise<void> Open(const Handlers& handlers) = 0;
+  virtual boost::asio::awaitable<void> Open(Handlers handlers) = 0;
   virtual void Close() = 0;
 
   virtual int Read(std::span<char> data) = 0;
-  virtual promise<size_t> Write(std::span<const char> data) = 0;
+  virtual boost::asio::awaitable<size_t> Write(std::span<const char> data) = 0;
 };
 
 // AsioTransport::Core
@@ -55,10 +57,13 @@ class AsioTransport::IoCore : public Core,
                               public std::enable_shared_from_this<Core> {
  public:
   // Core
+  virtual Executor GetExecutor() override { return io_object_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual promise<size_t> Write(std::span<const char> data) override;
+
+  virtual boost::asio::awaitable<size_t> Write(
+      std::span<const char> data) override;
 
  protected:
   IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
@@ -136,27 +141,19 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 }
 
 template <class IoObject>
-inline promise<size_t> AsioTransport::IoCore<IoObject>::Write(
+inline boost::asio::awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
     std::span<const char> data) {
-  promise<size_t> p;
+  auto ref = shared_from_this();
 
-  boost::asio::dispatch(
-      io_object_.get_executor(),
-      [this, ref = shared_from_this(), p,
-       copied_data = std::vector(data.begin(), data.end())]() mutable {
-        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        write_buffer_.insert(write_buffer_.end(), copied_data.begin(),
-                             copied_data.end());
+  write_buffer_.insert(write_buffer_.end(), data.begin(), data.end());
 
-        boost::asio::co_spawn(io_object_.get_executor(), StartWriting(),
-                              boost::asio::detached);
+  boost::asio::co_spawn(io_object_.get_executor(), StartWriting(),
+                        boost::asio::detached);
 
-        // TODO: Handle properly.
-        p.resolve(copied_data.size());
-      });
-
-  return p;
+  // TODO: Handle properly.
+  co_return data.size();
 }
 
 template <class IoObject>
@@ -282,7 +279,7 @@ inline int AsioTransport::Read(std::span<char> data) {
 }
 
 inline promise<size_t> AsioTransport::Write(std::span<const char> data) {
-  return core_->Write(data);
+  return to_promise(core_->GetExecutor(), core_->Write(data));
 }
 
 inline bool AsioTransport::IsMessageOriented() const {

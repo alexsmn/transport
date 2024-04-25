@@ -13,14 +13,31 @@ using namespace testing;
 
 namespace {
 
+inline boost::asio::awaitable<void> CoReturnVoid() {
+  co_return;
+}
+
+template <class T>
+inline boost::asio::awaitable<T> CoReturn(T value) {
+  co_return value;
+}
+
 class MockUdpSocket : public UdpSocket {
  public:
-  MOCK_METHOD(void, Open, (), (override));
-  MOCK_METHOD(void, Close, (), (override));
+  MockUdpSocket() {
+    ON_CALL(*this, Open()).WillByDefault(Invoke(&CoReturnVoid));
+    ON_CALL(*this, Close()).WillByDefault(Invoke(&CoReturnVoid));
+
+    ON_CALL(*this, SendTo(/*endpoint=*/_, /*datagram=*/_))
+        .WillByDefault(Invoke(std::bind_front(&CoReturn<size_t>, 0)));
+  }
+
+  MOCK_METHOD(boost::asio::awaitable<void>, Open, (), (override));
+  MOCK_METHOD(boost::asio::awaitable<void>, Close, (), (override));
 
   MOCK_METHOD(boost::asio::awaitable<size_t>,
               SendTo,
-              (const Endpoint& endpoint, Datagram datagram),
+              (Endpoint endpoint, Datagram datagram),
               (override));
 };
 
@@ -58,9 +75,9 @@ void AsioUdpTransportTest::OpenTransport(bool active) {
   transport_ = std::make_unique<AsioUdpTransport>(
       boost::asio::system_executor{}, NullLogger::GetInstance(),
       udp_socket_factory,
-      /*host*/ std::string{},
-      /*service*/ std::string{},
-      /*active*/ active);
+      /*host=*/std::string{},
+      /*service=*/std::string{},
+      /*active=*/active);
 
   EXPECT_CALL(*socket, Open());
   transport_->Open(transport_handlers_.AsHandlers());
@@ -152,6 +169,7 @@ TEST_F(AsioUdpTransportTest,
 
   EXPECT_CALL(accepted_transport_handlers_.on_message, Call(_))
       .WillOnce(Invoke([&] { accepted_transport_->Close(); }));
+
   ReceiveMessage();
 
   EXPECT_CALL(*socket, Close());
