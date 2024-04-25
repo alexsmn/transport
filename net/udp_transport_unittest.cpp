@@ -1,6 +1,7 @@
 #include "net/udp_transport.h"
 
 #include "net/logger.h"
+#include "net/test/coroutine_util.h"
 #include "net/transport_delegate_mock.h"
 #include "net/udp_socket.h"
 
@@ -12,15 +13,6 @@ namespace net {
 using namespace testing;
 
 namespace {
-
-inline boost::asio::awaitable<void> CoReturnVoid() {
-  co_return;
-}
-
-template <class T>
-inline boost::asio::awaitable<T> CoReturn(T value) {
-  co_return value;
-}
 
 class MockUdpSocket : public UdpSocket {
  public:

@@ -22,7 +22,10 @@ class AsioTransport : public Transport {
   // Transport overrides
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual promise<size_t> Write(std::span<const char> data) override;
+
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override;
+
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
 
@@ -43,11 +46,15 @@ class AsioTransport::Core {
 
   virtual bool IsConnected() const = 0;
 
-  virtual boost::asio::awaitable<void> Open(Handlers handlers) = 0;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) = 0;
+
   virtual void Close() = 0;
 
   virtual int Read(std::span<char> data) = 0;
-  virtual boost::asio::awaitable<size_t> Write(std::span<const char> data) = 0;
+
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) = 0;
 };
 
 // AsioTransport::Core
@@ -62,14 +69,14 @@ class AsioTransport::IoCore : public Core,
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  virtual boost::asio::awaitable<size_t> Write(
-      std::span<const char> data) override;
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override;
 
  protected:
   IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
 
-  boost::asio::awaitable<void> StartReading();
-  boost::asio::awaitable<void> StartWriting();
+  [[nodiscard]] boost::asio::awaitable<void> StartReading();
+  [[nodiscard]] boost::asio::awaitable<void> StartWriting();
 
   void ProcessError(Error error);
 
@@ -142,7 +149,7 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 
 template <class IoObject>
 inline boost::asio::awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
-    std::span<const char> data) {
+    std::vector<char> data) {
   auto ref = shared_from_this();
 
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
@@ -278,8 +285,9 @@ inline int AsioTransport::Read(std::span<char> data) {
   return core_->Read(data);
 }
 
-inline promise<size_t> AsioTransport::Write(std::span<const char> data) {
-  return to_promise(core_->GetExecutor(), core_->Write(data));
+inline boost::asio::awaitable<size_t> AsioTransport::Write(
+    std::vector<char> data) {
+  return core_->Write(data);
 }
 
 inline bool AsioTransport::IsMessageOriented() const {

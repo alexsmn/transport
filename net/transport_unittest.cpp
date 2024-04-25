@@ -5,6 +5,8 @@
 
 #include <array>
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
@@ -83,6 +85,21 @@ INSTANTIATE_TEST_SUITE_P(AllTransportTests,
                          testing::Values("TCP;Port=4321" /*,
                                          "UDP;Port=4322"*/));
 
+namespace {
+
+[[nodiscard]] boost::asio::awaitable<void> EchoData(Transport& transport) {
+  for (;;) {
+    std::vector<char> buffer(64);
+    int res = transport.Read(buffer);
+    if (res <= 0) {
+      break;
+    }
+    co_await transport.Write(std::move(buffer));
+  }
+}
+
+}  // namespace
+
 // TransportTest::Server
 
 promise<void> TransportTest::Server::Init() {
@@ -99,20 +116,17 @@ promise<void> TransportTest::Server::Init() {
                       [this, &tr = *tr] {
                         logger_->Write(LogSeverity::Normal,
                                        "Data received. Send echo");
-                        for (;;) {
-                          std::array<char, 64> buffer;
-                          int res = tr.Read(buffer);
-                          if (res <= 0) {
-                            break;
-                          }
-                          tr.Write(std::span{buffer}.subspan(0, res));
-                        }
+                        boost::asio::co_spawn(executor_, EchoData(tr),
+                                              boost::asio::detached);
                       },
                   .on_message =
                       [this, &tr = *tr](std::span<const char> data) {
                         logger_->Write(LogSeverity::Normal,
                                        "Message received. Send echo");
-                        tr.Write(data);
+                        boost::asio::co_spawn(executor_,
+                                              tr.Write(std::vector<char>{
+                                                  data.begin(), data.end()}),
+                                              boost::asio::detached);
                       }});
       }});
 }
@@ -144,7 +158,10 @@ promise<void> TransportTest::Client::Run() {
                   [this, received_message](std::span<const char> data) mutable {
                     logger_->Write(LogSeverity::Normal,
                                    "Message received. Send echo");
-                    transport_->Write(data);
+                    boost::asio::co_spawn(executor_,
+                                          transport_->Write(std::vector<char>{
+                                              data.begin(), data.end()}),
+                                          boost::asio::detached);
                     if (!std::ranges::equal(data, kMessage)) {
                       throw std::runtime_error{
                           "Received message is not equal to the sent one."};
@@ -153,7 +170,10 @@ promise<void> TransportTest::Client::Run() {
                   }})
       .then([this] {
         logger_->Write(LogSeverity::Normal, "Send message");
-        transport_->Write(kMessage);
+        boost::asio::co_spawn(executor_,
+                              transport_->Write(std::vector<char>{
+                                  std::begin(kMessage), std::end(kMessage)}),
+                              boost::asio::detached);
       });
   return received_message.then([this] { transport_->Close(); });
 }

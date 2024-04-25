@@ -29,7 +29,7 @@ class InprocessTransportHost::Client : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual promise<size_t> Write(std::span<const char> data) override;
+  virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
 
   void Receive(std::span<const char> data) {
     // Must be opened.
@@ -105,8 +105,9 @@ class InprocessTransportHost::Server : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual promise<size_t> Write(std::span<const char> data) override {
-    return make_error_promise<size_t>(ERR_ACCESS_DENIED);
+  virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override {
+    throw net_exception{ERR_ACCESS_DENIED};
   }
 
   AcceptedClient* AcceptClient(Client& client);
@@ -170,9 +171,10 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual promise<size_t> Write(std::span<const char> data) override {
+  virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override {
     client_.Receive(data);
-    return make_resolved_promise<size_t>(data.size());
+    co_return data.size();
   }
 
   void OnClientClosed() {
@@ -236,17 +238,14 @@ void InprocessTransportHost::Client::Close() {
   }
 }
 
-promise<size_t> InprocessTransportHost::Client::Write(
-    std::span<const char> data) {
-  assert(accepted_client_);
-
+boost::asio::awaitable<size_t> InprocessTransportHost::Client::Write(
+    std::vector<char> data) {
   if (!accepted_client_) {
-    return make_error_promise<size_t>(ERR_CONNECTION_CLOSED);
+    throw net_exception{ERR_CONNECTION_CLOSED};
   }
 
   accepted_client_->Receive(data);
-
-  return make_resolved_promise<size_t>(data.size());
+  co_return data.size();
 }
 
 // InprocessTransportHost::Server

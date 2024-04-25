@@ -83,7 +83,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   void Close();
 
   int ReadMessage(void* data, size_t len);
-  promise<size_t> WriteMessage(std::span<const char> data);
+  boost::asio::awaitable<size_t> WriteMessage(std::vector<char> data);
 
   // Child handlers.
   void OnChildTransportOpened();
@@ -143,7 +143,7 @@ bool MessageReaderTransport::IsActive() const {
 
 net::promise<void> MessageReaderTransport::Open(const Handlers& handlers) {
   return DispatchAsPromise(core_->executor_,
-                         std::bind_front(&Core::Open, core_, handlers));
+                           std::bind_front(&Core::Open, core_, handlers));
 }
 
 void MessageReaderTransport::Close() {
@@ -254,16 +254,20 @@ int MessageReaderTransport::Core::ReadMessage(void* data, size_t len) {
   return size;
 }
 
-promise<size_t> MessageReaderTransport::Write(std::span<const char> data) {
-  return core_->WriteMessage(data);
+boost::asio::awaitable<size_t> MessageReaderTransport::Write(
+    std::vector<char> data) {
+  return core_->WriteMessage(std::move(data));
 }
 
-promise<size_t> MessageReaderTransport::Core::WriteMessage(
-    std::span<const char> data) {
+boost::asio::awaitable<size_t> MessageReaderTransport::Core::WriteMessage(
+    std::vector<char> data) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  return child_transport_ ? child_transport_->Write(data)
-                          : make_error_promise<size_t>(ERR_INVALID_HANDLE);
+  if (!child_transport_) {
+    throw net_exception(ERR_INVALID_HANDLE);
+  }
+
+  return child_transport_->Write(std::move(data));
 }
 
 std::string MessageReaderTransport::GetName() const {
