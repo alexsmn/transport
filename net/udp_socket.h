@@ -15,9 +15,9 @@ class UdpSocket {
 
   virtual ~UdpSocket() = default;
 
-  virtual void Open() = 0;
-  virtual void Close() = 0;
-  virtual boost::asio::awaitable<size_t> SendTo(const Endpoint& endpoint,
+  virtual boost::asio::awaitable<void> Open() = 0;
+  virtual boost::asio::awaitable<void> Close() = 0;
+  virtual boost::asio::awaitable<size_t> SendTo(Endpoint endpoint,
                                                 Datagram datagram) = 0;
 };
 

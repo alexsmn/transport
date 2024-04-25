@@ -16,13 +16,12 @@ class UdpSocketImpl : private UdpSocketContext,
   ~UdpSocketImpl();
 
   // UdpSocket
-  virtual void Open() override;
-  virtual void Close() override;
-  virtual boost::asio::awaitable<size_t> SendTo(const Endpoint& endpoint,
+  virtual boost::asio::awaitable<void> Open() override;
+  virtual boost::asio::awaitable<void> Close() override;
+  virtual boost::asio::awaitable<size_t> SendTo(Endpoint endpoint,
                                                 Datagram datagram) override;
 
  private:
-  boost::asio::awaitable<void> StartResolving();
   boost::asio::awaitable<void> StartReading();
   boost::asio::awaitable<void> StartWriting();
 
@@ -53,11 +52,7 @@ inline UdpSocketImpl::~UdpSocketImpl() {
   assert(closed_);
 }
 
-inline void UdpSocketImpl::Open() {
-  boost::asio::co_spawn(executor_, StartResolving(), boost::asio::detached);
-}
-
-inline boost::asio::awaitable<void> UdpSocketImpl::StartResolving() {
+inline boost::asio::awaitable<void> UdpSocketImpl::Open() {
   auto ref = shared_from_this();
 
   auto [error, iterator] = co_await resolver_.async_resolve(
@@ -71,8 +66,9 @@ inline boost::asio::awaitable<void> UdpSocketImpl::StartResolving() {
   }
 
   if (error) {
-    if (error != boost::asio::error::operation_aborted)
+    if (error != boost::asio::error::operation_aborted) {
       ProcessError(error);
+    }
     co_return;
   }
 
@@ -110,30 +106,29 @@ inline boost::asio::awaitable<void> UdpSocketImpl::StartResolving() {
   }
 }
 
-inline void UdpSocketImpl::Close() {
-  boost::asio::dispatch(socket_.get_executor(),
-                        [this, ref = shared_from_this()] {
-                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+inline boost::asio::awaitable<void> UdpSocketImpl::Close() {
+  auto ref = shared_from_this();
 
-                          if (closed_)
-                            return;
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-                          closed_ = true;
-                          connected_ = false;
-                          writing_ = false;
-                          write_queue_ = {};
-                          socket_.close();
-                        });
+  if (closed_) {
+    co_return;
+  }
+
+  closed_ = true;
+  connected_ = false;
+  writing_ = false;
+  write_queue_ = {};
+  socket_.close();
 }
 
-inline boost::asio::awaitable<size_t> UdpSocketImpl::SendTo(
-    const Endpoint& endpoint,
-    Datagram datagram) {
+inline boost::asio::awaitable<size_t> UdpSocketImpl::SendTo(Endpoint endpoint,
+                                                            Datagram datagram) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   auto size = datagram.size();
 
-  write_queue_.emplace(endpoint, std::move(datagram));
+  write_queue_.emplace(std::move(endpoint), std::move(datagram));
 
   boost::asio::co_spawn(socket_.get_executor(), StartWriting(),
                         boost::asio::detached);

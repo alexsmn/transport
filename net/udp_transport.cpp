@@ -28,11 +28,14 @@ class AsioUdpTransport::UdpActiveCore
                 std::string service);
 
   // Core
+  virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
-  virtual promise<void> Open(const Handlers& handlers) override;
+  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual promise<size_t> Write(std::span<const char> data) override;
+
+  virtual boost::asio::awaitable<size_t> Write(
+      std::span<const char> data) override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -46,6 +49,8 @@ class AsioUdpTransport::UdpActiveCore
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
   const std::string service_;
+
+  DFAKE_MUTEX(mutex_);
 
   std::shared_ptr<UdpSocket> socket_;
 
@@ -65,14 +70,13 @@ AsioUdpTransport::UdpActiveCore::UdpActiveCore(
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-promise<void> AsioUdpTransport::UdpActiveCore::Open(const Handlers& handlers) {
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-  handlers_ = std::move(promise_handlers);
+boost::asio::awaitable<void> AsioUdpTransport::UdpActiveCore::Open(
+    Handlers handlers) {
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
+  handlers_ = handlers;
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
-  socket_->Open();
-
-  return p;
+  return socket_->Open();
 }
 
 void AsioUdpTransport::UdpActiveCore::Close() {
@@ -88,11 +92,10 @@ int AsioUdpTransport::UdpActiveCore::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-promise<size_t> AsioUdpTransport::UdpActiveCore::Write(
+boost::asio::awaitable<size_t> AsioUdpTransport::UdpActiveCore::Write(
     std::span<const char> data) {
   std::vector<char> datagram(data.begin(), data.end());
-  return to_promise(executor_,
-                    socket_->SendTo(peer_endpoint_, std::move(datagram)));
+  return socket_->SendTo(peer_endpoint_, std::move(datagram));
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
@@ -196,11 +199,14 @@ class AsioUdpTransport::UdpPassiveCore final
   ~UdpPassiveCore();
 
   // Core
+  virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
-  virtual promise<void> Open(const Handlers& handlers) override;
+  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual promise<size_t> Write(std::span<const char> data) override;
+
+  virtual boost::asio::awaitable<size_t> Write(
+      std::span<const char> data) override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -252,16 +258,13 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
 }
 
-promise<void> AsioUdpTransport::UdpPassiveCore::Open(const Handlers& handlers) {
+boost::asio::awaitable<void> AsioUdpTransport::UdpPassiveCore::Open(
+    Handlers handlers) {
   logger_->WriteF(LogSeverity::Normal, "Open");
 
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-  handlers_ = std::move(promise_handlers);
-
+  handlers_ = handlers;
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
-  socket_->Open();
-
-  return p;
+  return socket_->Open();
 }
 
 void AsioUdpTransport::UdpPassiveCore::Close() {
@@ -284,11 +287,11 @@ int AsioUdpTransport::UdpPassiveCore::Read(std::span<char> data) {
   return ERR_FAILED;
 }
 
-promise<size_t> AsioUdpTransport::UdpPassiveCore::Write(
+boost::asio::awaitable<size_t> AsioUdpTransport::UdpPassiveCore::Write(
     std::span<const char> data) {
   assert(false);
 
-  return make_error_promise<size_t>(ERR_FAILED);
+  throw net_exception{ERR_FAILED};
 }
 
 promise<size_t> AsioUdpTransport::UdpPassiveCore::InternalWrite(
@@ -532,7 +535,7 @@ AsioUdpTransport::AsioUdpTransport(const Executor& executor,
 }
 
 promise<void> AsioUdpTransport::Open(const Handlers& handlers) {
-  return core_->Open(handlers);
+  return to_promise(core_->GetExecutor(), core_->Open(handlers));
 }
 
 std::string AsioUdpTransport::GetName() const {
