@@ -22,6 +22,7 @@ class UdpSocketImpl : private UdpSocketContext,
                                                 Datagram datagram) override;
 
  private:
+  boost::asio::awaitable<void> StartResolving();
   boost::asio::awaitable<void> StartReading();
   boost::asio::awaitable<void> StartWriting();
 
@@ -53,51 +54,60 @@ inline UdpSocketImpl::~UdpSocketImpl() {
 }
 
 inline void UdpSocketImpl::Open() {
-  Resolver::query query{host_, service_};
-  resolver_.async_resolve(query, [this, ref = shared_from_this()](
-                                     const boost::system::error_code& error,
-                                     Resolver::iterator iterator) {
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  boost::asio::co_spawn(executor_, StartResolving(), boost::asio::detached);
+}
 
-    if (closed_)
-      return;
+inline boost::asio::awaitable<void> UdpSocketImpl::StartResolving() {
+  auto ref = shared_from_this();
 
-    if (error) {
-      if (error != boost::asio::error::operation_aborted)
-        ProcessError(error);
-      return;
-    }
+  auto [error, iterator] = co_await resolver_.async_resolve(
+      /*query=*/{host_, service_},
+      boost::asio::as_tuple(boost::asio::use_awaitable));
 
-    boost::system::error_code ec = boost::asio::error::fault;
-    for (Resolver::iterator end; iterator != end; ++iterator) {
-      socket_.open(iterator->endpoint().protocol(), ec);
-      if (ec)
-        continue;
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-      if (active_)
-        break;
+  if (closed_) {
+    co_return;
+  }
 
-      socket_.set_option(Socket::reuse_address{true}, ec);
-      socket_.bind(iterator->endpoint(), ec);
-      if (!ec)
-        break;
+  if (error) {
+    if (error != boost::asio::error::operation_aborted)
+      ProcessError(error);
+    co_return;
+  }
 
-      socket_.close();
-    }
-
+  boost::system::error_code ec = boost::asio::error::fault;
+  for (Resolver::iterator end; iterator != end; ++iterator) {
+    socket_.open(iterator->endpoint().protocol(), ec);
     if (ec) {
-      ProcessError(ec);
-      return;
+      continue;
     }
 
-    connected_ = true;
-    open_handler_(iterator->endpoint());
-
-    if (!active_) {
-      boost::asio::co_spawn(socket_.get_executor(), StartReading(),
-                            boost::asio::detached);
+    if (active_) {
+      break;
     }
-  });
+
+    socket_.set_option(Socket::reuse_address{true}, ec);
+    socket_.bind(iterator->endpoint(), ec);
+    if (!ec) {
+      break;
+    }
+
+    socket_.close();
+  }
+
+  if (ec) {
+    ProcessError(ec);
+    co_return;
+  }
+
+  connected_ = true;
+  open_handler_(iterator->endpoint());
+
+  if (!active_) {
+    boost::asio::co_spawn(socket_.get_executor(), StartReading(),
+                          boost::asio::detached);
+  }
 }
 
 inline void UdpSocketImpl::Close() {
