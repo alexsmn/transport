@@ -23,13 +23,15 @@ class InprocessTransportHost::Client : public Transport {
     return std::format("client:{}", channel_name_);
   }
 
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
 
   virtual void Close() override;
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override;
 
   void Receive(std::span<const char> data) {
     // Must be opened.
@@ -74,15 +76,16 @@ class InprocessTransportHost::Server : public Transport {
     return std::format("server:{}", channel_name_);
   }
 
-  virtual promise<void> Open(const Handlers& handlers) override {
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      return make_error_promise(ERR_ADDRESS_IN_USE);
+      co_return;
     }
 
     if (!host_.listeners_.try_emplace(channel_name_, this).second) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      return make_error_promise(ERR_ADDRESS_IN_USE);
+      throw net_exception{ERR_ADDRESS_IN_USE};
     }
 
     handlers_ = handlers;
@@ -91,8 +94,6 @@ class InprocessTransportHost::Server : public Transport {
     if (auto on_open = std::move(handlers_.on_open)) {
       on_open();
     }
-
-    return make_resolved_promise();
   }
 
   virtual void Close() override {
@@ -130,10 +131,7 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     server_.accepted_clients_.emplace_back(this);
   }
 
-  ~AcceptedClient() {
-    auto i = std::ranges::find(server_.accepted_clients_, this);
-    server_.accepted_clients_.erase(i);
-  }
+  ~AcceptedClient() { std::erase(server_.accepted_clients_, this); }
 
   virtual bool IsMessageOriented() const override { return true; }
 
@@ -145,20 +143,21 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  virtual promise<void> Open(const Handlers& handlers) override {
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      return make_error_promise(ERR_ADDRESS_IN_USE);
+      throw net_exception{ERR_ADDRESS_IN_USE};
     }
 
-    handlers_ = handlers;
+    handlers_ = std::move(handlers);
     opened_ = true;
 
     // Accepted transport doesn't trigger `on_open` by design.
     assert(!handlers_.on_open);
     handlers_.on_open = nullptr;
 
-    return make_resolved_promise();
+    co_return;
   }
 
   virtual void Close() override {
@@ -206,19 +205,20 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
 // InprocessTransportHost::Client
 
-promise<void> InprocessTransportHost::Client::Open(const Handlers& handlers) {
+boost::asio::awaitable<void> InprocessTransportHost::Client::Open(
+    Handlers handlers) {
   if (accepted_client_) {
     handlers.on_close(ERR_ADDRESS_IN_USE);
-    return make_error_promise(ERR_ADDRESS_IN_USE);
+    throw net_exception{ERR_ADDRESS_IN_USE};
   }
 
   auto* server = host_.FindServer(channel_name_);
   if (!server) {
     handlers.on_close(ERR_ADDRESS_INVALID);
-    return make_error_promise(ERR_ADDRESS_IN_USE);
+    throw net_exception{ERR_ADDRESS_IN_USE};
   }
 
-  handlers_ = handlers;
+  handlers_ = std::move(handlers);
 
   accepted_client_ = server->AcceptClient(*this);
 
@@ -226,7 +226,7 @@ promise<void> InprocessTransportHost::Client::Open(const Handlers& handlers) {
     on_open();
   }
 
-  return make_resolved_promise();
+  co_return;
 }
 
 void InprocessTransportHost::Client::Close() {

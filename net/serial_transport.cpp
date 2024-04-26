@@ -82,7 +82,10 @@ boost::asio::awaitable<void> SerialTransport::SerialPortCore::Open(
     handlers_.on_open();
   }
 
-  auto _ = StartReading();
+  boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+                        boost::asio::detached);
+
+  co_return;
 }
 
 void SerialTransport::SerialPortCore::Cleanup() {
@@ -104,11 +107,11 @@ SerialTransport::SerialTransport(const Executor& executor,
       device_{std::move(device)},
       options_{options} {}
 
-promise<void> SerialTransport::Open(const Handlers& handlers) {
+boost::asio::awaitable<void> SerialTransport::Open(Handlers handlers) {
   core_ =
       std::make_shared<SerialPortCore>(executor_, logger_, device_, options_);
 
-  return to_promise(core_->GetExecutor(), core_->Open(handlers));
+  return core_->Open(handlers);
 }
 
 std::string SerialTransport::GetName() const {

@@ -12,8 +12,7 @@ class TransportMock : public Transport {
   TransportMock() {
     using namespace testing;
 
-    ON_CALL(*this, Open(/*handlers=*/_))
-        .WillByDefault(Return(make_resolved_promise()));
+    ON_CALL(*this, Open(/*handlers=*/_)).WillByDefault(Invoke(&CoReturnVoid));
 
     ON_CALL(*this, Write(/*data=*/_))
         .WillByDefault(
@@ -24,7 +23,11 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(void, Destroy, ());
 
-  MOCK_METHOD(promise<void>, Open, (const Handlers& handlers), (override));
+  MOCK_METHOD(boost::asio::awaitable<void>,
+              Open,
+              (Handlers handlers),
+              (override));
+
   MOCK_METHOD(void, Close, (), (override));
   MOCK_METHOD(int, Read, (std::span<char> data), (override));
 

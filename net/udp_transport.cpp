@@ -161,7 +161,9 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   ~AcceptedTransport();
 
   // Transport
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
+
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
@@ -437,20 +439,16 @@ AsioUdpTransport::AcceptedTransport::~AcceptedTransport() {
     core_->RemoveAcceptedTransport(endpoint_);
 }
 
-promise<void> AsioUdpTransport::AcceptedTransport::Open(
-    const Handlers& handlers) {
+boost::asio::awaitable<void> AsioUdpTransport::AcceptedTransport::Open(
+    Handlers handlers) {
   assert(!connected_);
 
   if (connected_ || !core_) {
-    return make_resolved_promise();
+    co_return;
   }
 
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-
   connected_ = true;
-  handlers_ = std::move(promise_handlers);
-
-  return p;
+  handlers_ = std::move(handlers);
 }
 
 void AsioUdpTransport::AcceptedTransport::Close() {
@@ -539,8 +537,8 @@ AsioUdpTransport::AsioUdpTransport(const Executor& executor,
   }
 }
 
-promise<void> AsioUdpTransport::Open(const Handlers& handlers) {
-  return to_promise(core_->GetExecutor(), core_->Open(handlers));
+boost::asio::awaitable<void> AsioUdpTransport::Open(Handlers handlers) {
+  return core_->Open(std::move(handlers));
 }
 
 std::string AsioUdpTransport::GetName() const {

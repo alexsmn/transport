@@ -23,7 +23,9 @@ class NET_EXPORT SerialTransport final : public AsioTransport {
                   const Options& options);
 
   // Transport overrides
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
+
   virtual std::string GetName() const override;
   virtual bool IsActive() const override { return true; }
 

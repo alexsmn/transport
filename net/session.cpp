@@ -119,20 +119,24 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
   }
 
   transport_ = std::move(transport);
+
   if (transport_) {
     cancelation_ = std::make_shared<bool>(false);
-    transport_->Open(
-        {.on_open = [this] { OnTransportOpened(); },
-         .on_close = [this](net::Error error) { OnTransportClosed(error); },
-         .on_data = [this] { OnTransportDataReceived(); },
-         .on_message =
-             [this](std::span<const char> data) {
-               OnTransportMessageReceived(data);
-             },
-         .on_accept =
-             [this](std::unique_ptr<Transport> transport) {
-               return OnTransportAccepted(std::move(transport));
-             }});
+    boost::asio::co_spawn(
+        executor_,
+        transport_->Open(
+            {.on_open = [this] { OnTransportOpened(); },
+             .on_close = [this](net::Error error) { OnTransportClosed(error); },
+             .on_data = [this] { OnTransportDataReceived(); },
+             .on_message =
+                 [this](std::span<const char> data) {
+                   OnTransportMessageReceived(data);
+                 },
+             .on_accept =
+                 [this](std::unique_ptr<Transport> transport) {
+                   return OnTransportAccepted(std::move(transport));
+                 }}),
+        boost::asio::detached);
   }
 }
 
@@ -234,20 +238,16 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-promise<void> Session::Open(const Handlers& handlers) {
+boost::asio::awaitable<void> Session::Open(Handlers handlers) {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
 
   logger_->Write(LogSeverity::Normal, "Opening session");
 
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-
-  handlers_ = std::move(promise_handlers);
+  handlers_ = std::move(handlers);
   state_ = OPENING;
-  StartConnecting();
-
-  return p;
+  co_await StartConnecting();
 }
 
 int Session::Read(std::span<char> data) {
@@ -264,7 +264,7 @@ std::string Session::GetName() const {
   return "Session";
 }
 
-void Session::StartConnecting() {
+boost::asio::awaitable<void> Session::StartConnecting() {
   assert(transport_.get());
   assert(!cancelation_);
 
@@ -275,7 +275,7 @@ void Session::StartConnecting() {
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  transport_->Open(
+  co_await transport_->Open(
       {.on_open = [this] { OnTransportOpened(); },
        .on_close = [this](net::Error error) { OnTransportClosed(error); },
        .on_data = [this] { OnTransportDataReceived(); },

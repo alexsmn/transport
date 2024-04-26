@@ -39,7 +39,8 @@ class Connector {
     AcceptHandler on_accept;
   };
 
-  virtual promise<void> Open(const Handlers& handlers) = 0;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) = 0;
 };
 
 class Sender {

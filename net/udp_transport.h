@@ -17,7 +17,9 @@ class AsioUdpTransport final : public AsioTransport {
                    bool active);
 
   // Transport overrides
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
+
   virtual std::string GetName() const override;
   virtual bool IsActive() const override { return active_; }
   virtual bool IsMessageOriented() const override { return true; }

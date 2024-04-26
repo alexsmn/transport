@@ -79,7 +79,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
 
-  promise<void> Open(const Handlers& handlers);
+  [[nodiscard]] boost::asio::awaitable<void> Open(Handlers handlers);
   void Close();
 
   int ReadMessage(void* data, size_t len);
@@ -141,9 +141,8 @@ bool MessageReaderTransport::IsActive() const {
   return core_->child_transport_->IsActive();
 }
 
-net::promise<void> MessageReaderTransport::Open(const Handlers& handlers) {
-  return DispatchAsPromise(core_->executor_,
-                           std::bind_front(&Core::Open, core_, handlers));
+boost::asio::awaitable<void> MessageReaderTransport::Open(Handlers handlers) {
+  return core_->Open(std::move(handlers));
 }
 
 void MessageReaderTransport::Close() {
@@ -154,20 +153,20 @@ bool MessageReaderTransport::IsMessageOriented() const {
   return true;
 }
 
-promise<void> MessageReaderTransport::Core::Open(const Handlers& handlers) {
+[[nodiscard]] boost::asio::awaitable<void> MessageReaderTransport::Core::Open(
+    Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
   assert(!cancelation_);
 
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-  handlers_ = std::move(promise_handlers);
+  handlers_ = std::move(handlers);
   cancelation_ = std::make_shared<bool>(false);
 
   auto ref = shared_from_this();
 
-  child_transport_->Open(
+  co_await child_transport_->Open(
       {.on_open = boost::asio::bind_executor(
            executor_, std::bind_front(&Core::OnChildTransportOpened, ref)),
        .on_close = boost::asio::bind_executor(
@@ -191,8 +190,6 @@ promise<void> MessageReaderTransport::Core::Open(const Handlers& handlers) {
                OnChildTransportAccepted(std::move(*shared_transport));
              });
            }});
-
-  return p;
 }
 
 void MessageReaderTransport::Core::Close() {
