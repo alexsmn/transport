@@ -8,8 +8,12 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/asio/experimental/channel.hpp>
+#include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
+#include <future>
 #include <gmock/gmock.h>
 #include <ranges>
 
@@ -31,7 +35,10 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
   TransportFactoryImpl transport_factory_{io_context_};
 
   struct Server {
-    promise<void> Init();
+    [[nodiscard]] boost::asio::awaitable<void> Init();
+
+    [[nodiscard]] boost::asio::awaitable<void> StartEchoing(
+        std::unique_ptr<Transport> transport);
 
     Executor executor_;
     TransportFactory& transport_factory_;
@@ -46,7 +53,7 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
   };
 
   struct Client {
-    promise<void> Run();
+    [[nodiscard]] boost::asio::awaitable<void> Run();
 
     std::string name_;
     Executor executor_;
@@ -102,80 +109,84 @@ namespace {
 
 // TransportTest::Server
 
-promise<void> TransportTest::Server::Init() {
+boost::asio::awaitable<void> TransportTest::Server::Init() {
   return transport_->Open(
       {.on_accept = [this](std::unique_ptr<Transport> accepted_transport) {
         logger_->Write(LogSeverity::Normal, "Connected");
-        auto tr = std::shared_ptr<Transport>{accepted_transport.release()};
-        tr->Open({.on_close =
-                      [this, tr](net::Error) mutable {
-                        logger_->Write(LogSeverity::Warning, "Disconnected");
-                        tr.reset();
-                      },
-                  .on_data =
-                      [this, &tr = *tr] {
-                        logger_->Write(LogSeverity::Normal,
-                                       "Data received. Send echo");
-                        boost::asio::co_spawn(executor_, EchoData(tr),
-                                              boost::asio::detached);
-                      },
-                  .on_message =
-                      [this, &tr = *tr](std::span<const char> data) {
-                        logger_->Write(LogSeverity::Normal,
-                                       "Message received. Send echo");
-                        boost::asio::co_spawn(executor_,
-                                              tr.Write(std::vector<char>{
-                                                  data.begin(), data.end()}),
-                                              boost::asio::detached);
-                      }});
+        boost::asio::co_spawn(executor_,
+                              StartEchoing(std::move(accepted_transport)),
+                              boost::asio::detached);
       }});
+}
+
+boost::asio::awaitable<void> TransportTest::Server::StartEchoing(
+    std::unique_ptr<Transport> transport) {
+  co_await transport->Open(
+      {.on_close =
+           [this, &transport](net::Error) mutable {
+             logger_->Write(LogSeverity::Warning, "Disconnected");
+             transport.reset();
+           },
+       .on_data =
+           [this, &transport] {
+             logger_->Write(LogSeverity::Normal, "Data received. Send echo");
+             boost::asio::co_spawn(executor_, EchoData(*transport),
+                                   boost::asio::detached);
+           },
+       .on_message =
+           [this, &transport](std::span<const char> data) {
+             logger_->Write(LogSeverity::Normal, "Message received. Send echo");
+             boost::asio::co_spawn(
+                 executor_,
+                 transport->Write(std::vector<char>{data.begin(), data.end()}),
+                 boost::asio::detached);
+           }});
 }
 
 // TransportTest::Client
 
-promise<void> TransportTest::Client::Run() {
-  promise<void> received_message;
-  transport_
-      ->Open({.on_close =
-                  [this, received_message](Error error) mutable {
-                    logger_->Write(LogSeverity::Normal, "Closed");
-                    received_message.reject(net_exception{error});
-                  },
-              .on_data =
-                  [this, received_message]() mutable {
-                    logger_->Write(LogSeverity::Normal, "Message received");
-                    std::array<char, std::size(kMessage)> data;
-                    if (transport_->Read(data) != std::size(kMessage)) {
-                      throw std::runtime_error{"Received message is too short"};
-                    }
-                    if (!std::ranges::equal(data, kMessage)) {
-                      throw std::runtime_error{
-                          "Received message is not equal to the sent one."};
-                    }
-                    received_message.resolve();
-                  },
-              .on_message =
-                  [this, received_message](std::span<const char> data) mutable {
-                    logger_->Write(LogSeverity::Normal,
-                                   "Message received. Send echo");
-                    boost::asio::co_spawn(executor_,
-                                          transport_->Write(std::vector<char>{
-                                              data.begin(), data.end()}),
-                                          boost::asio::detached);
-                    if (!std::ranges::equal(data, kMessage)) {
-                      throw std::runtime_error{
-                          "Received message is not equal to the sent one."};
-                    }
-                    received_message.resolve();
-                  }})
-      .then([this] {
-        logger_->Write(LogSeverity::Normal, "Send message");
-        boost::asio::co_spawn(executor_,
-                              transport_->Write(std::vector<char>{
-                                  std::begin(kMessage), std::end(kMessage)}),
-                              boost::asio::detached);
-      });
-  return received_message.then([this] { transport_->Close(); });
+boost::asio::awaitable<void> TransportTest::Client::Run() {
+  boost::asio::experimental::channel<void()> received_message{executor_};
+
+  co_await transport_->Open(
+      {.on_close =
+           [this, &received_message](Error error) {
+             logger_->Write(LogSeverity::Normal, "Closed");
+             received_message.try_send();
+           },
+       .on_data =
+           [this, &received_message] {
+             logger_->Write(LogSeverity::Normal, "Message received");
+             std::array<char, std::size(kMessage)> data;
+             if (transport_->Read(data) != std::size(kMessage)) {
+               throw std::runtime_error{"Received message is too short"};
+             }
+             if (!std::ranges::equal(data, kMessage)) {
+               throw std::runtime_error{
+                   "Received message is not equal to the sent one."};
+             }
+             received_message.try_send();
+           },
+       .on_message =
+           [this, &received_message](std::span<const char> data) {
+             logger_->Write(LogSeverity::Normal, "Message received. Send echo");
+             boost::asio::co_spawn(
+                 executor_,
+                 transport_->Write(std::vector<char>{data.begin(), data.end()}),
+                 boost::asio::detached);
+             if (!std::ranges::equal(data, kMessage)) {
+               throw std::runtime_error{
+                   "Received message is not equal to the sent one."};
+             }
+             received_message.try_send();
+           }});
+
+  logger_->Write(LogSeverity::Normal, "Send message");
+
+  co_await transport_->Write(
+      std::vector<char>{std::begin(kMessage), std::end(kMessage)});
+
+  transport_->Close();
 }
 
 // TransportTest
@@ -198,11 +209,26 @@ void TransportTest::SetUp() {
 void TransportTest::TearDown() {}
 
 TEST_P(TransportTest, StressTest) {
-  // Connect all.
+  boost::asio::co_spawn(
+      io_context_,
+      [this]() -> boost::asio::awaitable<void> {
+        // Connect all.
+        co_await server_.Init();
 
-  server_.Init().get();
+        using OpType = decltype(boost::asio::co_spawn(
+            io_context_, clients_[0]->Run(), boost::asio::deferred));
 
-  net::make_all_promise(clients_ | std::views::transform(&Client::Run)).get();
+        std::vector<OpType> ops;
+        for (auto& c : clients_) {
+          ops.emplace_back(boost::asio::co_spawn(io_context_, c->Run(),
+                                                 boost::asio::deferred));
+        }
+        co_await boost::asio::experimental::make_parallel_group(
+            std::move(ops))
+            .async_wait(boost::asio::experimental::wait_for_one_error{},
+                        boost::asio::use_awaitable);
+      },
+      boost::asio::detached);
 }
 
 }  // namespace net

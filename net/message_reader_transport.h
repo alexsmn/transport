@@ -27,10 +27,15 @@ class MessageReaderTransport : public Transport {
   MessageReader& message_reader();
 
   // Transport
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
+
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
+
+  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+      std::vector<char> data) override;
+
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;

@@ -44,6 +44,7 @@ class AsioUdpTransportTest : public Test {
 
   void ExpectTransportAccepted();
 
+  boost::asio::system_executor executor_;
   std::shared_ptr<MockUdpSocket> socket = std::make_shared<MockUdpSocket>();
   UdpSocketContext::OpenHandler open_handler;
   UdpSocketContext::MessageHandler message_handler;
@@ -72,7 +73,11 @@ void AsioUdpTransportTest::OpenTransport(bool active) {
       /*active=*/active);
 
   EXPECT_CALL(*socket, Open());
-  transport_->Open(transport_handlers_.AsHandlers());
+
+  boost::asio::co_spawn(executor_,
+                        transport_->Open(transport_handlers_.AsHandlers()),
+                        boost::asio::detached);
+
   EXPECT_FALSE(transport_->IsActive());
   EXPECT_FALSE(transport_->IsConnected());
 
@@ -91,8 +96,13 @@ void AsioUdpTransportTest::ReceiveMessage() {
 void AsioUdpTransportTest::ExpectTransportAccepted() {
   EXPECT_CALL(transport_handlers_.on_accept, Call(_))
       .WillOnce(Invoke([&](std::unique_ptr<Transport> t) {
-        t->Open(accepted_transport_handlers_.AsHandlers());
         accepted_transport_ = std::move(t);
+
+        boost::asio::co_spawn(executor_,
+                              accepted_transport_->Open(
+                                  accepted_transport_handlers_.AsHandlers()),
+                              boost::asio::detached);
+
         return net::OK;
       }));
 }

@@ -17,7 +17,9 @@ class NET_EXPORT PipeTransport final : public Transport {
   void Init(const std::wstring& name, bool server);
 
   // Transport overrides.
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
+
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 

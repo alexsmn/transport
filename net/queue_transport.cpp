@@ -16,8 +16,9 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-promise<void> QueueTransport::Open(const Handlers& handlers) {
-  handlers_ = handlers;
+[[nodiscard]] boost::asio::awaitable<void> QueueTransport::Open(
+    Handlers handlers) {
+  handlers_ = std::move(handlers);
 
   if (active_) {
     assert(peer_);
@@ -32,7 +33,7 @@ promise<void> QueueTransport::Open(const Handlers& handlers) {
     on_open();
   }
 
-  return make_resolved_promise();
+  co_return;
 }
 
 void QueueTransport::Close() {

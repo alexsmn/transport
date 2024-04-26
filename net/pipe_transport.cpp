@@ -22,7 +22,7 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-promise<void> PipeTransport::Open(const Handlers& handlers) {
+boost::asio::awaitable<void> PipeTransport::Open(Handlers handlers) {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
   HANDLE handle;
@@ -38,7 +38,7 @@ promise<void> PipeTransport::Open(const Handlers& handlers) {
 
   if (handle == INVALID_HANDLE_VALUE) {
     handlers.on_close(ERR_FAILED);
-    return make_error_promise(ERR_FAILED);
+    throw net_exception{ERR_FAILED};
   }
 
   if (server_) {
@@ -47,7 +47,7 @@ promise<void> PipeTransport::Open(const Handlers& handlers) {
       if (error != ERROR_PIPE_LISTENING) {
         CloseHandle(handle);
         handlers.on_close(ERR_FAILED);
-        return make_error_promise(ERR_FAILED);
+        throw net_exception{ERR_FAILED};
       }
     }
   }
@@ -63,7 +63,7 @@ promise<void> PipeTransport::Open(const Handlers& handlers) {
     on_open();
   }
 
-  return make_resolved_promise();
+  co_return;
 }
 
 void PipeTransport::Close() {

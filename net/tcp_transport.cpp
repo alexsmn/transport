@@ -62,9 +62,11 @@ boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::Open(
   auto ref = shared_from_this();
 
   if (connected_) {
-    handlers_ = handlers;
+    handlers_ = std::move(handlers);
+
     boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
                           boost::asio::detached);
+
     co_return;
   }
 
@@ -136,22 +138,19 @@ boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
 }
 
 void AsioTcpTransport::ActiveCore::Cleanup() {
-  boost::asio::dispatch(io_object_.get_executor(),
-                        [this, ref = shared_from_this()] {
-                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-                          assert(closed_);
+  assert(closed_);
 
-                          logger_->Write(LogSeverity::Normal, "Cleanup");
+  logger_->Write(LogSeverity::Normal, "Cleanup");
 
-                          connected_ = false;
+  connected_ = false;
 
-                          resolver_.cancel();
+  resolver_.cancel();
 
-                          boost::system::error_code ec;
-                          io_object_.cancel(ec);
-                          io_object_.close(ec);
-                        });
+  boost::system::error_code ec;
+  io_object_.cancel(ec);
+  io_object_.close(ec);
 }
 
 // AsioTcpTransport::PassiveCore
@@ -160,7 +159,8 @@ class AsioTcpTransport::PassiveCore final
     : public Core,
       public std::enable_shared_from_this<PassiveCore> {
  public:
-  PassiveCore(const boost::asio::any_io_executor& executor,
+  // The executor must be a sequential one.
+  PassiveCore(const Executor& executor,
               std::shared_ptr<const Logger> logger,
               const std::string& host,
               const std::string& service);
@@ -201,11 +201,10 @@ class AsioTcpTransport::PassiveCore final
   bool closed_ = false;
 };
 
-AsioTcpTransport::PassiveCore::PassiveCore(
-    const boost::asio::any_io_executor& executor,
-    std::shared_ptr<const Logger> logger,
-    const std::string& host,
-    const std::string& service)
+AsioTcpTransport::PassiveCore::PassiveCore(const Executor& executor,
+                                           std::shared_ptr<const Logger> logger,
+                                           const std::string& host,
+                                           const std::string& service)
     : logger_{std::move(logger)},
       host_{host},
       service_{service},
@@ -237,8 +236,6 @@ boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
   auto [error, iterator] = co_await resolver_.async_resolve(
       /*query=*/{host_, service_},
       boost::asio::as_tuple(boost::asio::use_awaitable));
-
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (closed_) {
     co_return;
@@ -414,8 +411,8 @@ AsioTcpTransport::~AsioTcpTransport() {
   // The base class closes the core on destruction.
 }
 
-promise<void> AsioTcpTransport::Open(const Handlers& handlers) {
-  return to_promise(core_->GetExecutor(), core_->Open(handlers));
+boost::asio::awaitable<void> AsioTcpTransport::Open(Handlers handlers) {
+  return core_->Open(std::move(handlers));
 }
 
 int AsioTcpTransport::GetLocalPort() const {

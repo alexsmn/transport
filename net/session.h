@@ -54,6 +54,7 @@ class NET_EXPORT Session final : public Transport {
   SessionTransportObserver* session_transport_observer() {
     return session_transport_observer_;
   }
+
   void set_session_transport_observer(SessionTransportObserver* observer) {
     session_transport_observer_ = observer;
   }
@@ -61,6 +62,7 @@ class NET_EXPORT Session final : public Transport {
   size_t send_queue_size() const {
     return send_queues_[0].size() + send_queues_[1].size();
   }
+
   size_t num_bytes_received() const { return num_bytes_received_; }
   size_t num_bytes_sent() const { return num_bytes_sent_; }
   size_t num_messages_received() const { return num_messages_received_; }
@@ -72,15 +74,19 @@ class NET_EXPORT Session final : public Transport {
   std::unique_ptr<Transport> DetachTransport();
 
   // Transport
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
+
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
   virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override { return true; }
+
   virtual bool IsConnected() const override {
     return transport_ && transport_->IsConnected();
   }
+
   virtual bool IsActive() const override { return true; }
 
  private:
@@ -106,7 +112,7 @@ class NET_EXPORT Session final : public Transport {
 
   typedef std::map<SessionID, Session*, SessionIDLess> SessionMap;
 
-  void StartConnecting();
+  boost::asio::awaitable<void> StartConnecting();
   void CloseTransport();
 
   void PostMessage(const void* data, size_t len, bool seq, int priority);

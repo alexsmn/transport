@@ -2,6 +2,7 @@
 
 #include "net/transport_delegate_mock.h"
 
+#include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <gmock/gmock.h>
 #include <random>
@@ -43,7 +44,8 @@ TEST_F(WebSocketTransportTest, Test) {
     io_context.stop();
   }));
 
-  server.Open(server_handlers.AsHandlers());
+  boost::asio::co_spawn(io_context, server.Open(server_handlers.AsHandlers()),
+                        boost::asio::detached);
 
   io_context.run();
 }

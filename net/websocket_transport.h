@@ -15,7 +15,9 @@ class WebSocketTransport final : public Transport {
                      int port);
   ~WebSocketTransport();
 
-  virtual promise<void> Open(const Handlers& handlers) override;
+  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+      Handlers handlers) override;
+
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return 0; }
 

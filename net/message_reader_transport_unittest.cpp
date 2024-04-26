@@ -5,6 +5,8 @@
 #include "net/transport_delegate_mock.h"
 #include "net/transport_mock.h"
 
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <cstring>
 #include <gmock/gmock.h>
@@ -18,7 +20,7 @@ class MessageTransportTest : public Test {
  public:
   void InitChildTransport(bool message_oriented);
 
-  ImmediateExecutor executor_;
+  boost::asio::system_executor executor_;
 
   StrictMock<MockTransportHandlers> message_transport_handlers_;
 
@@ -76,9 +78,8 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       .Times(AnyNumber())
       .WillRepeatedly(Return(message_oriented));
 
-  EXPECT_CALL(*child_transport_ptr_, Open(_))
-      .WillOnce(
-          DoAll(SaveArg<0>(&child_handlers_), Return(make_resolved_promise())));
+  EXPECT_CALL(*child_transport_ptr_, Open(/*handlers=*/_))
+      .WillOnce(DoAll(SaveArg<0>(&child_handlers_), Invoke(&CoReturnVoid)));
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())
@@ -90,7 +91,10 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       boost::asio::system_executor{}, std::move(child_transport),
       std::move(message_reader), NullLogger::GetInstance());
 
-  message_transport_->Open(message_transport_handlers_.AsHandlers());
+  boost::asio::co_spawn(
+      executor_,
+      message_transport_->Open(message_transport_handlers_.AsHandlers()),
+      boost::asio::detached);
 
   EXPECT_CALL(*child_transport_ptr_, Close());
 }

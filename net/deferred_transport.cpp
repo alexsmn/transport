@@ -25,7 +25,7 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   ~Core();
 
-  promise<void> Open(const Handlers& handlers);
+  [[nodiscard]] boost::asio::awaitable<void> Open(Handlers handlers);
   void Close();
 
   void OnOpened();
@@ -82,27 +82,23 @@ bool DeferredTransport::IsConnected() const {
   return core_->opened_;
 }
 
-promise<void> DeferredTransport::Open(const Handlers& handlers) {
-  return DispatchAsPromise(core_->executor_,
-                           std::bind_front(&Core::Open, core_, handlers));
+boost::asio::awaitable<void> DeferredTransport::Open(Handlers handlers) {
+  return core_->Open(std::move(handlers));
 }
 
-promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
+boost::asio::awaitable<void> DeferredTransport::Core::Open(Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(!opened_);
 
   opened_ = true;
+  handlers_ = std::move(handlers);
 
   if (underlying_transport_->IsConnected()) {
-    handlers_ = handlers;
-    return make_resolved_promise();
+    co_return;
   }
 
-  auto [p, promise_handlers] = MakePromiseHandlers(handlers);
-  handlers_ = std::move(promise_handlers);
-
-  underlying_transport_->Open(
+  co_await underlying_transport_->Open(
       {.on_open = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnOpened, weak_from_this())),
        .on_close = boost::asio::bind_executor(
@@ -118,8 +114,6 @@ promise<void> DeferredTransport::Core::Open(const Handlers& handlers) {
            },
        .on_accept = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnAccepted, weak_from_this()))});
-
-  return p;
 }
 
 void DeferredTransport::Core::OnOpened() {
