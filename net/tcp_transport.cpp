@@ -59,12 +59,13 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
 
 boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::Open(
     Handlers handlers) {
-  auto ref = shared_from_this();
+  auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   if (connected_) {
     handlers_ = std::move(handlers);
 
-    boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+    boost::asio::co_spawn(io_object_.get_executor(),
+                          std::bind_front(&ActiveCore::StartReading, ref),
                           boost::asio::detached);
 
     co_return;
@@ -105,7 +106,7 @@ boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
 
 boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
     Resolver::iterator iterator) {
-  auto ref = shared_from_this();
+  auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   auto [error, connected_iterator] = co_await boost::asio::async_connect(
       io_object_, iterator, boost::asio::as_tuple(boost::asio::use_awaitable));
@@ -133,7 +134,8 @@ boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
     handlers_.on_open();
   }
 
-  boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+  boost::asio::co_spawn(io_object_.get_executor(),
+                        std::bind_front(&ActiveCore::StartReading, ref),
                         boost::asio::detached);
 }
 
@@ -265,7 +267,8 @@ boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
     handlers_.on_open();
   }
 
-  boost::asio::co_spawn(acceptor_.get_executor(), StartAccepting(),
+  boost::asio::co_spawn(acceptor_.get_executor(),
+                        std::bind_front(&PassiveCore::StartAccepting, ref),
                         boost::asio::detached);
 }
 

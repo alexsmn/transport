@@ -36,10 +36,12 @@ class WebSocketTransport::ConnectionCore
 
 boost::asio::awaitable<void> WebSocketTransport::ConnectionCore::Open(
     Handlers handlers) {
-  handlers_ = handlers;
+  handlers_ = std::move(handlers);
 
-  boost::asio::co_spawn(ws.get_executor(), StartReading(),
-                        boost::asio::detached);
+  boost::asio::co_spawn(
+      ws.get_executor(),
+      std::bind_front(&ConnectionCore::StartReading, shared_from_this()),
+      boost::asio::detached);
 
   co_return;
 }
@@ -236,7 +238,9 @@ boost::asio::awaitable<void> WebSocketTransport::Core::Open(Handlers handlers) {
     on_open();
   }
 
-  boost::asio::co_spawn(io_context_, StartAccepting(), boost::asio::detached);
+  boost::asio::co_spawn(
+      io_context_, std::bind_front(&Core::StartAccepting, shared_from_this()),
+      boost::asio::detached);
 }
 
 void WebSocketTransport::Core::Close() {

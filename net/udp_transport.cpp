@@ -77,7 +77,7 @@ boost::asio::awaitable<void> AsioUdpTransport::UdpActiveCore::Open(
     Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  handlers_ = handlers;
+  handlers_ = std::move(handlers);
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
   return socket_->Open();
 }
@@ -85,7 +85,10 @@ boost::asio::awaitable<void> AsioUdpTransport::UdpActiveCore::Open(
 void AsioUdpTransport::UdpActiveCore::Close() {
   boost::asio::dispatch(executor_, [this, ref = shared_from_this()] {
     connected_ = false;
-    boost::asio::co_spawn(executor_, socket_->Close(), boost::asio::detached);
+
+    boost::asio::co_spawn(executor_,
+                          std::bind_front(&UdpSocket::Close, socket_),
+                          boost::asio::detached);
   });
 }
 
@@ -271,7 +274,7 @@ boost::asio::awaitable<void> AsioUdpTransport::UdpPassiveCore::Open(
     Handlers handlers) {
   logger_->WriteF(LogSeverity::Normal, "Open");
 
-  handlers_ = handlers;
+  handlers_ = std::move(handlers);
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
   return socket_->Open();
 }
@@ -284,7 +287,9 @@ void AsioUdpTransport::UdpPassiveCore::Close() {
 
     connected_ = false;
 
-    boost::asio::co_spawn(executor_, socket_->Close(), boost::asio::detached);
+    boost::asio::co_spawn(executor_,
+                          std::bind_front(&UdpSocket::Close, socket_),
+                          boost::asio::detached);
 
     CloseAllAcceptedTransports(OK);
   });
