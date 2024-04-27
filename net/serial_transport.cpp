@@ -53,6 +53,8 @@ SerialTransport::SerialPortCore::SerialPortCore(
 
 boost::asio::awaitable<void> SerialTransport::SerialPortCore::Open(
     Handlers handlers) {
+  auto ref = std::static_pointer_cast<SerialPortCore>(shared_from_this());
+
   boost::system::error_code ec;
   io_object_.open(device_, ec);
   if (ec) {
@@ -82,7 +84,8 @@ boost::asio::awaitable<void> SerialTransport::SerialPortCore::Open(
     handlers_.on_open();
   }
 
-  boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+  boost::asio::co_spawn(io_object_.get_executor(),
+                        std::bind_front(&SerialPortCore::StartReading, ref),
                         boost::asio::detached);
 
   co_return;

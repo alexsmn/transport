@@ -132,6 +132,8 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 
 template <class IoObject>
 inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
+  auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
+
   // Should be only called under the same executor as `io_object_`.
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
@@ -141,7 +143,8 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 
   // Must start reading, since reading might have stopped if the buffer was
   // full.
-  boost::asio::co_spawn(io_object_.get_executor(), StartReading(),
+  boost::asio::co_spawn(io_object_.get_executor(),
+                        std::bind_front(&IoCore::StartReading, ref),
                         boost::asio::detached);
 
   return count;
@@ -150,13 +153,14 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 template <class IoObject>
 inline boost::asio::awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
     std::vector<char> data) {
-  auto ref = shared_from_this();
+  auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
 
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   write_buffer_.insert(write_buffer_.end(), data.begin(), data.end());
 
-  boost::asio::co_spawn(io_object_.get_executor(), StartWriting(),
+  boost::asio::co_spawn(io_object_.get_executor(),
+                        std::bind_front(&IoCore::StartWriting, ref),
                         boost::asio::detached);
 
   // TODO: Handle properly.
