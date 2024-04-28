@@ -1,8 +1,8 @@
 #pragma once
 
+#include "net/awaitable.h"
 #include "net/base/net_errors.h"
 #include "net/base/net_export.h"
-#include "net/promise.h"
 
 #include <cassert>
 #include <functional>

@@ -1,7 +1,5 @@
 #include "net/websocket_transport.h"
 
-#include "net/transport_util.h"
-
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>

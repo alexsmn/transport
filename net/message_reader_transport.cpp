@@ -3,7 +3,7 @@
 #include "net/base/net_errors.h"
 #include "net/logger.h"
 #include "net/message_reader.h"
-#include "net/transport_util.h"
+#include "net/net_exception.h"
 
 #include "net/base/threading/thread_collision_warner.h"
 #include <boost/asio/bind_executor.hpp>

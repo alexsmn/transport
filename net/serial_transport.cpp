@@ -1,6 +1,7 @@
 #include "net/serial_transport.h"
 
 #include "net/base/net_errors.h"
+#include "net/net_exception.h"
 
 #include <boost/asio/serial_port.hpp>
 
