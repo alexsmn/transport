@@ -1,5 +1,7 @@
 #include "net/inprocess_transport.h"
 
+#include "net/net_exception.h"
+
 #include <format>
 
 namespace net {
