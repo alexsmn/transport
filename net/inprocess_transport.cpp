@@ -25,14 +25,14 @@ class InprocessTransportHost::Client : public Transport {
     return std::format("client:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override;
 
   virtual void Close() override;
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
   void Receive(std::span<const char> data) {
@@ -78,7 +78,7 @@ class InprocessTransportHost::Server : public Transport {
     return std::format("server:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
@@ -108,7 +108,7 @@ class InprocessTransportHost::Server : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual boost::asio::awaitable<size_t> Write(
+  virtual awaitable<size_t> Write(
       std::vector<char> data) override {
     throw net_exception{ERR_ACCESS_DENIED};
   }
@@ -145,7 +145,7 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
@@ -172,7 +172,7 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual boost::asio::awaitable<size_t> Write(
+  virtual awaitable<size_t> Write(
       std::vector<char> data) override {
     client_.Receive(data);
     co_return data.size();
@@ -207,7 +207,7 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
 // InprocessTransportHost::Client
 
-boost::asio::awaitable<void> InprocessTransportHost::Client::Open(
+awaitable<void> InprocessTransportHost::Client::Open(
     Handlers handlers) {
   if (accepted_client_) {
     handlers.on_close(ERR_ADDRESS_IN_USE);
@@ -240,7 +240,7 @@ void InprocessTransportHost::Client::Close() {
   }
 }
 
-boost::asio::awaitable<size_t> InprocessTransportHost::Client::Write(
+awaitable<size_t> InprocessTransportHost::Client::Write(
     std::vector<char> data) {
   if (!accepted_client_) {
     throw net_exception{ERR_CONNECTION_CLOSED};

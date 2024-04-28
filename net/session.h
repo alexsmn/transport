@@ -74,12 +74,12 @@ class NET_EXPORT Session final : public Transport {
   std::unique_ptr<Transport> DetachTransport();
 
   // Transport
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
+  virtual awaitable<size_t> Write(std::vector<char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override { return true; }
 
@@ -112,7 +112,7 @@ class NET_EXPORT Session final : public Transport {
 
   typedef std::map<SessionID, Session*, SessionIDLess> SessionMap;
 
-  boost::asio::awaitable<void> StartConnecting();
+  awaitable<void> StartConnecting();
   void CloseTransport();
 
   void PostMessage(const void* data, size_t len, bool seq, int priority);

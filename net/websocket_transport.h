@@ -15,13 +15,12 @@ class WebSocketTransport final : public Transport {
                      int port);
   ~WebSocketTransport();
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return 0; }
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override {
     co_return data.size();
   }

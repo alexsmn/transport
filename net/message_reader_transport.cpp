@@ -79,11 +79,11 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
 
-  [[nodiscard]] boost::asio::awaitable<void> Open(Handlers handlers);
+  [[nodiscard]] awaitable<void> Open(Handlers handlers);
   void Close();
 
   int ReadMessage(void* data, size_t len);
-  boost::asio::awaitable<size_t> WriteMessage(std::vector<char> data);
+  awaitable<size_t> WriteMessage(std::vector<char> data);
 
   // Child handlers.
   void OnChildTransportOpened();
@@ -141,7 +141,7 @@ bool MessageReaderTransport::IsActive() const {
   return core_->child_transport_->IsActive();
 }
 
-boost::asio::awaitable<void> MessageReaderTransport::Open(Handlers handlers) {
+awaitable<void> MessageReaderTransport::Open(Handlers handlers) {
   return core_->Open(std::move(handlers));
 }
 
@@ -153,7 +153,7 @@ bool MessageReaderTransport::IsMessageOriented() const {
   return true;
 }
 
-[[nodiscard]] boost::asio::awaitable<void> MessageReaderTransport::Core::Open(
+[[nodiscard]] awaitable<void> MessageReaderTransport::Core::Open(
     Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
@@ -251,12 +251,12 @@ int MessageReaderTransport::Core::ReadMessage(void* data, size_t len) {
   return size;
 }
 
-boost::asio::awaitable<size_t> MessageReaderTransport::Write(
+awaitable<size_t> MessageReaderTransport::Write(
     std::vector<char> data) {
   return core_->WriteMessage(std::move(data));
 }
 
-boost::asio::awaitable<size_t> MessageReaderTransport::Core::WriteMessage(
+awaitable<size_t> MessageReaderTransport::Core::WriteMessage(
     std::vector<char> data) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 

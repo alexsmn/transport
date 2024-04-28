@@ -25,7 +25,7 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   ~Core();
 
-  [[nodiscard]] boost::asio::awaitable<void> Open(Handlers handlers);
+  [[nodiscard]] awaitable<void> Open(Handlers handlers);
   void Close();
 
   void OnOpened();
@@ -82,11 +82,11 @@ bool DeferredTransport::IsConnected() const {
   return core_->opened_;
 }
 
-boost::asio::awaitable<void> DeferredTransport::Open(Handlers handlers) {
+awaitable<void> DeferredTransport::Open(Handlers handlers) {
   return core_->Open(std::move(handlers));
 }
 
-boost::asio::awaitable<void> DeferredTransport::Core::Open(Handlers handlers) {
+awaitable<void> DeferredTransport::Core::Open(Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(!opened_);
@@ -191,7 +191,7 @@ int DeferredTransport::Read(std::span<char> data) {
                         : ERR_ACCESS_DENIED;
 }
 
-boost::asio::awaitable<size_t> DeferredTransport::Write(
+awaitable<size_t> DeferredTransport::Write(
     std::vector<char> data) {
   if (!core_->opened_) {
     throw net_exception{ERR_ACCESS_DENIED};

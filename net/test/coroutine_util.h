@@ -1,15 +1,15 @@
 #pragma once
 
-#include <boost/asio/awaitable.hpp>
+#include "net/awaitable.h"
 
 namespace net {
 
-inline boost::asio::awaitable<void> CoReturnVoid() {
+inline awaitable<void> CoReturnVoid() {
   co_return;
 }
 
 template <class T>
-inline boost::asio::awaitable<T> CoReturn(T value) {
+inline awaitable<T> CoReturn(T value) {
   co_return value;
 }
 

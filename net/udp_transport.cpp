@@ -31,13 +31,13 @@ class AsioUdpTransport::UdpActiveCore
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
  private:
@@ -73,7 +73,7 @@ AsioUdpTransport::UdpActiveCore::UdpActiveCore(
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-boost::asio::awaitable<void> AsioUdpTransport::UdpActiveCore::Open(
+awaitable<void> AsioUdpTransport::UdpActiveCore::Open(
     Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
@@ -98,7 +98,7 @@ int AsioUdpTransport::UdpActiveCore::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-boost::asio::awaitable<size_t> AsioUdpTransport::UdpActiveCore::Write(
+awaitable<size_t> AsioUdpTransport::UdpActiveCore::Write(
     std::vector<char> data) {
   return socket_->SendTo(peer_endpoint_, std::move(data));
 }
@@ -164,12 +164,12 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   ~AcceptedTransport();
 
   // Transport
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual boost::asio::awaitable<size_t> Write(std::vector<char> data) override;
+  virtual awaitable<size_t> Write(std::vector<char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
@@ -209,13 +209,13 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
  private:
@@ -226,7 +226,7 @@ class AsioUdpTransport::UdpPassiveCore final
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::Error& error);
 
-  [[nodiscard]] boost::asio::awaitable<size_t> InternalWrite(
+  [[nodiscard]] awaitable<size_t> InternalWrite(
       UdpSocket::Endpoint endpoint,
       UdpSocket::Datagram datagram);
 
@@ -270,7 +270,7 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
 }
 
-boost::asio::awaitable<void> AsioUdpTransport::UdpPassiveCore::Open(
+awaitable<void> AsioUdpTransport::UdpPassiveCore::Open(
     Handlers handlers) {
   logger_->WriteF(LogSeverity::Normal, "Open");
 
@@ -301,14 +301,14 @@ int AsioUdpTransport::UdpPassiveCore::Read(std::span<char> data) {
   return ERR_FAILED;
 }
 
-boost::asio::awaitable<size_t> AsioUdpTransport::UdpPassiveCore::Write(
+awaitable<size_t> AsioUdpTransport::UdpPassiveCore::Write(
     std::vector<char> data) {
   assert(false);
 
   throw net_exception{ERR_FAILED};
 }
 
-boost::asio::awaitable<size_t> AsioUdpTransport::UdpPassiveCore::InternalWrite(
+awaitable<size_t> AsioUdpTransport::UdpPassiveCore::InternalWrite(
     UdpSocket::Endpoint endpoint,
     UdpSocket::Datagram datagram) {
   return socket_->SendTo(std::move(endpoint), std::move(datagram));
@@ -444,7 +444,7 @@ AsioUdpTransport::AcceptedTransport::~AcceptedTransport() {
     core_->RemoveAcceptedTransport(endpoint_);
 }
 
-boost::asio::awaitable<void> AsioUdpTransport::AcceptedTransport::Open(
+awaitable<void> AsioUdpTransport::AcceptedTransport::Open(
     Handlers handlers) {
   assert(!connected_);
 
@@ -474,7 +474,7 @@ int AsioUdpTransport::AcceptedTransport::Read(std::span<char> data) {
   return ERR_FAILED;
 }
 
-boost::asio::awaitable<size_t> AsioUdpTransport::AcceptedTransport::Write(
+awaitable<size_t> AsioUdpTransport::AcceptedTransport::Write(
     std::vector<char> data) {
   if (!core_ || !connected_) {
     throw net_exception{ERR_FAILED};
@@ -542,7 +542,7 @@ AsioUdpTransport::AsioUdpTransport(const Executor& executor,
   }
 }
 
-boost::asio::awaitable<void> AsioUdpTransport::Open(Handlers handlers) {
+awaitable<void> AsioUdpTransport::Open(Handlers handlers) {
   return core_->Open(std::move(handlers));
 }
 

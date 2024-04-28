@@ -15,14 +15,14 @@ class WebSocketTransport::ConnectionCore
   ConnectionCore(boost::beast::websocket::stream<boost::beast::tcp_stream> ws)
       : ws{std::move(ws)} {}
 
-  [[nodiscard]] boost::asio::awaitable<void> Open(Handlers handlers);
+  [[nodiscard]] awaitable<void> Open(Handlers handlers);
   void Close();
 
-  [[nodiscard]] boost::asio::awaitable<size_t> Write(std::vector<char> data);
+  [[nodiscard]] awaitable<size_t> Write(std::vector<char> data);
 
  private:
-  [[nodiscard]] boost::asio::awaitable<void> StartReading();
-  [[nodiscard]] boost::asio::awaitable<void> StartWriting();
+  [[nodiscard]] awaitable<void> StartReading();
+  [[nodiscard]] awaitable<void> StartWriting();
 
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws;
 
@@ -32,8 +32,7 @@ class WebSocketTransport::ConnectionCore
   bool writing_ = false;
 };
 
-boost::asio::awaitable<void> WebSocketTransport::ConnectionCore::Open(
-    Handlers handlers) {
+awaitable<void> WebSocketTransport::ConnectionCore::Open(Handlers handlers) {
   handlers_ = std::move(handlers);
 
   boost::asio::co_spawn(
@@ -44,8 +43,7 @@ boost::asio::awaitable<void> WebSocketTransport::ConnectionCore::Open(
   co_return;
 }
 
-boost::asio::awaitable<void>
-WebSocketTransport::ConnectionCore::StartReading() {
+awaitable<void> WebSocketTransport::ConnectionCore::StartReading() {
   auto ref = shared_from_this();
 
   for (;;) {
@@ -83,7 +81,7 @@ void WebSocketTransport::ConnectionCore::Close() {
   ws.close(boost::beast::websocket::close_code::normal, ec);
 }
 
-boost::asio::awaitable<size_t> WebSocketTransport::ConnectionCore::Write(
+awaitable<size_t> WebSocketTransport::ConnectionCore::Write(
     std::vector<char> data) {
   auto data_size = data.size();
   write_queue_.emplace(std::move(data));
@@ -98,8 +96,7 @@ boost::asio::awaitable<size_t> WebSocketTransport::ConnectionCore::Write(
   co_return data_size;
 }
 
-boost::asio::awaitable<void>
-WebSocketTransport::ConnectionCore::StartWriting() {
+awaitable<void> WebSocketTransport::ConnectionCore::StartWriting() {
   while (!write_queue_.empty()) {
     auto message = std::move(write_queue_.front());
     write_queue_.pop();
@@ -126,13 +123,12 @@ class WebSocketTransport::Connection : public Transport {
   ~Connection();
 
   // Transport
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override { return OK; }
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
   virtual std::string GetName() const override { return "WebSocket"; }
@@ -150,8 +146,7 @@ WebSocketTransport::Connection::~Connection() {
     core_->Close();
 }
 
-boost::asio::awaitable<void> WebSocketTransport::Connection::Open(
-    Handlers handlers) {
+awaitable<void> WebSocketTransport::Connection::Open(Handlers handlers) {
   assert(!opened_);
 
   opened_ = true;
@@ -164,7 +159,7 @@ void WebSocketTransport::Connection::Close() {
   core_->Close();
 }
 
-boost::asio::awaitable<size_t> WebSocketTransport::Connection::Write(
+awaitable<size_t> WebSocketTransport::Connection::Write(
     std::vector<char> data) {
   assert(opened_);
   return core_->Write(std::move(data));
@@ -176,12 +171,12 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
  public:
   Core(boost::asio::io_context& io_context, std::string host, int port);
 
-  [[nodiscard]] boost::asio::awaitable<void> Open(Handlers handlers);
+  [[nodiscard]] awaitable<void> Open(Handlers handlers);
   void Close();
 
-  [[nodiscard]] boost::asio::awaitable<void> StartAccepting();
+  [[nodiscard]] awaitable<void> StartAccepting();
 
-  [[nodiscard]] boost::asio::awaitable<void> DoSession(
+  [[nodiscard]] awaitable<void> DoSession(
       boost::beast::websocket::stream<boost::beast::tcp_stream> ws);
 
  private:
@@ -199,7 +194,7 @@ WebSocketTransport::Core::Core(boost::asio::io_context& io_context,
                                int port)
     : io_context_{io_context}, host_{std::move(host)}, port_{port} {}
 
-boost::asio::awaitable<void> WebSocketTransport::Core::Open(Handlers handlers) {
+awaitable<void> WebSocketTransport::Core::Open(Handlers handlers) {
   handlers_ = std::move(handlers);
 
   auto const address = boost::asio::ip::make_address(host_);
@@ -245,7 +240,7 @@ void WebSocketTransport::Core::Close() {
   handlers_ = {};
 }
 
-boost::asio::awaitable<void> WebSocketTransport::Core::StartAccepting() {
+awaitable<void> WebSocketTransport::Core::StartAccepting() {
   for (;;) {
     boost::asio::ip::tcp::socket socket(io_context_);
 
@@ -264,7 +259,7 @@ boost::asio::awaitable<void> WebSocketTransport::Core::StartAccepting() {
   }
 }
 
-boost::asio::awaitable<void> WebSocketTransport::Core::DoSession(
+awaitable<void> WebSocketTransport::Core::DoSession(
     boost::beast::websocket::stream<boost::beast::tcp_stream> ws) {
   ws.binary(true);
 
@@ -306,7 +301,7 @@ WebSocketTransport::~WebSocketTransport() {
     core_->Close();
 }
 
-boost::asio::awaitable<void> WebSocketTransport::Open(Handlers handlers) {
+awaitable<void> WebSocketTransport::Open(Handlers handlers) {
   assert(core_);
   return core_->Open(std::move(handlers));
 }

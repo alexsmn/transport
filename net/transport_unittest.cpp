@@ -35,9 +35,9 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
   TransportFactoryImpl transport_factory_{io_context_};
 
   struct Server {
-    [[nodiscard]] boost::asio::awaitable<void> Init();
+    [[nodiscard]] awaitable<void> Init();
 
-    [[nodiscard]] boost::asio::awaitable<void> StartEchoing(
+    [[nodiscard]] awaitable<void> StartEchoing(
         std::unique_ptr<Transport> transport);
 
     Executor executor_;
@@ -53,7 +53,7 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
   };
 
   struct Client {
-    [[nodiscard]] boost::asio::awaitable<void> Run();
+    [[nodiscard]] awaitable<void> Run();
 
     std::string name_;
     Executor executor_;
@@ -94,7 +94,7 @@ INSTANTIATE_TEST_SUITE_P(AllTransportTests,
 
 namespace {
 
-[[nodiscard]] boost::asio::awaitable<void> EchoData(Transport& transport) {
+[[nodiscard]] awaitable<void> EchoData(Transport& transport) {
   for (;;) {
     std::vector<char> buffer(64);
     int res = transport.Read(buffer);
@@ -109,7 +109,7 @@ namespace {
 
 // TransportTest::Server
 
-boost::asio::awaitable<void> TransportTest::Server::Init() {
+awaitable<void> TransportTest::Server::Init() {
   return transport_->Open(
       {.on_accept = [this](std::unique_ptr<Transport> accepted_transport) {
         logger_->Write(LogSeverity::Normal, "Connected");
@@ -119,7 +119,7 @@ boost::asio::awaitable<void> TransportTest::Server::Init() {
       }});
 }
 
-boost::asio::awaitable<void> TransportTest::Server::StartEchoing(
+awaitable<void> TransportTest::Server::StartEchoing(
     std::unique_ptr<Transport> transport) {
   co_await transport->Open(
       {.on_close =
@@ -145,7 +145,7 @@ boost::asio::awaitable<void> TransportTest::Server::StartEchoing(
 
 // TransportTest::Client
 
-boost::asio::awaitable<void> TransportTest::Client::Run() {
+awaitable<void> TransportTest::Client::Run() {
   boost::asio::experimental::channel<void()> received_message{executor_};
 
   co_await transport_->Open(
@@ -211,7 +211,7 @@ void TransportTest::TearDown() {}
 TEST_P(TransportTest, StressTest) {
   boost::asio::co_spawn(
       io_context_,
-      [this]() -> boost::asio::awaitable<void> {
+      [this]() -> awaitable<void> {
         // Connect all.
         co_await server_.Init();
 
@@ -223,8 +223,7 @@ TEST_P(TransportTest, StressTest) {
           ops.emplace_back(boost::asio::co_spawn(io_context_, c->Run(),
                                                  boost::asio::deferred));
         }
-        co_await boost::asio::experimental::make_parallel_group(
-            std::move(ops))
+        co_await boost::asio::experimental::make_parallel_group(std::move(ops))
             .async_wait(boost::asio::experimental::wait_for_one_error{},
                         boost::asio::use_awaitable);
       },

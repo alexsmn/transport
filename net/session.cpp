@@ -237,7 +237,7 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-boost::asio::awaitable<void> Session::Open(Handlers handlers) {
+awaitable<void> Session::Open(Handlers handlers) {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
@@ -254,7 +254,7 @@ int Session::Read(std::span<char> data) {
   return ERR_NOT_IMPLEMENTED;
 }
 
-boost::asio::awaitable<size_t> Session::Write(std::vector<char> data) {
+awaitable<size_t> Session::Write(std::vector<char> data) {
   Send(data.data(), data.size());
   co_return data.size();
 }
@@ -263,7 +263,7 @@ std::string Session::GetName() const {
   return "Session";
 }
 
-boost::asio::awaitable<void> Session::StartConnecting() {
+awaitable<void> Session::StartConnecting() {
   assert(transport_.get());
   assert(!cancelation_);
 

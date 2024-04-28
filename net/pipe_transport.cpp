@@ -1,11 +1,11 @@
 #include "net/pipe_transport.h"
 
 #include "net/base/net_errors.h"
+#include "net/net_exception.h"
 
+#include <Windows.h>
 #include <boost/locale/encoding_utf.hpp>
 #include <cassert>
-#include <chrono>
-#include <windows.h>
 
 using namespace std::chrono_literals;
 
@@ -23,7 +23,7 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-boost::asio::awaitable<void> PipeTransport::Open(Handlers handlers) {
+awaitable<void> PipeTransport::Open(Handlers handlers) {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
   HANDLE handle;
@@ -84,7 +84,7 @@ int PipeTransport::Read(std::span<char> data) {
   return bytes_read;
 }
 
-boost::asio::awaitable<size_t> PipeTransport::Write(std::vector<char> data) {
+awaitable<size_t> PipeTransport::Write(std::vector<char> data) {
   DWORD bytes_written = 0;
   if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
     throw net_exception{ERR_FAILED};

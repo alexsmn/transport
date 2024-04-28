@@ -34,7 +34,7 @@ class SerialTransport::SerialPortCore final
                  const Options& options);
 
   // Core
-  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
+  virtual awaitable<void> Open(Handlers handlers) override;
 
  protected:
   virtual void Cleanup() override;
@@ -52,7 +52,7 @@ SerialTransport::SerialPortCore::SerialPortCore(
       device_{std::move(device)},
       options_{options} {}
 
-boost::asio::awaitable<void> SerialTransport::SerialPortCore::Open(
+awaitable<void> SerialTransport::SerialPortCore::Open(
     Handlers handlers) {
   auto ref = std::static_pointer_cast<SerialPortCore>(shared_from_this());
 
@@ -111,7 +111,7 @@ SerialTransport::SerialTransport(const Executor& executor,
       device_{std::move(device)},
       options_{options} {}
 
-boost::asio::awaitable<void> SerialTransport::Open(Handlers handlers) {
+awaitable<void> SerialTransport::Open(Handlers handlers) {
   core_ =
       std::make_shared<SerialPortCore>(executor_, logger_, device_, options_);
 
