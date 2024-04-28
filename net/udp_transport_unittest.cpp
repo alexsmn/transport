@@ -24,10 +24,10 @@ class MockUdpSocket : public UdpSocket {
         .WillByDefault(Invoke(std::bind_front(&CoReturn<size_t>, 0)));
   }
 
-  MOCK_METHOD(boost::asio::awaitable<void>, Open, (), (override));
-  MOCK_METHOD(boost::asio::awaitable<void>, Close, (), (override));
+  MOCK_METHOD(awaitable<void>, Open, (), (override));
+  MOCK_METHOD(awaitable<void>, Close, (), (override));
 
-  MOCK_METHOD(boost::asio::awaitable<size_t>,
+  MOCK_METHOD(awaitable<size_t>,
               SendTo,
               (Endpoint endpoint, Datagram datagram),
               (override));

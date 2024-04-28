@@ -19,13 +19,13 @@ class NET_EXPORT QueueTransport final : public Transport {
 
   // Transport
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodicard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodicard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
   virtual std::string GetName() const override;

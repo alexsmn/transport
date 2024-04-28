@@ -39,7 +39,7 @@ class Connector {
     AcceptHandler on_accept;
   };
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) = 0;
 };
 
@@ -48,7 +48,7 @@ class Sender {
   virtual ~Sender() = default;
 
   // Returns amount of bytes written or an error.
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) = 0;
 };
 

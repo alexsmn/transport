@@ -22,13 +22,13 @@ class AsioTcpTransport::ActiveCore final
   ActiveCore(std::shared_ptr<const Logger> logger, Socket socket);
 
   // Core
-  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
+  virtual awaitable<void> Open(Handlers handlers) override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  boost::asio::awaitable<void> StartResolving();
-  boost::asio::awaitable<void> StartConnecting(Resolver::iterator iterator);
+  awaitable<void> StartResolving();
+  awaitable<void> StartConnecting(Resolver::iterator iterator);
 
   // ActiveCore
   virtual void Cleanup() override;
@@ -57,7 +57,7 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
   connected_ = true;
 }
 
-boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::Open(
+awaitable<void> AsioTcpTransport::ActiveCore::Open(
     Handlers handlers) {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
@@ -78,7 +78,7 @@ boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::Open(
   co_await StartResolving();
 }
 
-boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
+awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
   auto ref = shared_from_this();
 
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
@@ -104,7 +104,7 @@ boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
   co_await StartConnecting(std::move(iterator));
 }
 
-boost::asio::awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
+awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
     Resolver::iterator iterator) {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
@@ -172,20 +172,20 @@ class AsioTcpTransport::PassiveCore final
   // Core
   virtual Executor GetExecutor() override { return acceptor_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
-  virtual boost::asio::awaitable<void> Open(Handlers handlers) override;
+  virtual awaitable<void> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
  private:
   using Socket = boost::asio::ip::tcp::socket;
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  boost::asio::awaitable<void> StartResolving();
+  awaitable<void> StartResolving();
   boost::system::error_code Bind(Resolver::iterator iterator);
-  boost::asio::awaitable<void> StartAccepting();
+  awaitable<void> StartAccepting();
 
   void ProcessError(const boost::system::error_code& ec);
 
@@ -218,7 +218,7 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::Open(
+awaitable<void> AsioTcpTransport::PassiveCore::Open(
     Handlers handlers) {
   auto ref = shared_from_this();
 
@@ -229,7 +229,7 @@ boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::Open(
   co_await StartResolving();
 }
 
-boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
+awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
 
@@ -322,12 +322,12 @@ int AsioTcpTransport::PassiveCore::Read(std::span<char> data) {
   return ERR_ACCESS_DENIED;
 }
 
-boost::asio::awaitable<size_t> AsioTcpTransport::PassiveCore::Write(
+awaitable<size_t> AsioTcpTransport::PassiveCore::Write(
     std::vector<char> data) {
   throw net_exception{ERR_ACCESS_DENIED};
 }
 
-boost::asio::awaitable<void> AsioTcpTransport::PassiveCore::StartAccepting() {
+awaitable<void> AsioTcpTransport::PassiveCore::StartAccepting() {
   auto ref = shared_from_this();
 
   while (!closed_) {
@@ -414,7 +414,7 @@ AsioTcpTransport::~AsioTcpTransport() {
   // The base class closes the core on destruction.
 }
 
-boost::asio::awaitable<void> AsioTcpTransport::Open(Handlers handlers) {
+awaitable<void> AsioTcpTransport::Open(Handlers handlers) {
   return core_->Open(std::move(handlers));
 }
 

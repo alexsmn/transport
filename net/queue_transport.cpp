@@ -1,6 +1,7 @@
 #include "net/queue_transport.h"
 
 #include "net/base/net_errors.h"
+#include "net/net_exception.h"
 
 using namespace std::chrono_literals;
 
@@ -16,8 +17,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-[[nodiscard]] boost::asio::awaitable<void> QueueTransport::Open(
-    Handlers handlers) {
+[[nodiscard]] awaitable<void> QueueTransport::Open(Handlers handlers) {
   handlers_ = std::move(handlers);
 
   if (active_) {
@@ -46,7 +46,7 @@ int QueueTransport::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-boost::asio::awaitable<size_t> QueueTransport::Write(std::vector<char> data) {
+awaitable<size_t> QueueTransport::Write(std::vector<char> data) {
   if (data.empty()) {
     throw net_exception{ERR_INVALID_ARGUMENT};
   }

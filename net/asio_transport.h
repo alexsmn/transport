@@ -23,7 +23,7 @@ class AsioTransport : public Transport {
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
   virtual bool IsMessageOriented() const override;
@@ -46,14 +46,14 @@ class AsioTransport::Core {
 
   virtual bool IsConnected() const = 0;
 
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) = 0;
 
   virtual void Close() = 0;
 
   virtual int Read(std::span<char> data) = 0;
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) = 0;
 };
 
@@ -69,14 +69,14 @@ class AsioTransport::IoCore : public Core,
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
  protected:
   IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
 
-  [[nodiscard]] boost::asio::awaitable<void> StartReading();
-  [[nodiscard]] boost::asio::awaitable<void> StartWriting();
+  [[nodiscard]] awaitable<void> StartReading();
+  [[nodiscard]] awaitable<void> StartWriting();
 
   void ProcessError(Error error);
 
@@ -151,7 +151,7 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 }
 
 template <class IoObject>
-inline boost::asio::awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
+inline awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
     std::vector<char> data) {
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
 
@@ -168,7 +168,7 @@ inline boost::asio::awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
 }
 
 template <class IoObject>
-inline boost::asio::awaitable<void>
+inline awaitable<void>
 AsioTransport::IoCore<IoObject>::StartReading() {
   if (closed_ || reading_) {
     co_return;
@@ -218,7 +218,7 @@ AsioTransport::IoCore<IoObject>::StartReading() {
 }
 
 template <class IoObject>
-inline boost::asio::awaitable<void>
+inline awaitable<void>
 AsioTransport::IoCore<IoObject>::StartWriting() {
   if (closed_ || writing_) {
     co_return;
@@ -289,7 +289,7 @@ inline int AsioTransport::Read(std::span<char> data) {
   return core_->Read(data);
 }
 
-inline boost::asio::awaitable<size_t> AsioTransport::Write(
+inline awaitable<size_t> AsioTransport::Write(
     std::vector<char> data) {
   return core_->Write(data);
 }

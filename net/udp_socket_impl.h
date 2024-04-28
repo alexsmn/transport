@@ -16,14 +16,14 @@ class UdpSocketImpl : private UdpSocketContext,
   ~UdpSocketImpl();
 
   // UdpSocket
-  virtual boost::asio::awaitable<void> Open() override;
-  virtual boost::asio::awaitable<void> Close() override;
-  virtual boost::asio::awaitable<size_t> SendTo(Endpoint endpoint,
-                                                Datagram datagram) override;
+  virtual awaitable<void> Open() override;
+  virtual awaitable<void> Close() override;
+  virtual awaitable<size_t> SendTo(Endpoint endpoint,
+                                   Datagram datagram) override;
 
  private:
-  boost::asio::awaitable<void> StartReading();
-  boost::asio::awaitable<void> StartWriting();
+  awaitable<void> StartReading();
+  awaitable<void> StartWriting();
 
   void ProcessError(const boost::system::error_code& ec);
 
@@ -52,7 +52,7 @@ inline UdpSocketImpl::~UdpSocketImpl() {
   assert(closed_);
 }
 
-inline boost::asio::awaitable<void> UdpSocketImpl::Open() {
+inline awaitable<void> UdpSocketImpl::Open() {
   auto ref = shared_from_this();
 
   auto [error, iterator] = co_await resolver_.async_resolve(
@@ -106,7 +106,7 @@ inline boost::asio::awaitable<void> UdpSocketImpl::Open() {
   }
 }
 
-inline boost::asio::awaitable<void> UdpSocketImpl::Close() {
+inline awaitable<void> UdpSocketImpl::Close() {
   auto ref = shared_from_this();
 
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
@@ -122,8 +122,8 @@ inline boost::asio::awaitable<void> UdpSocketImpl::Close() {
   socket_.close();
 }
 
-inline boost::asio::awaitable<size_t> UdpSocketImpl::SendTo(Endpoint endpoint,
-                                                            Datagram datagram) {
+inline awaitable<size_t> UdpSocketImpl::SendTo(Endpoint endpoint,
+                                               Datagram datagram) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   auto size = datagram.size();
@@ -137,7 +137,7 @@ inline boost::asio::awaitable<size_t> UdpSocketImpl::SendTo(Endpoint endpoint,
   co_return size;
 }
 
-inline boost::asio::awaitable<void> UdpSocketImpl::StartReading() {
+inline awaitable<void> UdpSocketImpl::StartReading() {
   if (closed_) {
     co_return;
   }
@@ -177,7 +177,7 @@ inline boost::asio::awaitable<void> UdpSocketImpl::StartReading() {
   }
 }
 
-inline boost::asio::awaitable<void> UdpSocketImpl::StartWriting() {
+inline awaitable<void> UdpSocketImpl::StartWriting() {
   if (closed_) {
     co_return;
   }

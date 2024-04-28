@@ -17,13 +17,13 @@ class NET_EXPORT PipeTransport final : public Transport {
   void Init(const std::wstring& name, bool server);
 
   // Transport overrides.
-  [[nodiscard]] virtual boost::asio::awaitable<void> Open(
+  [[nodiscard]] virtual awaitable<void> Open(
       Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual boost::asio::awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
   virtual std::string GetName() const override;

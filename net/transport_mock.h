@@ -23,7 +23,7 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(void, Destroy, ());
 
-  MOCK_METHOD(boost::asio::awaitable<void>,
+  MOCK_METHOD(awaitable<void>,
               Open,
               (Handlers handlers),
               (override));
@@ -31,7 +31,7 @@ class TransportMock : public Transport {
   MOCK_METHOD(void, Close, (), (override));
   MOCK_METHOD(int, Read, (std::span<char> data), (override));
 
-  MOCK_METHOD(boost::asio::awaitable<size_t>,
+  MOCK_METHOD(awaitable<size_t>,
               Write,
               (std::vector<char> data),
               (override));
