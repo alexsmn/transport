@@ -27,7 +27,7 @@ class NET_EXPORT Session final : public Transport {
     virtual void OnSessionTransportError(Error error) = 0;
   };
 
-  explicit Session(const boost::asio::any_io_executor& executor);
+  explicit Session(const Executor& executor);
   virtual ~Session();
 
   // Assign new session transport. If there is another one, delete it.
@@ -74,8 +74,7 @@ class NET_EXPORT Session final : public Transport {
   std::unique_ptr<Transport> DetachTransport();
 
   // Transport
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
@@ -88,6 +87,7 @@ class NET_EXPORT Session final : public Transport {
   }
 
   virtual bool IsActive() const override { return true; }
+  virtual Executor GetExecutor() const override { return executor_; }
 
  private:
   struct Message {
@@ -163,7 +163,7 @@ class NET_EXPORT Session final : public Transport {
   net::Error OnTransportAccepted(std::unique_ptr<Transport> transport);
   void OnTransportMessageReceived(std::span<const char> data);
 
-  boost::asio::any_io_executor executor_;
+  Executor executor_;
 
   std::shared_ptr<const Logger> logger_;
 

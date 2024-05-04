@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/net_exception.h"
 #include "net/transport.h"
 
 #include <memory>
@@ -18,9 +19,16 @@ class any_transport {
 
   explicit operator bool() const { return transport_ != nullptr; }
 
-  promise<void> open(const Transport::Handlers& handlers) {
-    return transport_ ? transport_->Open(handlers)
-                      : make_error_promise<void>(ERR_INVALID_HANDLE);
+  [[nodiscard]] Executor get_executor() const {
+    return transport_ ? transport_->GetExecutor() : Executor{};
+  }
+
+  [[nodiscard]] awaitable<void> open(const Transport::Handlers& handlers) {
+    if (!transport_) {
+      throw net_exception{ERR_INVALID_HANDLE};
+    }
+
+    return transport_->Open(handlers);
   }
 
   void close() {
@@ -35,9 +43,12 @@ class any_transport {
     return transport_ ? transport_->Read(data) : ERR_INVALID_HANDLE;
   }
 
-  promise<size_t> write(std::span<const char> data) const {
-    return transport_ ? transport_->Write(data)
-                      : make_error_promise<size_t>(ERR_INVALID_HANDLE);
+  [[nodiscard]] awaitable<size_t> write(std::vector<char> data) const {
+    if (!transport_) {
+      throw net_exception{ERR_INVALID_HANDLE};
+    }
+
+    return transport_->Write(std::move(data));
   }
 
  private:

@@ -19,19 +19,19 @@ class NET_EXPORT QueueTransport final : public Transport {
 
   // Transport
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodicard]] virtual awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
 
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return connected_; }
   virtual bool IsActive() const override { return active_; }
+  virtual Executor GetExecutor() const override { return executor_; }
 
  private:
   using Message = std::vector<char>;

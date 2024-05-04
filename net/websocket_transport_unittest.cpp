@@ -37,7 +37,7 @@ TEST_F(WebSocketTransportTest, Test) {
 
   // `boost::asio::ip::make_address` doesn't support an empty string for any IP
   // address.
-  WebSocketTransport server{io_context, "0.0.0.0", port};
+  WebSocketTransport server{io_context.get_executor(), "0.0.0.0", port};
 
   StrictMock<MockTransportHandlers> server_handlers;
 

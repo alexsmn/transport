@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/executor.h"
 #include "net/transport.h"
 
 #include <unordered_map>
@@ -8,8 +9,11 @@ namespace net {
 
 class InprocessTransportHost {
  public:
-  std::unique_ptr<Transport> CreateServer(std::string_view channel_name);
-  std::unique_ptr<Transport> CreateClient(std::string_view channel_name);
+  std::unique_ptr<Transport> CreateServer(const Executor& executor,
+                                          std::string_view channel_name);
+
+  std::unique_ptr<Transport> CreateClient(const Executor& executor,
+                                          std::string_view channel_name);
 
  private:
   class AcceptedClient;

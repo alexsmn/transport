@@ -251,8 +251,7 @@ int MessageReaderTransport::Core::ReadMessage(void* data, size_t len) {
   return size;
 }
 
-awaitable<size_t> MessageReaderTransport::Write(
-    std::vector<char> data) {
+awaitable<size_t> MessageReaderTransport::Write(std::vector<char> data) {
   return core_->WriteMessage(std::move(data));
 }
 
@@ -269,6 +268,10 @@ awaitable<size_t> MessageReaderTransport::Core::WriteMessage(
 
 std::string MessageReaderTransport::GetName() const {
   return "MSG:" + core_->child_transport_->GetName();
+}
+
+Executor MessageReaderTransport::GetExecutor() const {
+  return core_->child_transport_->GetExecutor();
 }
 
 void MessageReaderTransport::Core::OnChildTransportOpened() {

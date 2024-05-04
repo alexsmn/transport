@@ -196,7 +196,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
       return nullptr;
     }
 
-    return std::make_unique<WebSocketTransport>(io_context_, std::string{host},
+    return std::make_unique<WebSocketTransport>(executor, std::string{host},
                                                 port);
 
   } else if (protocol == TransportString::INPROCESS) {
@@ -207,8 +207,8 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     // INPROCESS;Passive;Name=Abc
     auto name = transport_string.GetParamStr(TransportString::kParamName);
 
-    return active ? inprocess_transport_host_->CreateClient(name)
-                  : inprocess_transport_host_->CreateServer(name);
+    return active ? inprocess_transport_host_->CreateClient(executor, name)
+                  : inprocess_transport_host_->CreateServer(executor, name);
 
   } else {
     return nullptr;

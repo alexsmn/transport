@@ -2,17 +2,11 @@
 
 #include "net/transport.h"
 
-namespace boost::asio {
-class io_context;
-}
-
 namespace net {
 
 class WebSocketTransport final : public Transport {
  public:
-  WebSocketTransport(boost::asio::io_context& io_context,
-                     std::string host,
-                     int port);
+  WebSocketTransport(const Executor& executor, std::string host, int port);
   ~WebSocketTransport();
 
   [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
@@ -29,6 +23,7 @@ class WebSocketTransport final : public Transport {
   virtual bool IsMessageOriented() const override { return true; }
   virtual bool IsConnected() const override { return false; }
   virtual bool IsActive() const override { return false; }
+  virtual Executor GetExecutor() const override;
 
  private:
   class Core;

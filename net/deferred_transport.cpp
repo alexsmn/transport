@@ -191,8 +191,7 @@ int DeferredTransport::Read(std::span<char> data) {
                         : ERR_ACCESS_DENIED;
 }
 
-awaitable<size_t> DeferredTransport::Write(
-    std::vector<char> data) {
+awaitable<size_t> DeferredTransport::Write(std::vector<char> data) {
   if (!core_->opened_) {
     throw net_exception{ERR_ACCESS_DENIED};
   }
@@ -210,6 +209,10 @@ bool DeferredTransport::IsMessageOriented() const {
 
 bool DeferredTransport::IsActive() const {
   return core_->underlying_transport_->IsActive();
+}
+
+Executor DeferredTransport::GetExecutor() const {
+  return core_->underlying_transport_->GetExecutor();
 }
 
 }  // namespace net

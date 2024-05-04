@@ -6,10 +6,14 @@
 
 namespace net {
 
-class InprocessTransportHost::Client : public Transport {
+class InprocessTransportHost::Client final : public Transport {
  public:
-  Client(InprocessTransportHost& host, std::string channel_name)
-      : host_{host}, channel_name_{std::move(channel_name)} {}
+  Client(InprocessTransportHost& host,
+         const Executor& executor,
+         std::string channel_name)
+      : host_{host},
+        executor_{executor},
+        channel_name_{std::move(channel_name)} {}
 
   ~Client() { Close(); }
 
@@ -25,8 +29,7 @@ class InprocessTransportHost::Client : public Transport {
     return std::format("client:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
 
@@ -34,6 +37,8 @@ class InprocessTransportHost::Client : public Transport {
 
   [[nodiscard]] virtual awaitable<size_t> Write(
       std::vector<char> data) override;
+
+  virtual Executor GetExecutor() const override { return executor_; }
 
   void Receive(std::span<const char> data) {
     // Must be opened.
@@ -55,16 +60,21 @@ class InprocessTransportHost::Client : public Transport {
 
  private:
   InprocessTransportHost& host_;
+  const Executor executor_;
   const std::string channel_name_;
 
   Handlers handlers_;
   AcceptedClient* accepted_client_ = nullptr;
 };
 
-class InprocessTransportHost::Server : public Transport {
+class InprocessTransportHost::Server final : public Transport {
  public:
-  Server(InprocessTransportHost& host, std::string channel_name)
-      : host_{host}, channel_name_{std::move(channel_name)} {}
+  Server(InprocessTransportHost& host,
+         const Executor& executor,
+         std::string channel_name)
+      : host_{host},
+        executor_{executor},
+        channel_name_{std::move(channel_name)} {}
 
   ~Server() { Close(); }
 
@@ -78,8 +88,7 @@ class InprocessTransportHost::Server : public Transport {
     return std::format("server:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override {
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
       co_return;
@@ -108,8 +117,9 @@ class InprocessTransportHost::Server : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual awaitable<size_t> Write(
-      std::vector<char> data) override {
+  virtual Executor GetExecutor() const override { return executor_; }
+
+  virtual awaitable<size_t> Write(std::vector<char> data) override {
     throw net_exception{ERR_ACCESS_DENIED};
   }
 
@@ -117,6 +127,7 @@ class InprocessTransportHost::Server : public Transport {
 
  private:
   InprocessTransportHost& host_;
+  const Executor executor_;
   const std::string channel_name_;
 
   Handlers handlers_;
@@ -126,7 +137,7 @@ class InprocessTransportHost::Server : public Transport {
   friend class AcceptedClient;
 };
 
-class InprocessTransportHost::AcceptedClient : public Transport {
+class InprocessTransportHost::AcceptedClient final : public Transport {
  public:
   AcceptedClient(Client& client, Server& server)
       : client_{client}, server_{server} {
@@ -145,8 +156,7 @@ class InprocessTransportHost::AcceptedClient : public Transport {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override {
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
       throw net_exception{ERR_ADDRESS_IN_USE};
@@ -172,11 +182,12 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual awaitable<size_t> Write(
-      std::vector<char> data) override {
+  virtual awaitable<size_t> Write(std::vector<char> data) override {
     client_.Receive(data);
     co_return data.size();
   }
+
+  virtual Executor GetExecutor() const override { return server_.executor_; }
 
   void OnClientClosed() {
     // Client might have not called `Open` yet.
@@ -207,8 +218,7 @@ class InprocessTransportHost::AcceptedClient : public Transport {
 
 // InprocessTransportHost::Client
 
-awaitable<void> InprocessTransportHost::Client::Open(
-    Handlers handlers) {
+awaitable<void> InprocessTransportHost::Client::Open(Handlers handlers) {
   if (accepted_client_) {
     handlers.on_close(ERR_ADDRESS_IN_USE);
     throw net_exception{ERR_ADDRESS_IN_USE};
@@ -264,13 +274,15 @@ InprocessTransportHost::Server::AcceptClient(Client& client) {
 // InprocessTransportHost
 
 std::unique_ptr<Transport> InprocessTransportHost::CreateServer(
+    const Executor& executor,
     std::string_view channel_name) {
-  return std::make_unique<Server>(*this, std::string{channel_name});
+  return std::make_unique<Server>(*this, executor, std::string{channel_name});
 }
 
 std::unique_ptr<Transport> InprocessTransportHost::CreateClient(
+    const Executor& executor,
     std::string_view channel_name) {
-  return std::make_unique<Client>(*this, std::string{channel_name});
+  return std::make_unique<Client>(*this, executor, std::string{channel_name});
 }
 
 InprocessTransportHost::Server* InprocessTransportHost::FindServer(
