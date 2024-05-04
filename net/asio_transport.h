@@ -28,6 +28,7 @@ class AsioTransport : public Transport {
 
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
+  virtual Executor GetExecutor() const override;
 
  protected:
   class Core;
@@ -46,15 +47,13 @@ class AsioTransport::Core {
 
   virtual bool IsConnected() const = 0;
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) = 0;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) = 0;
 
   virtual void Close() = 0;
 
   virtual int Read(std::span<char> data) = 0;
 
-  [[nodiscard]] virtual awaitable<size_t> Write(
-      std::vector<char> data) = 0;
+  [[nodiscard]] virtual awaitable<size_t> Write(std::vector<char> data) = 0;
 };
 
 // AsioTransport::Core
@@ -168,8 +167,7 @@ inline awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
 }
 
 template <class IoObject>
-inline awaitable<void>
-AsioTransport::IoCore<IoObject>::StartReading() {
+inline awaitable<void> AsioTransport::IoCore<IoObject>::StartReading() {
   if (closed_ || reading_) {
     co_return;
   }
@@ -218,8 +216,7 @@ AsioTransport::IoCore<IoObject>::StartReading() {
 }
 
 template <class IoObject>
-inline awaitable<void>
-AsioTransport::IoCore<IoObject>::StartWriting() {
+inline awaitable<void> AsioTransport::IoCore<IoObject>::StartWriting() {
   if (closed_ || writing_) {
     co_return;
   }
@@ -289,9 +286,8 @@ inline int AsioTransport::Read(std::span<char> data) {
   return core_->Read(data);
 }
 
-inline awaitable<size_t> AsioTransport::Write(
-    std::vector<char> data) {
-  return core_->Write(data);
+inline awaitable<size_t> AsioTransport::Write(std::vector<char> data) {
+  return core_->Write(std::move(data));
 }
 
 inline bool AsioTransport::IsMessageOriented() const {
@@ -300,6 +296,10 @@ inline bool AsioTransport::IsMessageOriented() const {
 
 inline bool AsioTransport::IsConnected() const {
   return core_->IsConnected();
+}
+
+inline Executor AsioTransport::GetExecutor() const {
+  return core_->GetExecutor();
 }
 
 }  // namespace net

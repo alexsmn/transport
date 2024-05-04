@@ -4,12 +4,13 @@
 
 namespace net {
 
+// Intentionally non-final.
 class DelegatingTransport : public Transport {
  public:
   explicit DelegatingTransport(Transport& delegate) : delegate_{delegate} {}
 
-  virtual promise<void> Open(const Handlers& handlers) override {
-    return delegate_.Open(handlers);
+  virtual awaitable<void> Open(Handlers handlers) override {
+    return delegate_.Open(std::move(handlers));
   }
 
   virtual void Close() override { delegate_.Close(); }
@@ -18,8 +19,8 @@ class DelegatingTransport : public Transport {
     return delegate_.Read(data);
   }
 
-  virtual promise<size_t> Write(std::span<const char> data) override {
-    return delegate_.Write(data);
+  virtual awaitable<size_t> Write(std::vector<char> data) override {
+    return delegate_.Write(std::move(data));
   }
 
   virtual std::string GetName() const override { return delegate_.GetName(); }
@@ -31,6 +32,10 @@ class DelegatingTransport : public Transport {
   virtual bool IsConnected() const override { return delegate_.IsConnected(); }
 
   virtual bool IsActive() const override { return delegate_.IsActive(); }
+
+  virtual Executor GetExecutor() const override {
+    return delegate_.GetExecutor();
+  }
 
  protected:
   Transport& delegate_;

@@ -3,6 +3,7 @@
 #include "net/awaitable.h"
 #include "net/base/net_errors.h"
 #include "net/base/net_export.h"
+#include "net/executor.h"
 
 #include <cassert>
 #include <functional>
@@ -39,8 +40,7 @@ class Connector {
     AcceptHandler on_accept;
   };
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) = 0;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) = 0;
 };
 
 class Sender {
@@ -48,8 +48,7 @@ class Sender {
   virtual ~Sender() = default;
 
   // Returns amount of bytes written or an error.
-  [[nodiscard]] virtual awaitable<size_t> Write(
-      std::vector<char> data) = 0;
+  [[nodiscard]] virtual awaitable<size_t> Write(std::vector<char> data) = 0;
 };
 
 class Reader {
@@ -67,16 +66,16 @@ class TransportMetadata {
  public:
   virtual ~TransportMetadata() = default;
 
-  virtual std::string GetName() const = 0;
+  [[nodiscard]] virtual std::string GetName() const = 0;
 
   // Transport supports messages by itself without using of MessageReader.
   // If returns false, Read has to be implemented.
-  virtual bool IsMessageOriented() const = 0;
+  [[nodiscard]] virtual bool IsMessageOriented() const = 0;
 
-  virtual bool IsConnected() const = 0;
+  [[nodiscard]] virtual bool IsConnected() const = 0;
 
   // Active means the transport is a client (not a server) transport.
-  virtual bool IsActive() const = 0;
+  [[nodiscard]] virtual bool IsActive() const = 0;
 };
 
 // TODO: Make non-virtual.
@@ -92,6 +91,8 @@ class NET_EXPORT Transport : public Connector,
 
   Transport(const Transport&) = delete;
   Transport& operator=(const Transport&) = delete;
+
+  [[nodiscard]] virtual Executor GetExecutor() const = 0;
 
   // TODO: Should return a promise.
   virtual void Close() = 0;

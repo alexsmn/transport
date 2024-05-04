@@ -31,8 +31,7 @@ class AsioUdpTransport::UdpActiveCore
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
@@ -73,8 +72,7 @@ AsioUdpTransport::UdpActiveCore::UdpActiveCore(
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-awaitable<void> AsioUdpTransport::UdpActiveCore::Open(
-    Handlers handlers) {
+awaitable<void> AsioUdpTransport::UdpActiveCore::Open(Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   handlers_ = std::move(handlers);
@@ -164,8 +162,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   ~AcceptedTransport();
 
   // Transport
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
@@ -174,6 +171,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
   virtual bool IsActive() const override;
+  virtual Executor GetExecutor() const override;
 
   std::string host;
   std::string service;
@@ -209,8 +207,7 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
@@ -226,9 +223,8 @@ class AsioUdpTransport::UdpPassiveCore final
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::Error& error);
 
-  [[nodiscard]] awaitable<size_t> InternalWrite(
-      UdpSocket::Endpoint endpoint,
-      UdpSocket::Datagram datagram);
+  [[nodiscard]] awaitable<size_t> InternalWrite(UdpSocket::Endpoint endpoint,
+                                                UdpSocket::Datagram datagram);
 
   void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
   void CloseAllAcceptedTransports(Error error);
@@ -270,8 +266,7 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
 }
 
-awaitable<void> AsioUdpTransport::UdpPassiveCore::Open(
-    Handlers handlers) {
+awaitable<void> AsioUdpTransport::UdpPassiveCore::Open(Handlers handlers) {
   logger_->WriteF(LogSeverity::Normal, "Open");
 
   handlers_ = std::move(handlers);
@@ -444,8 +439,7 @@ AsioUdpTransport::AcceptedTransport::~AcceptedTransport() {
     core_->RemoveAcceptedTransport(endpoint_);
 }
 
-awaitable<void> AsioUdpTransport::AcceptedTransport::Open(
-    Handlers handlers) {
+awaitable<void> AsioUdpTransport::AcceptedTransport::Open(Handlers handlers) {
   assert(!connected_);
 
   if (connected_ || !core_) {
@@ -497,6 +491,10 @@ bool AsioUdpTransport::AcceptedTransport::IsConnected() const {
 
 bool AsioUdpTransport::AcceptedTransport::IsActive() const {
   return false;
+}
+
+Executor AsioUdpTransport::AcceptedTransport::GetExecutor() const {
+  return core_->GetExecutor();
 }
 
 void AsioUdpTransport::AcceptedTransport::ProcessDatagram(Datagram&& datagram) {

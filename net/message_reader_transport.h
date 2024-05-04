@@ -16,7 +16,7 @@ class MessageReader;
 // Supports both message and stream child transports. When message child
 // transport is used, the message reader is applied on concatenated child
 // transport messages.
-class MessageReaderTransport : public Transport {
+class MessageReaderTransport final : public Transport {
  public:
   MessageReaderTransport(const Executor& executor,
                          std::unique_ptr<Transport> child_transport,
@@ -27,8 +27,7 @@ class MessageReaderTransport : public Transport {
   MessageReader& message_reader();
 
   // Transport
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
@@ -40,6 +39,7 @@ class MessageReaderTransport : public Transport {
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
   virtual bool IsActive() const override;
+  virtual Executor GetExecutor() const override;
 
  private:
   struct Core;

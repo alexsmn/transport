@@ -11,11 +11,13 @@ using namespace std::chrono_literals;
 
 namespace net {
 
-PipeTransport::PipeTransport(const Executor& executor) : timer_{executor} {}
+PipeTransport::PipeTransport(const Executor& executor)
+    : executor_{executor}, timer_{executor} {}
 
 PipeTransport::~PipeTransport() {
-  if (handle_ != INVALID_HANDLE_VALUE)
+  if (handle_ != INVALID_HANDLE_VALUE) {
     CloseHandle(handle_);
+  }
 }
 
 void PipeTransport::Init(const std::wstring& name, bool server) {

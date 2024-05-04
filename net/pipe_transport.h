@@ -17,8 +17,7 @@ class NET_EXPORT PipeTransport final : public Transport {
   void Init(const std::wstring& name, bool server);
 
   // Transport overrides.
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
@@ -30,10 +29,12 @@ class NET_EXPORT PipeTransport final : public Transport {
   virtual bool IsMessageOriented() const override { return false; }
   virtual bool IsConnected() const override { return connected_; }
   virtual bool IsActive() const override { return true; }
+  virtual Executor GetExecutor() const override { return executor_; }
 
  private:
   void OnTimer();
 
+  Executor executor_;
   Handlers handlers_;
 
   std::wstring name_;

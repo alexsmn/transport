@@ -21,8 +21,7 @@ class DeferredTransport final : public Transport {
   void set_additional_close_handler(CloseHandler handler);
 
   // Transport
-  [[nodiscard]] virtual awaitable<void> Open(
-      Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
@@ -34,6 +33,7 @@ class DeferredTransport final : public Transport {
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
   virtual bool IsActive() const override;
+  virtual Executor GetExecutor() const override;
 
  private:
   struct Core;

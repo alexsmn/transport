@@ -23,23 +23,18 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(void, Destroy, ());
 
-  MOCK_METHOD(awaitable<void>,
-              Open,
-              (Handlers handlers),
-              (override));
+  MOCK_METHOD(awaitable<void>, Open, (Handlers handlers), (override));
 
   MOCK_METHOD(void, Close, (), (override));
   MOCK_METHOD(int, Read, (std::span<char> data), (override));
 
-  MOCK_METHOD(awaitable<size_t>,
-              Write,
-              (std::vector<char> data),
-              (override));
+  MOCK_METHOD(awaitable<size_t>, Write, (std::vector<char> data), (override));
 
   MOCK_METHOD(std::string, GetName, (), (const override));
   MOCK_METHOD(bool, IsMessageOriented, (), (const override));
   MOCK_METHOD(bool, IsConnected, (), (const override));
   MOCK_METHOD(bool, IsActive, (), (const override));
+  MOCK_METHOD(Executor, GetExecutor, (), (const override));
 };
 
 }  // namespace net

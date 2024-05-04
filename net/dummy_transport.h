@@ -7,14 +7,15 @@ namespace net {
 class DummyTransport : public Transport {
  public:
   // Transport
-  virtual promise<void> Open(const Handlers& handlers) override;
+  virtual awaitable<void> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual promise<size_t> Write(std::span<const char> data) override;
+  virtual awaitable<size_t> Write(std::vector<char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
   virtual bool IsActive() const override;
+  virtual Executor GetExecutor() const override;
 
  private:
   bool opened_ = false;
@@ -22,15 +23,15 @@ class DummyTransport : public Transport {
   Handlers handlers_;
 };
 
-inline promise<void> DummyTransport::Open(const Handlers& handlers) {
+inline awaitable<void> DummyTransport::Open(Handlers handlers) {
   opened_ = true;
-  handlers_ = handlers;
+  handlers_ = std::move(handlers);
 
   if (auto on_open = std::move(handlers_.on_open)) {
     on_open();
   }
 
-  return make_resolved_promise();
+  co_return;
 }
 
 inline void DummyTransport::Close() {
@@ -49,8 +50,8 @@ inline int DummyTransport::Read(std::span<char> data) {
   return static_cast<int>(data.size());
 }
 
-inline promise<size_t> DummyTransport::Write(std::span<const char> data) {
-  return make_resolved_promise(data.size());
+inline awaitable<size_t> DummyTransport::Write(std::vector<char> data) {
+  co_return data.size();
 }
 
 inline std::string DummyTransport::GetName() const {
@@ -67,6 +68,10 @@ inline bool DummyTransport::IsConnected() const {
 
 inline bool DummyTransport::IsActive() const {
   return true;
+}
+
+inline Executor DummyTransport::GetExecutor() const {
+  return boost::asio::system_executor{};
 }
 
 }  // namespace net
