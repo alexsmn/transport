@@ -19,8 +19,9 @@ class UdpSocketImpl : private UdpSocketContext,
   virtual awaitable<net::Error> Open() override;
   virtual awaitable<void> Close() override;
 
-  virtual awaitable<ErrorOr<size_t>> SendTo(Endpoint endpoint,
-                                            Datagram datagram) override;
+  virtual awaitable<ErrorOr<size_t>> SendTo(
+      Endpoint endpoint,
+      std::span<const char> datagram) override;
 
  private:
   [[nodiscard]] awaitable<void> StartReading();
@@ -125,13 +126,16 @@ inline awaitable<void> UdpSocketImpl::Close() {
   socket_.close();
 }
 
-inline awaitable<ErrorOr<size_t>> UdpSocketImpl::SendTo(Endpoint endpoint,
-                                                        Datagram datagram) {
+inline awaitable<ErrorOr<size_t>> UdpSocketImpl::SendTo(
+    Endpoint endpoint,
+    std::span<const char> datagram) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   auto size = datagram.size();
 
-  write_queue_.emplace(std::move(endpoint), std::move(datagram));
+  write_queue_.emplace(std::piecewise_construct,
+                       std::forward_as_tuple(std::move(endpoint)),
+                       std::forward_as_tuple(datagram.begin(), datagram.end()));
 
   boost::asio::co_spawn(socket_.get_executor(), StartWriting(),
                         boost::asio::detached);

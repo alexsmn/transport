@@ -24,7 +24,7 @@ class AsioTransport : public Transport {
   virtual int Read(std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) override;
+      std::span<const char> data) override;
 
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
@@ -54,7 +54,7 @@ class AsioTransport::Core {
   [[nodiscard]] virtual int Read(std::span<char> data) = 0;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) = 0;
+      std::span<const char> data) = 0;
 };
 
 // AsioTransport::Core
@@ -70,7 +70,7 @@ class AsioTransport::IoCore : public Core,
   virtual int Read(std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) override;
+      std::span<const char> data) override;
 
  protected:
   IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
@@ -151,8 +151,8 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
-    std::vector<char> data) {
+inline awaitable<ErrorOr<size_t>>
+AsioTransport::IoCore<IoObject>::Write(std::span<const char> data) {
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
 
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
@@ -287,8 +287,9 @@ inline int AsioTransport::Read(std::span<char> data) {
   return core_->Read(data);
 }
 
-inline awaitable<ErrorOr<size_t>> AsioTransport::Write(std::vector<char> data) {
-  return core_->Write(std::move(data));
+inline awaitable<ErrorOr<size_t>> AsioTransport::Write(
+    std::span<const char> data) {
+  return core_->Write(data);
 }
 
 inline bool AsioTransport::IsMessageOriented() const {

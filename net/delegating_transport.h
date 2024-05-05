@@ -20,8 +20,8 @@ class DelegatingTransport : public Transport {
   }
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) override {
-    return delegate_.Write(std::move(data));
+      std::span<const char> data) override {
+    return delegate_.Write(data);
   }
 
   [[nodiscard]] virtual std::string GetName() const override {

@@ -30,7 +30,7 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               Write,
-              (std::vector<char> data),
+              (std::span<const char> data),
               (override));
 
   MOCK_METHOD(std::string, GetName, (), (const override));

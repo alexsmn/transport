@@ -29,7 +29,7 @@ class MockUdpSocket : public UdpSocket {
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               SendTo,
-              (Endpoint endpoint, Datagram datagram),
+              (Endpoint endpoint, std::span<const char> datagram),
               (override));
 };
 

@@ -101,7 +101,7 @@ namespace {
     if (res <= 0) {
       break;
     }
-    co_await transport.Write(std::move(buffer));
+    co_await transport.Write(buffer);
   }
 }
 
@@ -140,9 +140,13 @@ awaitable<void> TransportTest::Server::StartEchoing(
        .on_message =
            [this, &transport](std::span<const char> data) {
              logger_->Write(LogSeverity::Normal, "Message received. Send echo");
+
              boost::asio::co_spawn(
                  executor_,
-                 transport->Write(std::vector<char>{data.begin(), data.end()}),
+                 [&transport,
+                  write_data = std::vector<char>{data.begin(), data.end()}] {
+                   return transport->Write(write_data);
+                 },
                  boost::asio::detached);
            }});
 }
@@ -161,34 +165,42 @@ awaitable<void> TransportTest::Client::Run() {
        .on_data =
            [this, &received_message] {
              logger_->Write(LogSeverity::Normal, "Message received");
+
              std::array<char, std::size(kMessage)> data;
              if (transport_->Read(data) != std::size(kMessage)) {
                throw std::runtime_error{"Received message is too short"};
              }
+
              if (!std::ranges::equal(data, kMessage)) {
                throw std::runtime_error{
                    "Received message is not equal to the sent one."};
              }
+
              received_message.try_send();
            },
        .on_message =
            [this, &received_message](std::span<const char> data) {
              logger_->Write(LogSeverity::Normal, "Message received. Send echo");
+
              boost::asio::co_spawn(
                  executor_,
-                 transport_->Write(std::vector<char>{data.begin(), data.end()}),
+                 [this,
+                  write_data = std::vector<char>{data.begin(), data.end()}] {
+                   return transport_->Write(write_data);
+                 },
                  boost::asio::detached);
+
              if (!std::ranges::equal(data, kMessage)) {
                throw std::runtime_error{
                    "Received message is not equal to the sent one."};
              }
+
              received_message.try_send();
            }});
 
   logger_->Write(LogSeverity::Normal, "Send message");
 
-  co_await transport_->Write(
-      std::vector<char>{std::begin(kMessage), std::end(kMessage)});
+  co_await transport_->Write(kMessage);
 
   transport_->Close();
 }

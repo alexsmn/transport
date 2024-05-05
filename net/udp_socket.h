@@ -18,9 +18,10 @@ class UdpSocket {
   [[nodiscard]] virtual awaitable<net::Error> Open() = 0;
   [[nodiscard]] virtual awaitable<void> Close() = 0;
 
+  // Caller must remain the datagram until the operation completes.
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> SendTo(
       Endpoint endpoint,
-      Datagram datagram) = 0;
+      std::span<const char> datagram) = 0;
 };
 
 struct UdpSocketContext {
