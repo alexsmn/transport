@@ -43,15 +43,15 @@ class AsioTransport::Core {
  public:
   virtual ~Core() {}
 
-  virtual Executor GetExecutor() = 0;
+  [[nodiscard]] virtual Executor GetExecutor() = 0;
 
-  virtual bool IsConnected() const = 0;
+  [[nodiscard]] virtual bool IsConnected() const = 0;
 
   [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) = 0;
 
   virtual void Close() = 0;
 
-  virtual int Read(std::span<char> data) = 0;
+  [[nodiscard]] virtual int Read(std::span<char> data) = 0;
 
   [[nodiscard]] virtual awaitable<size_t> Write(std::vector<char> data) = 0;
 };

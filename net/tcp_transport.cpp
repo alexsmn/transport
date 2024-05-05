@@ -12,7 +12,7 @@ class AsioTcpTransport::ActiveCore final
  public:
   using Socket = boost::asio::ip::tcp::socket;
 
-  ActiveCore(const boost::asio::any_io_executor& executor,
+  ActiveCore(const Executor& executor,
              std::shared_ptr<const Logger> logger,
              const std::string& host,
              const std::string& service);
@@ -57,8 +57,7 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
   connected_ = true;
 }
 
-awaitable<void> AsioTcpTransport::ActiveCore::Open(
-    Handlers handlers) {
+awaitable<void> AsioTcpTransport::ActiveCore::Open(Handlers handlers) {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   if (connected_) {
@@ -218,8 +217,7 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-awaitable<void> AsioTcpTransport::PassiveCore::Open(
-    Handlers handlers) {
+awaitable<void> AsioTcpTransport::PassiveCore::Open(Handlers handlers) {
   auto ref = shared_from_this();
 
   logger_->WriteF(LogSeverity::Normal, "Open");
@@ -322,8 +320,7 @@ int AsioTcpTransport::PassiveCore::Read(std::span<char> data) {
   return ERR_ACCESS_DENIED;
 }
 
-awaitable<size_t> AsioTcpTransport::PassiveCore::Write(
-    std::vector<char> data) {
+awaitable<size_t> AsioTcpTransport::PassiveCore::Write(std::vector<char> data) {
   throw net_exception{ERR_ACCESS_DENIED};
 }
 
