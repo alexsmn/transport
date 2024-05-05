@@ -9,7 +9,7 @@ class DelegatingTransport : public Transport {
  public:
   explicit DelegatingTransport(Transport& delegate) : delegate_{delegate} {}
 
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override {
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
     return delegate_.Open(std::move(handlers));
   }
 
@@ -19,7 +19,7 @@ class DelegatingTransport : public Transport {
     return delegate_.Read(data);
   }
 
-  [[nodiscard]] virtual awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::vector<char> data) override {
     return delegate_.Write(std::move(data));
   }

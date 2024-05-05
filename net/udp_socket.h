@@ -15,11 +15,12 @@ class UdpSocket {
 
   virtual ~UdpSocket() = default;
 
-  [[nodiscard]] virtual awaitable<void> Open() = 0;
+  [[nodiscard]] virtual awaitable<net::Error> Open() = 0;
   [[nodiscard]] virtual awaitable<void> Close() = 0;
 
-  [[nodiscard]] virtual awaitable<size_t> SendTo(Endpoint endpoint,
-                                                 Datagram datagram) = 0;
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> SendTo(
+      Endpoint endpoint,
+      Datagram datagram) = 0;
 };
 
 struct UdpSocketContext {

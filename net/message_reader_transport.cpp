@@ -3,7 +3,6 @@
 #include "net/base/net_errors.h"
 #include "net/logger.h"
 #include "net/message_reader.h"
-#include "net/net_exception.h"
 
 #include "net/base/threading/thread_collision_warner.h"
 #include <boost/asio/bind_executor.hpp>
@@ -79,11 +78,11 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
 
-  [[nodiscard]] awaitable<void> Open(Handlers handlers);
+  [[nodiscard]] awaitable<Error> Open(Handlers handlers);
   void Close();
 
-  int ReadMessage(void* data, size_t len);
-  awaitable<size_t> WriteMessage(std::vector<char> data);
+  [[nodiscard]] int ReadMessage(void* data, size_t len);
+  [[nodiscard]] awaitable<ErrorOr<size_t>> WriteMessage(std::vector<char> data);
 
   // Child handlers.
   void OnChildTransportOpened();
@@ -141,7 +140,7 @@ bool MessageReaderTransport::IsActive() const {
   return core_->child_transport_->IsActive();
 }
 
-awaitable<void> MessageReaderTransport::Open(Handlers handlers) {
+awaitable<Error> MessageReaderTransport::Open(Handlers handlers) {
   return core_->Open(std::move(handlers));
 }
 
@@ -153,7 +152,7 @@ bool MessageReaderTransport::IsMessageOriented() const {
   return true;
 }
 
-[[nodiscard]] awaitable<void> MessageReaderTransport::Core::Open(
+[[nodiscard]] awaitable<Error> MessageReaderTransport::Core::Open(
     Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
@@ -166,7 +165,7 @@ bool MessageReaderTransport::IsMessageOriented() const {
 
   auto ref = shared_from_this();
 
-  co_await child_transport_->Open(
+  co_return co_await child_transport_->Open(
       {.on_open = boost::asio::bind_executor(
            executor_, std::bind_front(&Core::OnChildTransportOpened, ref)),
        .on_close = boost::asio::bind_executor(
@@ -251,19 +250,20 @@ int MessageReaderTransport::Core::ReadMessage(void* data, size_t len) {
   return size;
 }
 
-awaitable<size_t> MessageReaderTransport::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> MessageReaderTransport::Write(
+    std::vector<char> data) {
   return core_->WriteMessage(std::move(data));
 }
 
-awaitable<size_t> MessageReaderTransport::Core::WriteMessage(
+awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::WriteMessage(
     std::vector<char> data) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (!child_transport_) {
-    throw net_exception(ERR_INVALID_HANDLE);
+    co_return ERR_INVALID_HANDLE;
   }
 
-  return child_transport_->Write(std::move(data));
+  co_return co_await child_transport_->Write(std::move(data));
 }
 
 std::string MessageReaderTransport::GetName() const {

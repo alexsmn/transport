@@ -1,7 +1,6 @@
 #include "net/tcp_transport.h"
 
 #include "net/logger.h"
-#include "net/net_exception.h"
 
 namespace net {
 
@@ -22,13 +21,13 @@ class AsioTcpTransport::ActiveCore final
   ActiveCore(std::shared_ptr<const Logger> logger, Socket socket);
 
   // Core
-  virtual awaitable<void> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open(Handlers handlers) override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  awaitable<void> StartResolving();
-  awaitable<void> StartConnecting(Resolver::iterator iterator);
+  [[nodiscard]] awaitable<Error> ResolveAndConnect();
+  [[nodiscard]] awaitable<Error> Connect(Resolver::iterator iterator);
 
   // ActiveCore
   virtual void Cleanup() override;
@@ -57,7 +56,7 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
   connected_ = true;
 }
 
-awaitable<void> AsioTcpTransport::ActiveCore::Open(Handlers handlers) {
+awaitable<Error> AsioTcpTransport::ActiveCore::Open(Handlers handlers) {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   if (connected_) {
@@ -67,17 +66,17 @@ awaitable<void> AsioTcpTransport::ActiveCore::Open(Handlers handlers) {
                           std::bind_front(&ActiveCore::StartReading, ref),
                           boost::asio::detached);
 
-    co_return;
+    co_return OK;
   }
 
   logger_->WriteF(LogSeverity::Normal, "Open");
 
   handlers_ = std::move(handlers);
 
-  co_await StartResolving();
+  co_return co_await ResolveAndConnect();
 }
 
-awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
+awaitable<Error> AsioTcpTransport::ActiveCore::ResolveAndConnect() {
   auto ref = shared_from_this();
 
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
@@ -87,23 +86,24 @@ awaitable<void> AsioTcpTransport::ActiveCore::StartResolving() {
       host_, service_, boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (closed_) {
-    co_return;
+    co_return ERR_ABORTED;
   }
 
   if (error) {
+    auto net_error = MapSystemError(error.value());
     if (error != boost::asio::error::operation_aborted) {
       logger_->Write(LogSeverity::Warning, "DNS resolution error");
-      ProcessError(MapSystemError(error.value()));
+      ProcessError(net_error);
     }
-    co_return;
+    co_return net_error;
   }
 
   logger_->Write(LogSeverity::Normal, "DNS resolution completed");
 
-  co_await StartConnecting(std::move(iterator));
+  co_return co_await Connect(std::move(iterator));
 }
 
-awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
+awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
     Resolver::iterator iterator) {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
@@ -113,15 +113,16 @@ awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (closed_) {
-    co_return;
+    co_return ERR_ABORTED;
   }
 
   if (error) {
+    auto net_error = MapSystemError(error.value());
     if (error != boost::asio::error::operation_aborted) {
       logger_->Write(LogSeverity::Warning, "Connect error");
-      ProcessError(MapSystemError(error.value()));
+      ProcessError(net_error);
     }
-    co_return;
+    co_return net_error;
   }
 
   logger_->WriteF(LogSeverity::Normal, "Connected to %s",
@@ -136,6 +137,8 @@ awaitable<void> AsioTcpTransport::ActiveCore::StartConnecting(
   boost::asio::co_spawn(io_object_.get_executor(),
                         std::bind_front(&ActiveCore::StartReading, ref),
                         boost::asio::detached);
+
+  co_return OK;
 }
 
 void AsioTcpTransport::ActiveCore::Cleanup() {
@@ -171,20 +174,20 @@ class AsioTcpTransport::PassiveCore final
   // Core
   virtual Executor GetExecutor() override { return acceptor_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
-  virtual awaitable<void> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::vector<char> data) override;
 
  private:
   using Socket = boost::asio::ip::tcp::socket;
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  awaitable<void> StartResolving();
-  boost::system::error_code Bind(Resolver::iterator iterator);
-  awaitable<void> StartAccepting();
+  [[nodiscard]] awaitable<Error> ResolveAndStartAccepting();
+  [[nodiscard]] boost::system::error_code Bind(Resolver::iterator iterator);
+  [[nodiscard]] awaitable<Error> StartAccepting();
 
   void ProcessError(const boost::system::error_code& ec);
 
@@ -217,17 +220,17 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-awaitable<void> AsioTcpTransport::PassiveCore::Open(Handlers handlers) {
+awaitable<Error> AsioTcpTransport::PassiveCore::Open(Handlers handlers) {
   auto ref = shared_from_this();
 
   logger_->WriteF(LogSeverity::Normal, "Open");
 
   handlers_ = std::move(handlers);
 
-  co_await StartResolving();
+  return ResolveAndStartAccepting();
 }
 
-awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
+awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndStartAccepting() {
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
 
@@ -238,7 +241,7 @@ awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (closed_) {
-    co_return;
+    co_return ERR_ABORTED;
   }
 
   if (error) {
@@ -246,7 +249,7 @@ awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
       logger_->Write(LogSeverity::Warning, "DNS resolution error");
       ProcessError(error);
     }
-    co_return;
+    co_return MapSystemError(error.value());
   }
 
   logger_->Write(LogSeverity::Normal, "DNS resolution completed");
@@ -254,7 +257,7 @@ awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
   if (auto ec = Bind(std::move(iterator)); ec) {
     logger_->Write(LogSeverity::Warning, "Bind error");
     ProcessError(ec);
-    co_return;
+    co_return MapSystemError(error.value());
   }
 
   logger_->Write(LogSeverity::Normal, "Bind completed");
@@ -268,6 +271,8 @@ awaitable<void> AsioTcpTransport::PassiveCore::StartResolving() {
   boost::asio::co_spawn(acceptor_.get_executor(),
                         std::bind_front(&PassiveCore::StartAccepting, ref),
                         boost::asio::detached);
+
+  co_return OK;
 }
 
 boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
@@ -320,11 +325,12 @@ int AsioTcpTransport::PassiveCore::Read(std::span<char> data) {
   return ERR_ACCESS_DENIED;
 }
 
-awaitable<size_t> AsioTcpTransport::PassiveCore::Write(std::vector<char> data) {
-  throw net_exception{ERR_ACCESS_DENIED};
+awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Write(
+    std::vector<char> data) {
+  co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<void> AsioTcpTransport::PassiveCore::StartAccepting() {
+awaitable<Error> AsioTcpTransport::PassiveCore::StartAccepting() {
   auto ref = shared_from_this();
 
   while (!closed_) {
@@ -335,7 +341,7 @@ awaitable<void> AsioTcpTransport::PassiveCore::StartAccepting() {
     assert(peer.get_executor() == acceptor_.get_executor());
 
     if (closed_) {
-      co_return;
+      co_return ERR_ABORTED;
     }
 
     // TODO: Log connection information.
@@ -346,7 +352,7 @@ awaitable<void> AsioTcpTransport::PassiveCore::StartAccepting() {
         logger_->Write(LogSeverity::Warning, "Accept connection error");
         ProcessError(error);
       }
-      co_return;
+      co_return MapSystemError(error.value());
     }
 
     logger_->Write(LogSeverity::Normal, "Connection accepted");
@@ -354,9 +360,12 @@ awaitable<void> AsioTcpTransport::PassiveCore::StartAccepting() {
     if (handlers_.on_accept) {
       auto accepted_transport =
           std::make_unique<AsioTcpTransport>(logger_, std::move(peer));
+
       handlers_.on_accept(std::move(accepted_transport));
     }
   }
+
+  co_return OK;
 }
 
 void AsioTcpTransport::PassiveCore::ProcessError(
@@ -411,7 +420,7 @@ AsioTcpTransport::~AsioTcpTransport() {
   // The base class closes the core on destruction.
 }
 
-awaitable<void> AsioTcpTransport::Open(Handlers handlers) {
+awaitable<Error> AsioTcpTransport::Open(Handlers handlers) {
   return core_->Open(std::move(handlers));
 }
 

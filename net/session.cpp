@@ -237,7 +237,7 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-awaitable<void> Session::Open(Handlers handlers) {
+awaitable<Error> Session::Open(Handlers handlers) {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
@@ -246,7 +246,8 @@ awaitable<void> Session::Open(Handlers handlers) {
 
   handlers_ = std::move(handlers);
   state_ = OPENING;
-  co_await StartConnecting();
+
+  return Connect();
 }
 
 int Session::Read(std::span<char> data) {
@@ -254,7 +255,7 @@ int Session::Read(std::span<char> data) {
   return ERR_NOT_IMPLEMENTED;
 }
 
-awaitable<size_t> Session::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> Session::Write(std::vector<char> data) {
   Send(data.data(), data.size());
   co_return data.size();
 }
@@ -263,7 +264,7 @@ std::string Session::GetName() const {
   return "Session";
 }
 
-awaitable<void> Session::StartConnecting() {
+awaitable<Error> Session::Connect() {
   assert(transport_.get());
   assert(!cancelation_);
 
@@ -274,7 +275,7 @@ awaitable<void> Session::StartConnecting() {
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  co_await transport_->Open(
+  co_return co_await transport_->Open(
       {.on_open = [this] { OnTransportOpened(); },
        .on_close = [this](net::Error error) { OnTransportClosed(error); },
        .on_data = [this] { OnTransportDataReceived(); },
@@ -425,7 +426,7 @@ void Session::OnTimer() {
   if (!transport_->IsConnected() && !connecting_ && state_ == OPENED &&
       !accepted_ &&
       Clock::now() - connect_start_ticks_ >= reconnection_period_) {
-    StartConnecting();
+    boost::asio::co_spawn(executor_, Connect(), boost::asio::detached);
     return;
   }
 

@@ -17,7 +17,7 @@ class AsioUdpTransport final : public AsioTransport {
                    bool active);
 
   // Transport overrides
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
 
   virtual std::string GetName() const override;
   virtual bool IsActive() const override { return active_; }

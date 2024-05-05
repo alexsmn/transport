@@ -1,7 +1,5 @@
 #include "net/inprocess_transport.h"
 
-#include "net/net_exception.h"
-
 #include <format>
 
 namespace net {
@@ -29,13 +27,13 @@ class InprocessTransportHost::Client final : public Transport {
     return std::format("client:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
 
   virtual void Close() override;
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  [[nodiscard]] virtual awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::vector<char> data) override;
 
   virtual Executor GetExecutor() const override { return executor_; }
@@ -88,15 +86,15 @@ class InprocessTransportHost::Server final : public Transport {
     return std::format("server:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override {
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      co_return;
+      co_return ERR_ADDRESS_IN_USE;
     }
 
     if (!host_.listeners_.try_emplace(channel_name_, this).second) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      throw net_exception{ERR_ADDRESS_IN_USE};
+      co_return ERR_ADDRESS_IN_USE;
     }
 
     handlers_ = handlers;
@@ -119,8 +117,8 @@ class InprocessTransportHost::Server final : public Transport {
 
   virtual Executor GetExecutor() const override { return executor_; }
 
-  virtual awaitable<size_t> Write(std::vector<char> data) override {
-    throw net_exception{ERR_ACCESS_DENIED};
+  virtual awaitable<ErrorOr<size_t>> Write(std::vector<char> data) override {
+    co_return ERR_ACCESS_DENIED;
   }
 
   AcceptedClient* AcceptClient(Client& client);
@@ -156,10 +154,10 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override {
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
     if (opened_) {
       handlers.on_close(ERR_ADDRESS_IN_USE);
-      throw net_exception{ERR_ADDRESS_IN_USE};
+      co_return ERR_ADDRESS_IN_USE;
     }
 
     handlers_ = std::move(handlers);
@@ -169,7 +167,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     assert(!handlers_.on_open);
     handlers_.on_open = nullptr;
 
-    co_return;
+    co_return OK;
   }
 
   virtual void Close() override {
@@ -182,7 +180,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
   virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
 
-  virtual awaitable<size_t> Write(std::vector<char> data) override {
+  virtual awaitable<ErrorOr<size_t>> Write(std::vector<char> data) override {
     client_.Receive(data);
     co_return data.size();
   }
@@ -218,16 +216,16 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
 // InprocessTransportHost::Client
 
-awaitable<void> InprocessTransportHost::Client::Open(Handlers handlers) {
+awaitable<Error> InprocessTransportHost::Client::Open(Handlers handlers) {
   if (accepted_client_) {
     handlers.on_close(ERR_ADDRESS_IN_USE);
-    throw net_exception{ERR_ADDRESS_IN_USE};
+    co_return ERR_ADDRESS_IN_USE;
   }
 
   auto* server = host_.FindServer(channel_name_);
   if (!server) {
     handlers.on_close(ERR_ADDRESS_INVALID);
-    throw net_exception{ERR_ADDRESS_IN_USE};
+    co_return ERR_ADDRESS_IN_USE;
   }
 
   handlers_ = std::move(handlers);
@@ -238,7 +236,7 @@ awaitable<void> InprocessTransportHost::Client::Open(Handlers handlers) {
     on_open();
   }
 
-  co_return;
+  co_return OK;
 }
 
 void InprocessTransportHost::Client::Close() {
@@ -250,10 +248,10 @@ void InprocessTransportHost::Client::Close() {
   }
 }
 
-awaitable<size_t> InprocessTransportHost::Client::Write(
+awaitable<ErrorOr<size_t>> InprocessTransportHost::Client::Write(
     std::vector<char> data) {
   if (!accepted_client_) {
-    throw net_exception{ERR_CONNECTION_CLOSED};
+    co_return ERR_CONNECTION_CLOSED;
   }
 
   accepted_client_->Receive(data);

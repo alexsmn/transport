@@ -7,10 +7,10 @@ namespace net {
 class DummyTransport : public Transport {
  public:
   // Transport
-  virtual awaitable<void> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual awaitable<size_t> Write(std::vector<char> data) override;
+  virtual awaitable<ErrorOr<size_t>> Write(std::vector<char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
@@ -23,7 +23,7 @@ class DummyTransport : public Transport {
   Handlers handlers_;
 };
 
-inline awaitable<void> DummyTransport::Open(Handlers handlers) {
+inline awaitable<Error> DummyTransport::Open(Handlers handlers) {
   opened_ = true;
   handlers_ = std::move(handlers);
 
@@ -31,7 +31,7 @@ inline awaitable<void> DummyTransport::Open(Handlers handlers) {
     on_open();
   }
 
-  co_return;
+  co_return OK;
 }
 
 inline void DummyTransport::Close() {
@@ -41,8 +41,9 @@ inline void DummyTransport::Close() {
   connected_ = false;
   handlers_ = {};
 
-  if (on_close)
+  if (on_close) {
     on_close(OK);
+  }
 }
 
 inline int DummyTransport::Read(std::span<char> data) {
@@ -50,7 +51,8 @@ inline int DummyTransport::Read(std::span<char> data) {
   return static_cast<int>(data.size());
 }
 
-inline awaitable<size_t> DummyTransport::Write(std::vector<char> data) {
+inline awaitable<ErrorOr<size_t>> DummyTransport::Write(
+    std::vector<char> data) {
   co_return data.size();
 }
 

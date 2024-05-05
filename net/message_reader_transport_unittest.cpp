@@ -79,7 +79,7 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       .WillRepeatedly(Return(message_oriented));
 
   EXPECT_CALL(*child_transport_ptr_, Open(/*handlers=*/_))
-      .WillOnce(DoAll(SaveArg<0>(&child_handlers_), Invoke(&CoReturnVoid)));
+      .WillOnce(DoAll(SaveArg<0>(&child_handlers_), CoReturn(OK)));
 
   EXPECT_CALL(*child_transport_ptr_, IsConnected())
       .Times(AnyNumber())

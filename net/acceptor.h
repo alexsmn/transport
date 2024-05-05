@@ -18,7 +18,7 @@ class acceptor {
     return transport_->GetExecutor();
   }
 
-  [[nodiscard]] awaitable<void> open(Transport::Handlers handlers) {
+  [[nodiscard]] awaitable<Error> open(Transport::Handlers handlers) {
     return transport_->Open(std::move(handlers));
   }
 

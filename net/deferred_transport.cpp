@@ -3,7 +3,6 @@
 #include "net/base/threading/thread_collision_warner.h"
 #include "net/base/bind_util.h"
 #include "net/logger.h"
-#include "net/net_exception.h"
 
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/dispatch.hpp>
@@ -25,7 +24,7 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   ~Core();
 
-  [[nodiscard]] awaitable<void> Open(Handlers handlers);
+  [[nodiscard]] awaitable<Error> Open(Handlers handlers);
   void Close();
 
   void OnOpened();
@@ -82,11 +81,11 @@ bool DeferredTransport::IsConnected() const {
   return core_->opened_;
 }
 
-awaitable<void> DeferredTransport::Open(Handlers handlers) {
+awaitable<Error> DeferredTransport::Open(Handlers handlers) {
   return core_->Open(std::move(handlers));
 }
 
-awaitable<void> DeferredTransport::Core::Open(Handlers handlers) {
+awaitable<Error> DeferredTransport::Core::Open(Handlers handlers) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(!opened_);
@@ -95,10 +94,10 @@ awaitable<void> DeferredTransport::Core::Open(Handlers handlers) {
   handlers_ = std::move(handlers);
 
   if (underlying_transport_->IsConnected()) {
-    co_return;
+    co_return OK;
   }
 
-  co_await underlying_transport_->Open(
+  co_return co_await underlying_transport_->Open(
       {.on_open = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnOpened, weak_from_this())),
        .on_close = boost::asio::bind_executor(
@@ -191,12 +190,12 @@ int DeferredTransport::Read(std::span<char> data) {
                         : ERR_ACCESS_DENIED;
 }
 
-awaitable<size_t> DeferredTransport::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> DeferredTransport::Write(std::vector<char> data) {
   if (!core_->opened_) {
-    throw net_exception{ERR_ACCESS_DENIED};
+    co_return ERR_ACCESS_DENIED;
   }
 
-  return core_->underlying_transport_->Write(std::move(data));
+  co_return co_await core_->underlying_transport_->Write(std::move(data));
 }
 
 std::string DeferredTransport::GetName() const {

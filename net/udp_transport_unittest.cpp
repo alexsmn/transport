@@ -17,17 +17,17 @@ namespace {
 class MockUdpSocket : public UdpSocket {
  public:
   MockUdpSocket() {
-    ON_CALL(*this, Open()).WillByDefault(Invoke(&CoReturnVoid));
-    ON_CALL(*this, Close()).WillByDefault(Invoke(&CoReturnVoid));
+    ON_CALL(*this, Open()).WillByDefault(CoReturn(ERR_FAILED));
+    ON_CALL(*this, Close()).WillByDefault(CoReturnVoid());
 
     ON_CALL(*this, SendTo(/*endpoint=*/_, /*datagram=*/_))
-        .WillByDefault(Invoke(std::bind_front(&CoReturn<size_t>, 0)));
+        .WillByDefault(CoReturn(ErrorOr<size_t>(static_cast<size_t>(0))));
   }
 
-  MOCK_METHOD(awaitable<void>, Open, (), (override));
+  MOCK_METHOD(awaitable<net::Error>, Open, (), (override));
   MOCK_METHOD(awaitable<void>, Close, (), (override));
 
-  MOCK_METHOD(awaitable<size_t>,
+  MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               SendTo,
               (Endpoint endpoint, Datagram datagram),
               (override));

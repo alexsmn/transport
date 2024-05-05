@@ -40,7 +40,7 @@ class Connector {
     AcceptHandler on_accept;
   };
 
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) = 0;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) = 0;
 };
 
 class Sender {
@@ -48,7 +48,8 @@ class Sender {
   virtual ~Sender() = default;
 
   // Returns amount of bytes written or an error.
-  [[nodiscard]] virtual awaitable<size_t> Write(std::vector<char> data) = 0;
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+      std::vector<char> data) = 0;
 };
 
 class Reader {
