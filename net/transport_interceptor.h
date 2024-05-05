@@ -1,6 +1,6 @@
 #pragma once
 
-#include "net/base/net_errors.h"
+#include "net/error_or.h"
 
 #include <optional>
 #include <span>

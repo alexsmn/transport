@@ -3,6 +3,7 @@
 #include "net/awaitable.h"
 #include "net/base/net_errors.h"
 #include "net/base/net_export.h"
+#include "net/error_or.h"
 #include "net/executor.h"
 
 #include <cassert>

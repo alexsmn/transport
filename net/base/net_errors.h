@@ -31,9 +31,6 @@ enum Error {
 };
 // NOLINTEND(readability-identifier-naming)
 
-template <typename T>
-using ErrorOr = std::variant<Error, T>;
-
 // Returns a textual representation of the error code for logging purposes.
 NET_EXPORT std::string ErrorToString(int error);
 
