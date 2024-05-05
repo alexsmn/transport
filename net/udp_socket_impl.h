@@ -16,14 +16,15 @@ class UdpSocketImpl : private UdpSocketContext,
   ~UdpSocketImpl();
 
   // UdpSocket
-  virtual awaitable<void> Open() override;
+  virtual awaitable<net::Error> Open() override;
   virtual awaitable<void> Close() override;
-  virtual awaitable<size_t> SendTo(Endpoint endpoint,
-                                   Datagram datagram) override;
+
+  virtual awaitable<ErrorOr<size_t>> SendTo(Endpoint endpoint,
+                                            Datagram datagram) override;
 
  private:
-  awaitable<void> StartReading();
-  awaitable<void> StartWriting();
+  [[nodiscard]] awaitable<void> StartReading();
+  [[nodiscard]] awaitable<void> StartWriting();
 
   void ProcessError(const boost::system::error_code& ec);
 
@@ -52,7 +53,7 @@ inline UdpSocketImpl::~UdpSocketImpl() {
   assert(closed_);
 }
 
-inline awaitable<void> UdpSocketImpl::Open() {
+inline awaitable<Error> UdpSocketImpl::Open() {
   auto ref = shared_from_this();
 
   auto [error, iterator] = co_await resolver_.async_resolve(
@@ -62,14 +63,14 @@ inline awaitable<void> UdpSocketImpl::Open() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (closed_) {
-    co_return;
+    co_return ERR_ABORTED;
   }
 
   if (error) {
     if (error != boost::asio::error::operation_aborted) {
       ProcessError(error);
     }
-    co_return;
+    co_return MapSystemError(error.value());
   }
 
   boost::system::error_code ec = boost::asio::error::fault;
@@ -94,7 +95,7 @@ inline awaitable<void> UdpSocketImpl::Open() {
 
   if (ec) {
     ProcessError(ec);
-    co_return;
+    co_return MapSystemError(ec.value());
   }
 
   connected_ = true;
@@ -104,6 +105,8 @@ inline awaitable<void> UdpSocketImpl::Open() {
     boost::asio::co_spawn(socket_.get_executor(), StartReading(),
                           boost::asio::detached);
   }
+
+  co_return OK;
 }
 
 inline awaitable<void> UdpSocketImpl::Close() {
@@ -122,8 +125,8 @@ inline awaitable<void> UdpSocketImpl::Close() {
   socket_.close();
 }
 
-inline awaitable<size_t> UdpSocketImpl::SendTo(Endpoint endpoint,
-                                               Datagram datagram) {
+inline awaitable<ErrorOr<size_t>> UdpSocketImpl::SendTo(Endpoint endpoint,
+                                                        Datagram datagram) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   auto size = datagram.size();

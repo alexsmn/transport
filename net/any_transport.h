@@ -1,6 +1,5 @@
 #pragma once
 
-#include "net/net_exception.h"
 #include "net/transport.h"
 
 #include <memory>
@@ -23,12 +22,12 @@ class any_transport {
     return transport_ ? transport_->GetExecutor() : Executor{};
   }
 
-  [[nodiscard]] awaitable<void> open(const Transport::Handlers& handlers) {
+  [[nodiscard]] awaitable<Error> open(const Transport::Handlers& handlers) {
     if (!transport_) {
-      throw net_exception{ERR_INVALID_HANDLE};
+      co_return ERR_INVALID_HANDLE;
     }
 
-    return transport_->Open(handlers);
+    co_return co_await transport_->Open(handlers);
   }
 
   void close() {
@@ -43,12 +42,12 @@ class any_transport {
     return transport_ ? transport_->Read(data) : ERR_INVALID_HANDLE;
   }
 
-  [[nodiscard]] awaitable<size_t> write(std::vector<char> data) const {
+  [[nodiscard]] awaitable<ErrorOr<size_t>> write(std::vector<char> data) const {
     if (!transport_) {
-      throw net_exception{ERR_INVALID_HANDLE};
+      co_return ERR_INVALID_HANDLE;
     }
 
-    return transport_->Write(std::move(data));
+    co_return co_await transport_->Write(std::move(data));
   }
 
  private:

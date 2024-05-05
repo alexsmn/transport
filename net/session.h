@@ -74,20 +74,25 @@ class NET_EXPORT Session final : public Transport {
   std::unique_ptr<Transport> DetachTransport();
 
   // Transport
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
-
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override;
-  virtual awaitable<size_t> Write(std::vector<char> data) override;
-  virtual std::string GetName() const override;
-  virtual bool IsMessageOriented() const override { return true; }
+  [[nodiscard]] virtual int Read(std::span<char> data) override;
 
-  virtual bool IsConnected() const override {
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+      std::vector<char> data) override;
+
+  [[nodiscard]] virtual std::string GetName() const override;
+  [[nodiscard]] virtual bool IsMessageOriented() const override { return true; }
+
+  [[nodiscard]] virtual bool IsConnected() const override {
     return transport_ && transport_->IsConnected();
   }
 
-  virtual bool IsActive() const override { return true; }
-  virtual Executor GetExecutor() const override { return executor_; }
+  [[nodiscard]] virtual bool IsActive() const override { return true; }
+
+  [[nodiscard]] virtual Executor GetExecutor() const override {
+    return executor_;
+  }
 
  private:
   struct Message {
@@ -96,13 +101,13 @@ class NET_EXPORT Session final : public Transport {
     char* data;
   };
 
-  typedef std::deque<Message> MessageQueue;
+  using MessageQueue = std::deque<Message>;
 
   struct SendingMessage : public Message {
     uint16_t send_id;
   };
 
-  typedef std::deque<SendingMessage> SendingMessageQueue;
+  using SendingMessageQueue = std::deque<SendingMessage>;
 
   struct SessionIDLess {
     bool operator()(const SessionID& left, const SessionID& right) const {
@@ -110,9 +115,9 @@ class NET_EXPORT Session final : public Transport {
     }
   };
 
-  typedef std::map<SessionID, Session*, SessionIDLess> SessionMap;
+  using SessionMap = std::map<SessionID, Session*, SessionIDLess>;
 
-  awaitable<void> StartConnecting();
+  [[nodiscard]] awaitable<Error> Connect();
   void CloseTransport();
 
   void PostMessage(const void* data, size_t len, bool seq, int priority);

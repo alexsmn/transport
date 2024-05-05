@@ -1,7 +1,6 @@
 #include "net/pipe_transport.h"
 
 #include "net/base/net_errors.h"
-#include "net/net_exception.h"
 
 #include <Windows.h>
 #include <boost/locale/encoding_utf.hpp>
@@ -25,7 +24,7 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-awaitable<void> PipeTransport::Open(Handlers handlers) {
+awaitable<Error> PipeTransport::Open(Handlers handlers) {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
   HANDLE handle;
@@ -41,7 +40,7 @@ awaitable<void> PipeTransport::Open(Handlers handlers) {
 
   if (handle == INVALID_HANDLE_VALUE) {
     handlers.on_close(ERR_FAILED);
-    throw net_exception{ERR_FAILED};
+    co_return ERR_FAILED;
   }
 
   if (server_) {
@@ -50,7 +49,7 @@ awaitable<void> PipeTransport::Open(Handlers handlers) {
       if (error != ERROR_PIPE_LISTENING) {
         CloseHandle(handle);
         handlers.on_close(ERR_FAILED);
-        throw net_exception{ERR_FAILED};
+        co_return ERR_FAILED;
       }
     }
   }
@@ -66,7 +65,7 @@ awaitable<void> PipeTransport::Open(Handlers handlers) {
     on_open();
   }
 
-  co_return;
+  co_return OK;
 }
 
 void PipeTransport::Close() {
@@ -81,15 +80,17 @@ void PipeTransport::Close() {
 int PipeTransport::Read(std::span<char> data) {
   OVERLAPPED overlapped = {0};
   DWORD bytes_read;
-  if (!ReadFile(handle_, data.data(), data.size(), &bytes_read, &overlapped))
+  if (!ReadFile(handle_, data.data(), data.size(), &bytes_read, &overlapped)) {
     return ERR_FAILED;
+  }
+
   return bytes_read;
 }
 
-awaitable<size_t> PipeTransport::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> PipeTransport::Write(std::vector<char> data) {
   DWORD bytes_written = 0;
   if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
-    throw net_exception{ERR_FAILED};
+    co_return ERR_FAILED;
   }
 
   co_return bytes_written;

@@ -110,13 +110,17 @@ namespace {
 // TransportTest::Server
 
 awaitable<void> TransportTest::Server::Init() {
-  return transport_->Open(
+  auto error = co_await transport_->Open(
       {.on_accept = [this](std::unique_ptr<Transport> accepted_transport) {
         logger_->Write(LogSeverity::Normal, "Connected");
         boost::asio::co_spawn(executor_,
                               StartEchoing(std::move(accepted_transport)),
                               boost::asio::detached);
       }});
+
+  if (error != net::OK) {
+    throw std::runtime_error{"Failed to open the server transport"};
+  }
 }
 
 awaitable<void> TransportTest::Server::StartEchoing(

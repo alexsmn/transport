@@ -23,7 +23,7 @@ class AsioTransport : public Transport {
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::vector<char> data) override;
 
   virtual bool IsMessageOriented() const override;
@@ -47,13 +47,14 @@ class AsioTransport::Core {
 
   [[nodiscard]] virtual bool IsConnected() const = 0;
 
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) = 0;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) = 0;
 
   virtual void Close() = 0;
 
   [[nodiscard]] virtual int Read(std::span<char> data) = 0;
 
-  [[nodiscard]] virtual awaitable<size_t> Write(std::vector<char> data) = 0;
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+      std::vector<char> data) = 0;
 };
 
 // AsioTransport::Core
@@ -68,7 +69,7 @@ class AsioTransport::IoCore : public Core,
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::vector<char> data) override;
 
  protected:
@@ -150,7 +151,7 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
 }
 
 template <class IoObject>
-inline awaitable<size_t> AsioTransport::IoCore<IoObject>::Write(
+inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
     std::vector<char> data) {
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
 
@@ -286,7 +287,7 @@ inline int AsioTransport::Read(std::span<char> data) {
   return core_->Read(data);
 }
 
-inline awaitable<size_t> AsioTransport::Write(std::vector<char> data) {
+inline awaitable<ErrorOr<size_t>> AsioTransport::Write(std::vector<char> data) {
   return core_->Write(std::move(data));
 }
 

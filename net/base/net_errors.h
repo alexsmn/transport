@@ -6,6 +6,7 @@
 #define NET_BASE_NET_ERRORS_H__
 
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "net/base/net_export.h"
@@ -27,6 +28,9 @@ enum Error {
   // The value of the first certificate error code.
   ERR_CERT_BEGIN = ERR_CERT_COMMON_NAME_INVALID,
 };
+
+template <typename T>
+using ErrorOr = std::variant<Error, T>;
 
 // Returns a textual representation of the error code for logging purposes.
 NET_EXPORT std::string ErrorToString(int error);

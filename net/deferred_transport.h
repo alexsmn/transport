@@ -21,12 +21,12 @@ class DeferredTransport final : public Transport {
   void set_additional_close_handler(CloseHandler handler);
 
   // Transport
-  [[nodiscard]] virtual awaitable<void> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
 
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<size_t> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::vector<char> data) override;
 
   virtual std::string GetName() const override;

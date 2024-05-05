@@ -1,7 +1,6 @@
 #include "net/serial_transport.h"
 
 #include "net/base/net_errors.h"
-#include "net/net_exception.h"
 
 #include <boost/asio/serial_port.hpp>
 
@@ -33,7 +32,7 @@ class SerialTransport::SerialPortCore final
                  const Options& options);
 
   // Core
-  virtual awaitable<void> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open(Handlers handlers) override;
 
  protected:
   virtual void Cleanup() override;
@@ -51,8 +50,7 @@ SerialTransport::SerialPortCore::SerialPortCore(
       device_{std::move(device)},
       options_{options} {}
 
-awaitable<void> SerialTransport::SerialPortCore::Open(
-    Handlers handlers) {
+awaitable<Error> SerialTransport::SerialPortCore::Open(Handlers handlers) {
   auto ref = std::static_pointer_cast<SerialPortCore>(shared_from_this());
 
   boost::system::error_code ec;
@@ -61,7 +59,7 @@ awaitable<void> SerialTransport::SerialPortCore::Open(
     if (handlers.on_close) {
       handlers.on_close(ERR_FAILED);
     }
-    throw net_exception{ERR_FAILED};
+    co_return ERR_FAILED;
   }
 
   if (!SetOption(io_object_, options_.baud_rate) ||
@@ -73,7 +71,7 @@ awaitable<void> SerialTransport::SerialPortCore::Open(
     if (handlers.on_close) {
       handlers.on_close(ERR_FAILED);
     }
-    throw net_exception{ERR_FAILED};
+    co_return ERR_FAILED;
   }
 
   connected_ = true;
@@ -88,7 +86,7 @@ awaitable<void> SerialTransport::SerialPortCore::Open(
                         std::bind_front(&SerialPortCore::StartReading, ref),
                         boost::asio::detached);
 
-  co_return;
+  co_return OK;
 }
 
 void SerialTransport::SerialPortCore::Cleanup() {
@@ -110,7 +108,7 @@ SerialTransport::SerialTransport(const Executor& executor,
       device_{std::move(device)},
       options_{options} {}
 
-awaitable<void> SerialTransport::Open(Handlers handlers) {
+awaitable<Error> SerialTransport::Open(Handlers handlers) {
   core_ =
       std::make_shared<SerialPortCore>(executor_, logger_, device_, options_);
 

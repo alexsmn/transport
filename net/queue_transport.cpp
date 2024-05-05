@@ -1,7 +1,6 @@
 #include "net/queue_transport.h"
 
 #include "net/base/net_errors.h"
-#include "net/net_exception.h"
 
 using namespace std::chrono_literals;
 
@@ -17,7 +16,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-[[nodiscard]] awaitable<void> QueueTransport::Open(Handlers handlers) {
+[[nodiscard]] awaitable<Error> QueueTransport::Open(Handlers handlers) {
   handlers_ = std::move(handlers);
 
   if (active_) {
@@ -33,7 +32,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
     on_open();
   }
 
-  co_return;
+  co_return OK;
 }
 
 void QueueTransport::Close() {
@@ -46,13 +45,13 @@ int QueueTransport::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-awaitable<size_t> QueueTransport::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> QueueTransport::Write(std::vector<char> data) {
   if (data.empty()) {
-    throw net_exception{ERR_INVALID_ARGUMENT};
+    co_return ERR_INVALID_ARGUMENT;
   }
 
   if (!connected_ || !peer_) {
-    throw net_exception{net::ERR_FAILED};
+    co_return net::ERR_FAILED;
   }
 
   peer_->read_queue_.emplace(data.begin(), data.end());
