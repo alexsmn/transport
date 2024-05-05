@@ -55,6 +55,8 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
   struct Client {
     [[nodiscard]] awaitable<void> Run();
 
+    void Write(std::span<const char> data);
+
     std::string name_;
     Executor executor_;
     TransportFactory& transport_factory_;
@@ -101,7 +103,12 @@ namespace {
     if (res <= 0) {
       break;
     }
-    co_await transport.Write(buffer);
+    buffer.resize(res);
+
+    if (auto result = co_await transport.Write(buffer);
+        !result.ok() || *result != buffer.size()) {
+      throw std::runtime_error{"Failed to write echoed data"};
+    }
   }
 }
 
@@ -144,8 +151,10 @@ awaitable<void> TransportTest::Server::StartEchoing(
              boost::asio::co_spawn(
                  executor_,
                  [&transport,
-                  write_data = std::vector<char>{data.begin(), data.end()}] {
-                   return transport->Write(write_data);
+                  write_data = std::vector<char>{data.begin(), data.end()}]()
+                     -> net::awaitable<void> {
+                   // TODO: Handle write result.
+                   auto _ = co_await transport->Write(write_data);
                  },
                  boost::asio::detached);
            }});
@@ -181,14 +190,7 @@ awaitable<void> TransportTest::Client::Run() {
        .on_message =
            [this, &received_message](std::span<const char> data) {
              logger_->Write(LogSeverity::Normal, "Message received. Send echo");
-
-             boost::asio::co_spawn(
-                 executor_,
-                 [this,
-                  write_data = std::vector<char>{data.begin(), data.end()}] {
-                   return transport_->Write(write_data);
-                 },
-                 boost::asio::detached);
+             Write(data);
 
              if (!std::ranges::equal(data, kMessage)) {
                throw std::runtime_error{
@@ -200,9 +202,22 @@ awaitable<void> TransportTest::Client::Run() {
 
   logger_->Write(LogSeverity::Normal, "Send message");
 
-  co_await transport_->Write(kMessage);
+  Write(kMessage);
 
   transport_->Close();
+}
+
+void TransportTest::Client::Write(std::span<const char> data) {
+  boost::asio::co_spawn(
+      executor_,
+      [this, write_data = std::vector<char>{data.begin(),
+                                            data.end()}]() -> awaitable<void> {
+        if (auto result = co_await transport_->Write(write_data);
+            !result.ok() || *result != write_data.size()) {
+          throw std::runtime_error{"Failed to write echoed data"};
+        }
+      },
+      boost::asio::detached);
 }
 
 // TransportTest

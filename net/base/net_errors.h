@@ -29,9 +29,6 @@ enum Error {
   ERR_CERT_BEGIN = ERR_CERT_COMMON_NAME_INVALID,
 };
 
-template <typename T>
-using ErrorOr = std::variant<Error, T>;
-
 // Returns a textual representation of the error code for logging purposes.
 NET_EXPORT std::string ErrorToString(int error);
 

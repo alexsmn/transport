@@ -588,8 +588,10 @@ void Session::SendInternal(const void* data, size_t size) {
       executor_,
       [this,
        write_data = std::vector<char>{static_cast<const char*>(data),
-                                      static_cast<const char*>(data) + size}] {
-        return transport()->Write(write_data);
+                                      static_cast<const char*>(data) +
+                                          size}]() -> net::awaitable<void> {
+        // TODO: Handle write result.
+        auto _ = co_await transport()->Write(write_data);
       },
       boost::asio::detached);
 }
