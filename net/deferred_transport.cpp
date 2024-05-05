@@ -190,12 +190,13 @@ int DeferredTransport::Read(std::span<char> data) {
                         : ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> DeferredTransport::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> DeferredTransport::Write(
+    std::span<const char> data) {
   if (!core_->opened_) {
     co_return ERR_ACCESS_DENIED;
   }
 
-  co_return co_await core_->underlying_transport_->Write(std::move(data));
+  co_return co_await core_->underlying_transport_->Write(data);
 }
 
 std::string DeferredTransport::GetName() const {

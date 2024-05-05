@@ -87,7 +87,8 @@ int PipeTransport::Read(std::span<char> data) {
   return bytes_read;
 }
 
-awaitable<ErrorOr<size_t>> PipeTransport::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> PipeTransport::Write(
+    std::span<const char> data) {
   DWORD bytes_written = 0;
   if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
     co_return ERR_FAILED;

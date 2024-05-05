@@ -47,9 +47,10 @@ class Sender {
  public:
   virtual ~Sender() = default;
 
+  // Caller must retain the buffer until the operation completes.
   // Returns amount of bytes written or an error.
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) = 0;
+      std::span<const char> data) = 0;
 };
 
 class Reader {

@@ -10,7 +10,8 @@ class DummyTransport : public Transport {
   virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
   virtual int Read(std::span<char> data) override;
-  virtual awaitable<ErrorOr<size_t>> Write(std::vector<char> data) override;
+  virtual awaitable<ErrorOr<size_t>> Write(
+      std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
   virtual bool IsConnected() const override;
@@ -52,7 +53,7 @@ inline int DummyTransport::Read(std::span<char> data) {
 }
 
 inline awaitable<ErrorOr<size_t>> DummyTransport::Write(
-    std::vector<char> data) {
+    std::span<const char> data) {
   co_return data.size();
 }
 

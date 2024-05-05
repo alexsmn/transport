@@ -82,7 +82,8 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   void Close();
 
   [[nodiscard]] int ReadMessage(void* data, size_t len);
-  [[nodiscard]] awaitable<ErrorOr<size_t>> WriteMessage(std::vector<char> data);
+  [[nodiscard]] awaitable<ErrorOr<size_t>> WriteMessage(
+      std::span<const char> data);
 
   // Child handlers.
   void OnChildTransportOpened();
@@ -251,12 +252,12 @@ int MessageReaderTransport::Core::ReadMessage(void* data, size_t len) {
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Write(
-    std::vector<char> data) {
+    std::span<const char> data) {
   return core_->WriteMessage(std::move(data));
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::WriteMessage(
-    std::vector<char> data) {
+    std::span<const char> data) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (!child_transport_) {

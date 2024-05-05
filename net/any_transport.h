@@ -38,11 +38,12 @@ class any_transport {
     }
   }
 
-  int read(std::vector<char> data) const {
+  int read(std::span<char> data) const {
     return transport_ ? transport_->Read(data) : ERR_INVALID_HANDLE;
   }
 
-  [[nodiscard]] awaitable<ErrorOr<size_t>> write(std::vector<char> data) const {
+  [[nodiscard]] awaitable<ErrorOr<size_t>> write(
+      std::span<const char> data) const {
     if (!transport_) {
       co_return ERR_INVALID_HANDLE;
     }

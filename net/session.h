@@ -79,7 +79,7 @@ class NET_EXPORT Session final : public Transport {
   [[nodiscard]] virtual int Read(std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) override;
+      std::span<const char> data) override;
 
   [[nodiscard]] virtual std::string GetName() const override;
   [[nodiscard]] virtual bool IsMessageOriented() const override { return true; }

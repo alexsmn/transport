@@ -45,7 +45,8 @@ int QueueTransport::Read(std::span<char> data) {
   return net::ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> QueueTransport::Write(std::vector<char> data) {
+awaitable<ErrorOr<size_t>> QueueTransport::Write(
+    std::span<const char> data) {
   if (data.empty()) {
     co_return ERR_INVALID_ARGUMENT;
   }

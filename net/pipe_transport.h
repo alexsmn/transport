@@ -23,7 +23,7 @@ class NET_EXPORT PipeTransport final : public Transport {
   virtual int Read(std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) override;
+      std::span<const char> data) override;
 
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override { return false; }

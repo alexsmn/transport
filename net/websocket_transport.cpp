@@ -20,7 +20,8 @@ class WebSocketTransport::ConnectionCore
   [[nodiscard]] awaitable<Error> Open(Handlers handlers);
   void Close();
 
-  [[nodiscard]] awaitable<ErrorOr<size_t>> Write(std::vector<char> data);
+  [[nodiscard]] awaitable<ErrorOr<size_t>> Write(
+      std::span<const char> data);
 
  private:
   [[nodiscard]] awaitable<void> StartReading();
@@ -84,9 +85,9 @@ void WebSocketTransport::ConnectionCore::Close() {
 }
 
 awaitable<ErrorOr<size_t>> WebSocketTransport::ConnectionCore::Write(
-    std::vector<char> data) {
+    std::span<const char> data) {
   auto data_size = data.size();
-  write_queue_.emplace(std::move(data));
+  write_queue_.emplace(data.begin(), data.end());
 
   if (!writing_) {
     writing_ = true;
@@ -131,7 +132,7 @@ class WebSocketTransport::Connection : public Transport {
   virtual int Read(std::span<char> data) override { return OK; }
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) override;
+      std::span<const char> data) override;
 
   virtual std::string GetName() const override { return "WebSocket"; }
   virtual bool IsMessageOriented() const override { return true; }
@@ -163,9 +164,9 @@ void WebSocketTransport::Connection::Close() {
 }
 
 awaitable<ErrorOr<size_t>> WebSocketTransport::Connection::Write(
-    std::vector<char> data) {
+    std::span<const char> data) {
   assert(opened_);
-  return core_->Write(std::move(data));
+  return core_->Write(data);
 }
 
 Executor WebSocketTransport::Connection::GetExecutor() const {

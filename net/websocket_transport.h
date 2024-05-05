@@ -15,7 +15,7 @@ class WebSocketTransport final : public Transport {
   virtual int Read(std::span<char> data) override { return 0; }
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::vector<char> data) override {
+      std::span<const char> data) override {
     co_return data.size();
   }
 
