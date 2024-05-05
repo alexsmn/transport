@@ -18,7 +18,7 @@ namespace net {
 
 // AsioUdpTransport::UdpActiveCore
 
-class AsioUdpTransport::UdpActiveCore
+class AsioUdpTransport::UdpActiveCore final
     : public Core,
       public std::enable_shared_from_this<UdpActiveCore> {
  public:
