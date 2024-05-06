@@ -77,18 +77,18 @@ void PipeTransport::Close() {
   handlers_ = {};
 }
 
-int PipeTransport::Read(std::span<char> data) {
+[[nodiscard]] awaitable<ErrorOr<size_t>> PipeTransport::Read(
+    std::span<char> data) {
   OVERLAPPED overlapped = {0};
   DWORD bytes_read;
   if (!ReadFile(handle_, data.data(), data.size(), &bytes_read, &overlapped)) {
-    return ERR_FAILED;
+    co_return ERR_FAILED;
   }
 
-  return bytes_read;
+  co_return bytes_read;
 }
 
-awaitable<ErrorOr<size_t>> PipeTransport::Write(
-    std::span<const char> data) {
+awaitable<ErrorOr<size_t>> PipeTransport::Write(std::span<const char> data) {
   DWORD bytes_written = 0;
   if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
     co_return ERR_FAILED;

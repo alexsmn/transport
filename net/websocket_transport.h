@@ -12,7 +12,11 @@ class WebSocketTransport final : public Transport {
   [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
 
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override { return 0; }
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) override {
+    co_return ERR_NOT_IMPLEMENTED;
+  }
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) override {

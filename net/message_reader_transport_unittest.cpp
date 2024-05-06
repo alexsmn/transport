@@ -55,12 +55,12 @@ class TestMessageReader : public MessageReaderImpl<1024> {
 };
 
 auto MakeReadImpl(const std::vector<char>& buffer) {
-  return [buffer](std::span<char> data) {
+  return [buffer](std::span<char> data) -> awaitable<ErrorOr<size_t>> {
     if (data.size() < buffer.size()) {
       throw std::runtime_error{"The read buffer is too small"};
     }
     std::ranges::copy(buffer, data.begin());
-    return buffer.size();
+    co_return buffer.size();
   };
 }
 

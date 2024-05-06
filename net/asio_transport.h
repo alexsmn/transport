@@ -21,7 +21,9 @@ class AsioTransport : public Transport {
 
   // Transport overrides
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) override;
@@ -51,7 +53,8 @@ class AsioTransport::Core {
 
   virtual void Close() = 0;
 
-  [[nodiscard]] virtual int Read(std::span<char> data) = 0;
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) = 0;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) = 0;
@@ -67,7 +70,9 @@ class AsioTransport::IoCore : public Core,
   virtual Executor GetExecutor() override { return io_object_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) override;
@@ -131,7 +136,8 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 }
 
 template <class IoObject>
-inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
+inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Read(
+    std::span<char> data) {
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
 
   // Should be only called under the same executor as `io_object_`.
@@ -147,12 +153,12 @@ inline int AsioTransport::IoCore<IoObject>::Read(std::span<char> data) {
                         std::bind_front(&IoCore::StartReading, ref),
                         boost::asio::detached);
 
-  return count;
+  co_return count;
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>>
-AsioTransport::IoCore<IoObject>::Write(std::span<const char> data) {
+inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
+    std::span<const char> data) {
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
 
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
@@ -283,7 +289,7 @@ inline void AsioTransport::Close() {
   core_->Close();
 }
 
-inline int AsioTransport::Read(std::span<char> data) {
+inline awaitable<ErrorOr<size_t>> AsioTransport::Read(std::span<char> data) {
   return core_->Read(data);
 }
 
