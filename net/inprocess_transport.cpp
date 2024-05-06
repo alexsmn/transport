@@ -31,7 +31,10 @@ class InprocessTransportHost::Client final : public Transport {
 
   virtual void Close() override;
 
-  virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) override {
+    co_return ERR_ACCESS_DENIED;
+  }
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) override;
@@ -113,7 +116,9 @@ class InprocessTransportHost::Server final : public Transport {
     }
   }
 
-  virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
+  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override {
+    co_return ERR_ACCESS_DENIED;
+  }
 
   virtual Executor GetExecutor() const override { return executor_; }
 
@@ -179,7 +184,9 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     }
   }
 
-  virtual int Read(std::span<char> data) override { return ERR_ACCESS_DENIED; }
+  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override {
+    co_return ERR_ACCESS_DENIED;
+  }
 
   virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) override {

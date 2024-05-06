@@ -176,7 +176,9 @@ class AsioTcpTransport::PassiveCore final
   virtual bool IsConnected() const override { return connected_; }
   virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) override;
@@ -321,8 +323,9 @@ void AsioTcpTransport::PassiveCore::Close() {
                         });
 }
 
-int AsioTcpTransport::PassiveCore::Read(std::span<char> data) {
-  return ERR_ACCESS_DENIED;
+awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Read(
+    std::span<char> data) {
+  co_return ERR_ACCESS_DENIED;
 }
 
 awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Write(

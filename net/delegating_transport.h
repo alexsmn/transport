@@ -15,7 +15,8 @@ class DelegatingTransport : public Transport {
 
   virtual void Close() override { delegate_.Close(); }
 
-  [[nodiscard]] virtual int Read(std::span<char> data) override {
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) override {
     return delegate_.Read(data);
   }
 

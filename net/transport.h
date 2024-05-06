@@ -62,7 +62,8 @@ class Reader {
   // can read received data gradually.
   // Returns a negative |Error| on failure.
   // TODO: This should return a promised buffer.
-  virtual int Read(std::span<char> data) = 0;
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) = 0;
 };
 
 class TransportMetadata {

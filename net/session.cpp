@@ -250,9 +250,8 @@ awaitable<Error> Session::Open(Handlers handlers) {
   return Connect();
 }
 
-int Session::Read(std::span<char> data) {
-  assert(false);
-  return ERR_NOT_IMPLEMENTED;
+awaitable<ErrorOr<size_t>> Session::Read(std::span<char> data) {
+  co_return ERR_NOT_IMPLEMENTED;
 }
 
 awaitable<ErrorOr<size_t>> Session::Write(std::span<const char> data) {

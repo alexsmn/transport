@@ -1,11 +1,14 @@
 #include "net/message_reader_transport.h"
 
+#include "base/auto_reset.h"
 #include "net/base/net_errors.h"
 #include "net/logger.h"
 #include "net/message_reader.h"
 
 #include "net/base/threading/thread_collision_warner.h"
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <boost/asio/dispatch.hpp>
 
 namespace net {
@@ -81,9 +84,12 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   [[nodiscard]] awaitable<Error> Open(Handlers handlers);
   void Close();
 
-  [[nodiscard]] int ReadMessage(void* data, size_t len);
+  [[nodiscard]] awaitable<ErrorOr<size_t>> ReadMessage(void* data, size_t len);
+
   [[nodiscard]] awaitable<ErrorOr<size_t>> WriteMessage(
       std::span<const char> data);
+
+  [[nodiscard]] awaitable<void> StartReading();
 
   // Child handlers.
   void OnChildTransportOpened();
@@ -101,6 +107,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
 
   DFAKE_MUTEX(mutex_);
 
+  bool reading_ = false;
   // TODO: Move into Context.
   std::vector<char> read_buffer_ =
       std::vector<char>(message_reader_->message().capacity);
@@ -205,50 +212,62 @@ void MessageReaderTransport::Core::Close() {
   child_transport_->Close();
 }
 
-int MessageReaderTransport::Read(std::span<char> data) {
-  assert(false);
-  return ERR_UNEXPECTED;
+awaitable<ErrorOr<size_t>> MessageReaderTransport::Read(std::span<char> data) {
+  co_return ERR_UNEXPECTED;
 }
 
-int MessageReaderTransport::Core::ReadMessage(void* data, size_t len) {
+awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
+    void* data,
+    size_t len) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  if (!child_transport_.get())
-    return ERR_INVALID_HANDLE;
+  if (!child_transport_.get()) {
+    co_return ERR_INVALID_HANDLE;
+  }
 
   for (;;) {
     int bytes_to_read = GetBytesToRead(*message_reader_, *logger_);
+
     if (bytes_to_read < 0) {
-      return bytes_to_read;
-    } else if (bytes_to_read == 0) {
+      co_return static_cast<Error>(bytes_to_read);
+    }
+
+    if (bytes_to_read == 0) {
       break;
     }
 
-    int res =
-        child_transport_->Read({static_cast<char*>(message_reader_->ptr()),
-                                static_cast<size_t>(bytes_to_read)});
-    if (res <= 0)
-      return res;
+    auto bytes_read = co_await child_transport_->Read(
+        {static_cast<char*>(message_reader_->ptr()),
+         static_cast<size_t>(bytes_to_read)});
 
-    message_reader_->BytesRead(static_cast<size_t>(res));
+    if (!bytes_read.ok()) {
+      co_return bytes_read.error();
+    }
+
+    if (*bytes_read == 0) {
+      co_return 0;
+    }
+
+    message_reader_->BytesRead(*bytes_read);
   }
 
-  if (!message_reader_->complete())
-    return 0;
+  if (!message_reader_->complete()) {
+    co_return 0;
+  }
 
   // Message is complete.
   const ByteMessage& reader_message = message_reader_->message();
   if (reader_message.size > len) {
     logger_->WriteF(LogSeverity::Warning, "Buffer is too short");
-    return ERR_FAILED;
+    co_return ERR_FAILED;
   }
 
   memcpy(data, reader_message.data, reader_message.size);
-  int size = reader_message.size;
+  size_t size = reader_message.size;
 
   // Clear buffer.
   message_reader_->Reset();
-  return size;
+  co_return size;
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Write(
@@ -306,21 +325,37 @@ void MessageReaderTransport::Core::OnChildTransportClosed(Error error) {
 }
 
 void MessageReaderTransport::Core::OnChildTransportDataReceived() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  boost::asio::co_spawn(
+      executor_, std::bind_front(&Core::StartReading, shared_from_this()),
+      boost::asio::detached);
+}
 
+awaitable<void> MessageReaderTransport::Core::StartReading() {
   assert(child_transport_->IsConnected());
+
+  if (reading_) {
+    co_return;
+  }
+
+  base::AutoReset reading{&reading_, true};
 
   std::weak_ptr<bool> cancelation = cancelation_;
   while (!cancelation.expired()) {
-    int res = ReadMessage(read_buffer_.data(), read_buffer_.size());
-    if (res == 0)
-      break;
-    // Ignore error here. Leave it to usual error reporting logic.
-    if (res < 0)
-      break;
+    auto message_size =
+        co_await ReadMessage(read_buffer_.data(), read_buffer_.size());
 
-    if (handlers_.on_message)
-      handlers_.on_message({read_buffer_.data(), static_cast<size_t>(res)});
+    // Ignore error here. Leave it to usual error reporting logic.
+    if (!message_size.ok()) {
+      break;
+    }
+
+    if (*message_size == 0) {
+      break;
+    }
+
+    if (handlers_.on_message) {
+      handlers_.on_message({read_buffer_.data(), *message_size});
+    }
   }
 }
 

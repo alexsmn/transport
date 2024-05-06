@@ -40,19 +40,18 @@ void QueueTransport::Close() {
   timer_.Stop();
 }
 
-int QueueTransport::Read(std::span<char> data) {
+awaitable<ErrorOr<size_t>> QueueTransport::Read(std::span<char> data) {
   assert(false);
-  return net::ERR_FAILED;
+  co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> QueueTransport::Write(
-    std::span<const char> data) {
+awaitable<ErrorOr<size_t>> QueueTransport::Write(std::span<const char> data) {
   if (data.empty()) {
     co_return ERR_INVALID_ARGUMENT;
   }
 
   if (!connected_ || !peer_) {
-    co_return net::ERR_FAILED;
+    co_return ERR_FAILED;
   }
 
   peer_->read_queue_.emplace(data.begin(), data.end());

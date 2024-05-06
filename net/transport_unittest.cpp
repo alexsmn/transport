@@ -1,4 +1,5 @@
 #include "net/transport.h"
+#include "base/auto_reset.h"
 #include "net/test/debug_logger.h"
 #include "net/transport_factory_impl.h"
 #include "net/transport_string.h"
@@ -55,6 +56,7 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
   struct Client {
     [[nodiscard]] awaitable<void> Run();
 
+    [[nodiscard]] awaitable<void> StartReading();
     void Write(std::span<const char> data);
 
     std::string name_;
@@ -68,6 +70,8 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
         TransportString{GetParam() + ";Active"},
         executor_,
         logger_);
+
+    bool reading_ = false;
   };
 
   std::vector<std::jthread> threads_;
@@ -99,14 +103,14 @@ namespace {
 [[nodiscard]] awaitable<void> EchoData(Transport& transport) {
   for (;;) {
     std::vector<char> buffer(64);
-    int res = transport.Read(buffer);
-    if (res <= 0) {
+    auto bytes_read = co_await transport.Read(buffer);
+    if (!bytes_read.ok()) {
       break;
     }
-    buffer.resize(res);
+    buffer.resize(*bytes_read);
 
-    if (auto result = co_await transport.Write(buffer);
-        !result.ok() || *result != buffer.size()) {
+    if (auto bytes_written = co_await transport.Write(buffer);
+        !bytes_written.ok() || *bytes_written != buffer.size()) {
       throw std::runtime_error{"Failed to write echoed data"};
     }
   }
@@ -163,41 +167,28 @@ awaitable<void> TransportTest::Server::StartEchoing(
 // TransportTest::Client
 
 awaitable<void> TransportTest::Client::Run() {
-  boost::asio::experimental::channel<void()> received_message{executor_};
-
   co_await transport_->Open(
       {.on_close =
-           [this, &received_message](Error error) {
+           [this](Error error) {
              logger_->Write(LogSeverity::Normal, "Closed");
-             received_message.try_send();
            },
        .on_data =
-           [this, &received_message] {
+           [this] {
              logger_->Write(LogSeverity::Normal, "Message received");
 
-             std::array<char, std::size(kMessage)> data;
-             if (transport_->Read(data) != std::size(kMessage)) {
-               throw std::runtime_error{"Received message is too short"};
-             }
-
-             if (!std::ranges::equal(data, kMessage)) {
-               throw std::runtime_error{
-                   "Received message is not equal to the sent one."};
-             }
-
-             received_message.try_send();
+             boost::asio::co_spawn(executor_, StartReading(),
+                                   boost::asio::detached);
            },
        .on_message =
-           [this, &received_message](std::span<const char> data) {
+           [this](std::span<const char> data) {
              logger_->Write(LogSeverity::Normal, "Message received. Send echo");
-             Write(data);
 
              if (!std::ranges::equal(data, kMessage)) {
                throw std::runtime_error{
                    "Received message is not equal to the sent one."};
              }
 
-             received_message.try_send();
+             Write(data);
            }});
 
   logger_->Write(LogSeverity::Normal, "Send message");
@@ -205,6 +196,30 @@ awaitable<void> TransportTest::Client::Run() {
   Write(kMessage);
 
   transport_->Close();
+}
+
+awaitable<void> TransportTest::Client::StartReading() {
+  if (!reading_) {
+    co_return;
+  }
+
+  base::AutoReset reading{&reading_, true};
+
+  std::array<char, std::size(kMessage)> data;
+
+  if (auto bytes_read = co_await transport_->Read(data);
+      !bytes_read.ok() || *bytes_read != std::size(kMessage)) {
+    throw std::runtime_error{"Received message is too short"};
+  }
+
+  if (!std::ranges::equal(data, kMessage)) {
+    throw std::runtime_error{"Received message is not equal to the sent one."};
+  }
+
+  if (auto result = co_await transport_->Write(kMessage);
+      !result.ok() || *result != std::size(kMessage)) {
+    throw std::runtime_error{"Failed to write echoed data"};
+  }
 }
 
 void TransportTest::Client::Write(std::span<const char> data) {

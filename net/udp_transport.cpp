@@ -33,7 +33,9 @@ class AsioUdpTransport::UdpActiveCore final
   [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
 
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+      std::span<char> data) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
       std::span<const char> data) override;
@@ -90,10 +92,9 @@ void AsioUdpTransport::UdpActiveCore::Close() {
   });
 }
 
-int AsioUdpTransport::UdpActiveCore::Read(std::span<char> data) {
-  assert(false);
-
-  return net::ERR_FAILED;
+awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpActiveCore::Read(
+    std::span<char> data) {
+  co_return ERR_FAILED;
 }
 
 awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpActiveCore::Write(
@@ -164,7 +165,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   // Transport
   virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override;
+  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
   virtual bool IsMessageOriented() const override;
@@ -207,7 +208,7 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual bool IsConnected() const override { return connected_; }
   virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
-  virtual int Read(std::span<char> data) override;
+  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
 
  private:
@@ -287,10 +288,9 @@ void AsioUdpTransport::UdpPassiveCore::Close() {
   });
 }
 
-int AsioUdpTransport::UdpPassiveCore::Read(std::span<char> data) {
-  assert(false);
-
-  return ERR_FAILED;
+awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::Read(
+    std::span<char> data) {
+  co_return ERR_FAILED;
 }
 
 awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::Write(
@@ -460,10 +460,9 @@ void AsioUdpTransport::AcceptedTransport::Close() {
   connected_ = false;
 }
 
-int AsioUdpTransport::AcceptedTransport::Read(std::span<char> data) {
-  assert(false);
-
-  return ERR_FAILED;
+awaitable<ErrorOr<size_t>> AsioUdpTransport::AcceptedTransport::Read(
+    std::span<char> data) {
+  co_return ERR_FAILED;
 }
 
 awaitable<ErrorOr<size_t>> AsioUdpTransport::AcceptedTransport::Write(

@@ -26,7 +26,11 @@ class TransportMock : public Transport {
   MOCK_METHOD(awaitable<Error>, Open, (Handlers handlers), (override));
 
   MOCK_METHOD(void, Close, (), (override));
-  MOCK_METHOD(int, Read, (std::span<char> data), (override));
+
+  MOCK_METHOD(awaitable<ErrorOr<size_t>>,
+              Read,
+              (std::span<char> data),
+              (override));
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               Write,

@@ -185,9 +185,12 @@ void DeferredTransport::Core::Close() {
   }
 }
 
-int DeferredTransport::Read(std::span<char> data) {
-  return core_->opened_ ? core_->underlying_transport_->Read(data)
-                        : ERR_ACCESS_DENIED;
+awaitable<ErrorOr<size_t>> DeferredTransport::Read(std::span<char> data) {
+  if (!core_->opened_) {
+    co_return ERR_ACCESS_DENIED;
+  }
+
+  co_return co_await core_->underlying_transport_->Read(data);
 }
 
 awaitable<ErrorOr<size_t>> DeferredTransport::Write(
