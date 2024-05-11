@@ -10,8 +10,7 @@ using namespace std::chrono_literals;
 
 namespace net {
 
-PipeTransport::PipeTransport(const Executor& executor)
-    : executor_{executor}, timer_{executor} {}
+PipeTransport::PipeTransport(const Executor& executor) : executor_{executor} {}
 
 PipeTransport::~PipeTransport() {
   if (handle_ != INVALID_HANDLE_VALUE) {
@@ -58,9 +57,6 @@ awaitable<Error> PipeTransport::Open(Handlers handlers) {
   handle_ = handle;
   connected_ = true;
 
-  // TODO: Fix ASAP.
-  timer_.StartRepeating(10ms, [this] { OnTimer(); });
-
   if (auto on_open = std::move(handlers_.on_open)) {
     on_open();
   }
@@ -95,11 +91,6 @@ awaitable<ErrorOr<size_t>> PipeTransport::Write(std::span<const char> data) {
   }
 
   co_return bytes_written;
-}
-
-void PipeTransport::OnTimer() {
-  if (handlers_.on_data)
-    handlers_.on_data();
 }
 
 std::string PipeTransport::GetName() const {

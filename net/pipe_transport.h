@@ -1,10 +1,9 @@
 #pragma once
 
 #include "net/base/net_export.h"
-#include "net/timer.h"
 #include "net/transport.h"
 
-#include <windows.h>
+#include <Windows.h>
 
 namespace net {
 
@@ -34,8 +33,6 @@ class NET_EXPORT PipeTransport final : public Transport {
   virtual Executor GetExecutor() const override { return executor_; }
 
  private:
-  void OnTimer();
-
   Executor executor_;
   Handlers handlers_;
 
@@ -43,7 +40,6 @@ class NET_EXPORT PipeTransport final : public Transport {
   bool server_ = false;
   HANDLE handle_ = INVALID_HANDLE_VALUE;
 
-  Timer timer_;
   bool connected_ = false;
 };
 

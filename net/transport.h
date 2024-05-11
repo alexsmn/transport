@@ -22,7 +22,6 @@ class Connector {
 
   using OpenHandler = std::function<void()>;
   using CloseHandler = std::function<void(Error error)>;
-  using DataHandler = std::function<void()>;
   using MessageHandler = std::function<void(std::span<const char>)>;
   using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
 
@@ -31,9 +30,6 @@ class Connector {
     OpenHandler on_open;
     // Triggered also when open fails.
     CloseHandler on_close;
-    // For streaming transports.
-    // TODO: Remove and substitute with a promised `Read`.
-    DataHandler on_data;
     // For message-oriented transports.
     // TODO: Remove and substitute with a promised `Read`.
     MessageHandler on_message;
@@ -51,19 +47,17 @@ class Sender {
   // Caller must retain the buffer until the operation completes.
   // Returns amount of bytes written or an error.
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::span<const char> data) = 0;
+      std::span<const char> buffer) = 0;
 };
 
 class Reader {
  public:
   virtual ~Reader() = default;
 
-  // For streaming transports. After reception of `on_data` event, the client
-  // can read received data gradually.
-  // Returns a negative |Error| on failure.
-  // TODO: This should return a promised buffer.
+  // For streaming transports. Caller must retain the buffer until the operation
+  // completes. Returns zero when transport is closed.
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
-      std::span<char> data) = 0;
+      std::span<char> buffer) = 0;
 };
 
 class TransportMetadata {

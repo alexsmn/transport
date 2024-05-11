@@ -14,7 +14,11 @@ class TransportMock : public Transport {
 
     ON_CALL(*this, Open(/*handlers=*/_)).WillByDefault(CoReturn(ERR_FAILED));
 
-    ON_CALL(*this, Write(/*data=*/_))
+    ON_CALL(*this, Read(/*buffer=*/_))
+        .WillByDefault(
+            CoReturn(ErrorOr<size_t>{static_cast<size_t>(ERR_ABORTED)}));
+
+    ON_CALL(*this, Write(/*buffer=*/_))
         .WillByDefault(
             CoReturn(ErrorOr<size_t>{static_cast<size_t>(ERR_ABORTED)}));
   }
@@ -29,12 +33,12 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               Read,
-              (std::span<char> data),
+              (std::span<char> buffer),
               (override));
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               Write,
-              (std::span<const char> data),
+              (std::span<const char> buffer),
               (override));
 
   MOCK_METHOD(std::string, GetName, (), (const override));

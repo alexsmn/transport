@@ -126,7 +126,6 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
         transport_->Open(
             {.on_open = [this] { OnTransportOpened(); },
              .on_close = [this](net::Error error) { OnTransportClosed(error); },
-             .on_data = [this] { OnTransportDataReceived(); },
              .on_message =
                  [this](std::span<const char> data) {
                    OnTransportMessageReceived(data);
@@ -277,7 +276,6 @@ awaitable<Error> Session::Connect() {
   co_return co_await transport_->Open(
       {.on_open = [this] { OnTransportOpened(); },
        .on_close = [this](net::Error error) { OnTransportClosed(error); },
-       .on_data = [this] { OnTransportDataReceived(); },
        .on_message =
            [this](std::span<const char> data) {
              OnTransportMessageReceived(data);
@@ -458,10 +456,6 @@ void Session::OnTransportClosed(Error error) {
                   ErrorToString(error).c_str());
 
   OnTransportError(error);
-}
-
-void Session::OnTransportDataReceived() {
-  assert(false);
 }
 
 void Session::OnTransportMessageReceived(std::span<const char> data) {

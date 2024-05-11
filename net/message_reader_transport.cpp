@@ -95,7 +95,6 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   void OnChildTransportOpened();
   void OnChildTransportAccepted(std::unique_ptr<Transport> transport);
   void OnChildTransportClosed(Error error);
-  void OnChildTransportDataReceived();
   void OnChildTransportMessageReceived(std::span<const char> data);
 
   Executor executor_;
@@ -106,6 +105,8 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   Handlers handlers_;
 
   DFAKE_MUTEX(mutex_);
+
+  bool closed_ = false;
 
   bool reading_ = false;
   // TODO: Move into Context.
@@ -149,7 +150,7 @@ bool MessageReaderTransport::IsActive() const {
 }
 
 awaitable<Error> MessageReaderTransport::Open(Handlers handlers) {
-  return core_->Open(std::move(handlers));
+  co_return co_await core_->Open(std::move(handlers));
 }
 
 void MessageReaderTransport::Close() {
@@ -173,14 +174,11 @@ bool MessageReaderTransport::IsMessageOriented() const {
 
   auto ref = shared_from_this();
 
-  co_return co_await child_transport_->Open(
+  auto open_result = co_await child_transport_->Open(
       {.on_open = boost::asio::bind_executor(
            executor_, std::bind_front(&Core::OnChildTransportOpened, ref)),
        .on_close = boost::asio::bind_executor(
            executor_, std::bind_front(&Core::OnChildTransportClosed, ref)),
-       .on_data = boost::asio::bind_executor(
-           executor_,
-           std::bind_front(&Core::OnChildTransportDataReceived, ref)),
        .on_message =
            [this, ref](std::span<const char> data) {
              boost::asio::dispatch(
@@ -197,15 +195,28 @@ bool MessageReaderTransport::IsMessageOriented() const {
                OnChildTransportAccepted(std::move(*shared_transport));
              });
            }});
+
+  if (open_result != OK) {
+    co_return open_result;
+  }
+
+  if (!child_transport_->IsMessageOriented()) {
+    boost::asio::co_spawn(
+        executor_, std::bind_front(&Core::StartReading, shared_from_this()),
+        boost::asio::detached);
+  }
+
+  co_return OK;
 }
 
 void MessageReaderTransport::Core::Close() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  if (!child_transport_->IsConnected()) {
+  if (closed_) {
     return;
   }
 
+  closed_ = true;
   handlers_ = {};
   cancelation_ = nullptr;
   message_reader_->Reset();
@@ -317,17 +328,13 @@ void MessageReaderTransport::Core::OnChildTransportClosed(Error error) {
 
   assert(child_transport_);
 
+  closed_ = true;
+
   auto cancelation = std::exchange(cancelation_, nullptr);
 
   if (handlers_.on_close && cancelation) {
     handlers_.on_close(error);
   }
-}
-
-void MessageReaderTransport::Core::OnChildTransportDataReceived() {
-  boost::asio::co_spawn(
-      executor_, std::bind_front(&Core::StartReading, shared_from_this()),
-      boost::asio::detached);
 }
 
 awaitable<void> MessageReaderTransport::Core::StartReading() {
@@ -385,6 +392,7 @@ void MessageReaderTransport::Core::OnChildTransportMessageReceived(
       } else {
         logger_->WriteF(LogSeverity::Error, "Error on message parsing - %s",
                         ErrorToString(static_cast<Error>(res)).c_str());
+        closed_ = true;
         child_transport_->Close();
         if (handlers_.on_close) {
           handlers_.on_close(static_cast<Error>(res));
