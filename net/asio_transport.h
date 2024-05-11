@@ -80,7 +80,6 @@ class AsioTransport::IoCore : public Core,
  protected:
   IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
 
-  [[nodiscard]] awaitable<void> StartReading();
   [[nodiscard]] awaitable<void> StartWriting();
 
   void ProcessError(Error error);
@@ -99,13 +98,10 @@ class AsioTransport::IoCore : public Core,
   bool connected_ = false;
 
  private:
-  boost::circular_buffer<char> read_buffer_{1024 * 1024};
-  std::vector<char> write_buffer_;
-
   bool reading_ = false;
-  std::vector<char> reading_buffer_;
 
   bool writing_ = false;
+  std::vector<char> write_buffer_;
   // The buffer being currently written with sync operation.
   std::vector<char> writing_buffer_;
 };
@@ -138,22 +134,22 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 template <class IoObject>
 inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Read(
     std::span<char> data) {
+  if (closed_) {
+    co_return ERR_CONNECTION_CLOSED;
+  }
+
+  if (reading_) {
+    co_return ERR_IO_PENDING;
+  }
+
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
+  base::AutoReset reading{&reading_, true};
 
-  // Should be only called under the same executor as `io_object_`.
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  auto [ec, bytes_transferred] = co_await io_object_.async_read_some(
+      boost::asio::buffer(data),
+      boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  size_t count = std::min(data.size(), read_buffer_.size());
-  std::copy(read_buffer_.begin(), read_buffer_.begin() + count, data.data());
-  read_buffer_.erase_begin(count);
-
-  // Must start reading, since reading might have stopped if the buffer was
-  // full.
-  boost::asio::co_spawn(io_object_.get_executor(),
-                        std::bind_front(&IoCore::StartReading, ref),
-                        boost::asio::detached);
-
-  co_return count;
+  co_return bytes_transferred;
 }
 
 template <class IoObject>
@@ -171,55 +167,6 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
 
   // TODO: Handle properly.
   co_return data.size();
-}
-
-template <class IoObject>
-inline awaitable<void> AsioTransport::IoCore<IoObject>::StartReading() {
-  if (closed_ || reading_) {
-    co_return;
-  }
-
-  auto ref = shared_from_this();
-  base::AutoReset reading{&reading_, true};
-
-  for (;;) {
-    reading_buffer_.resize(read_buffer_.capacity() - read_buffer_.size());
-    if (reading_buffer_.empty()) {
-      co_return;
-    }
-
-    auto [ec, bytes_transferred] = co_await io_object_.async_read_some(
-        boost::asio::buffer(reading_buffer_),
-        boost::asio::as_tuple(boost::asio::use_awaitable));
-
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-    if (closed_) {
-      co_return;
-    }
-
-    if (ec) {
-      if (ec != boost::asio::error::operation_aborted) {
-        ProcessError(MapSystemError(ec.value()));
-      }
-      co_return;
-    }
-
-    if (bytes_transferred == 0) {
-      ProcessError(OK);
-      co_return;
-    }
-
-    read_buffer_.insert(read_buffer_.end(), reading_buffer_.begin(),
-                        reading_buffer_.begin() + bytes_transferred);
-    reading_buffer_.clear();
-
-    // `on_data` may close the transport and reset `handlers_`. It's
-    // important to hold a reference to the handler.
-    if (auto on_data = handlers_.on_data) {
-      on_data();
-    }
-  }
 }
 
 template <class IoObject>

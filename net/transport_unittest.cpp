@@ -136,17 +136,11 @@ awaitable<void> TransportTest::Server::Init() {
 
 awaitable<void> TransportTest::Server::StartEchoing(
     std::unique_ptr<Transport> transport) {
-  co_await transport->Open(
+  auto open_result = co_await transport->Open(
       {.on_close =
            [this, &transport](net::Error) mutable {
              logger_->Write(LogSeverity::Warning, "Disconnected");
              transport.reset();
-           },
-       .on_data =
-           [this, &transport] {
-             logger_->Write(LogSeverity::Normal, "Data received. Send echo");
-             boost::asio::co_spawn(executor_, EchoData(*transport),
-                                   boost::asio::detached);
            },
        .on_message =
            [this, &transport](std::span<const char> data) {
@@ -162,22 +156,20 @@ awaitable<void> TransportTest::Server::StartEchoing(
                  },
                  boost::asio::detached);
            }});
+
+  if (open_result == net::OK && !transport->IsMessageOriented()) {
+    boost::asio::co_spawn(executor_, EchoData(*transport),
+                          boost::asio::detached);
+  }
 }
 
 // TransportTest::Client
 
 awaitable<void> TransportTest::Client::Run() {
-  co_await transport_->Open(
+  auto open_result = co_await transport_->Open(
       {.on_close =
            [this](Error error) {
              logger_->Write(LogSeverity::Normal, "Closed");
-           },
-       .on_data =
-           [this] {
-             logger_->Write(LogSeverity::Normal, "Message received");
-
-             boost::asio::co_spawn(executor_, StartReading(),
-                                   boost::asio::detached);
            },
        .on_message =
            [this](std::span<const char> data) {
@@ -190,6 +182,14 @@ awaitable<void> TransportTest::Client::Run() {
 
              Write(data);
            }});
+
+  if (open_result != net::OK) {
+    throw std::runtime_error{"Failed to open the client transport"};
+  }
+
+  if (transport_->IsMessageOriented()) {
+    boost::asio::co_spawn(executor_, StartReading(), boost::asio::detached);
+  }
 
   logger_->Write(LogSeverity::Normal, "Send message");
 

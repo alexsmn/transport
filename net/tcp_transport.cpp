@@ -62,10 +62,6 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Open(Handlers handlers) {
   if (connected_) {
     handlers_ = std::move(handlers);
 
-    boost::asio::co_spawn(io_object_.get_executor(),
-                          std::bind_front(&ActiveCore::StartReading, ref),
-                          boost::asio::detached);
-
     co_return OK;
   }
 
@@ -133,10 +129,6 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
   if (handlers_.on_open) {
     handlers_.on_open();
   }
-
-  boost::asio::co_spawn(io_object_.get_executor(),
-                        std::bind_front(&ActiveCore::StartReading, ref),
-                        boost::asio::detached);
 
   co_return OK;
 }

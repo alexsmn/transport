@@ -83,10 +83,6 @@ awaitable<Error> SerialTransport::SerialPortCore::Open(Handlers handlers) {
     handlers_.on_open();
   }
 
-  boost::asio::co_spawn(io_object_.get_executor(),
-                        std::bind_front(&SerialPortCore::StartReading, ref),
-                        boost::asio::detached);
-
   co_return OK;
 }
 

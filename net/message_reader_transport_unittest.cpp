@@ -18,14 +18,18 @@ namespace net {
 
 class MessageTransportTest : public Test {
  public:
+  MessageTransportTest();
+
   void InitChildTransport(bool message_oriented);
 
-  boost::asio::system_executor executor_;
+  Executor executor_ = boost::asio::system_executor{};
 
   StrictMock<MockTransportHandlers> message_transport_handlers_;
 
   Transport::Handlers child_handlers_;
-  TransportMock* child_transport_ptr_ = nullptr;
+
+  std::unique_ptr<TransportMock> child_transport_ =
+      std::make_unique<TransportMock>();
 
   std::unique_ptr<MessageReaderTransport> message_transport_;
 };
@@ -70,33 +74,34 @@ MATCHER_P2(HasBytes, bytes, size, "") {
 
 }  // namespace
 
-void MessageTransportTest::InitChildTransport(bool message_oriented) {
-  auto child_transport = std::make_unique<TransportMock>();
-  child_transport_ptr_ = child_transport.get();
+MessageTransportTest::MessageTransportTest() {
+  EXPECT_CALL(*child_transport_, Destroy());
+}
 
-  EXPECT_CALL(*child_transport_ptr_, IsMessageOriented())
+void MessageTransportTest::InitChildTransport(bool message_oriented) {
+  EXPECT_CALL(*child_transport_, IsMessageOriented())
       .Times(AnyNumber())
       .WillRepeatedly(Return(message_oriented));
 
-  EXPECT_CALL(*child_transport_ptr_, Open(/*handlers=*/_))
+  EXPECT_CALL(*child_transport_, Open(/*handlers=*/_))
       .WillOnce(DoAll(SaveArg<0>(&child_handlers_), CoReturn(OK)));
 
-  EXPECT_CALL(*child_transport_ptr_, IsConnected())
+  EXPECT_CALL(*child_transport_, IsConnected())
       .Times(AnyNumber())
       .WillRepeatedly(Return(true));
+
+  EXPECT_CALL(*child_transport_, Close());
 
   auto message_reader = std::make_unique<TestMessageReader>();
 
   message_transport_ = std::make_unique<MessageReaderTransport>(
-      boost::asio::system_executor{}, std::move(child_transport),
-      std::move(message_reader), NullLogger::GetInstance());
+      executor_, std::move(child_transport_), std::move(message_reader),
+      NullLogger::GetInstance());
 
   boost::asio::co_spawn(
       executor_,
       message_transport_->Open(message_transport_handlers_.AsHandlers()),
       boost::asio::detached);
-
-  EXPECT_CALL(*child_transport_ptr_, Close());
 }
 
 TEST_F(MessageTransportTest, CompositeMessage) {
@@ -123,15 +128,10 @@ TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
   InitChildTransport(/*message_oriented=*/true);
 
   EXPECT_CALL(message_transport_handlers_.on_message, Call(_)).Times(0);
-
   EXPECT_CALL(message_transport_handlers_.on_close, Call(ERR_FAILED));
 
   const char datagram[] = {5, 0, 0, 0};
   child_handlers_.on_message(datagram);
-
-  EXPECT_CALL(*child_transport_ptr_, IsConnected())
-      .Times(AnyNumber())
-      .WillRepeatedly(Return(false));
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
@@ -172,59 +172,60 @@ TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
 
   const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
   child_handlers_.on_message(datagram);
-
-  EXPECT_CALL(*child_transport_ptr_, IsConnected())
-      .Times(AnyNumber())
-      .WillRepeatedly(Return(false));
 }
 
 TEST_F(MessageTransportTest,
        OnData_StreamChildTransport_PartialMessage_DontTriggerOnMessage) {
-  InitChildTransport(/*message_oriented=*/false);
-
-  InSequence s;
+  Sequence s;
 
   EXPECT_CALL(message_transport_handlers_.on_message, Call(_)).Times(0);
 
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(1)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(1)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({10})));
 
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(10)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(10)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({1, 2, 3})));
 
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(7)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(7)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({4})));
 
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(6)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(6)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({})));
 
-  child_handlers_.on_data();
+  InitChildTransport(/*message_oriented=*/false);
 }
 
 TEST_F(MessageTransportTest,
        OnData_StreamChildTransport_FullMessage_TriggersOnMessage) {
-  InitChildTransport(/*message_oriented=*/false);
+  Sequence s;
 
-  InSequence s;
-
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(1)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(1)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({10})));
 
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(10)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(10)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({1, 2, 3})));
 
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(7)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(7)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({4, 5, 6, 7, 8, 9, 10})));
 
   EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAre(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+              Call(ElementsAre(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))
+      .InSequence(s);
 
   // Starts reading next message.
 
-  EXPECT_CALL(*child_transport_ptr_, Read(SizeIs(1)))
+  EXPECT_CALL(*child_transport_, Read(SizeIs(1)))
+      .InSequence(s)
       .WillOnce(Invoke(MakeReadImpl({})));
 
-  child_handlers_.on_data();
+  InitChildTransport(/*message_oriented=*/false);
 }
 
 }  // namespace net

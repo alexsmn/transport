@@ -166,7 +166,6 @@ class NET_EXPORT Session final : public Transport {
   // Transport::Delegate overrides
   void OnTransportOpened();
   void OnTransportClosed(Error error);
-  void OnTransportDataReceived();
   net::Error OnTransportAccepted(std::unique_ptr<Transport> transport);
   void OnTransportMessageReceived(std::span<const char> data);
 
