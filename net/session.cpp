@@ -126,10 +126,6 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
         transport_->Open(
             {.on_open = [this] { OnTransportOpened(); },
              .on_close = [this](net::Error error) { OnTransportClosed(error); },
-             .on_message =
-                 [this](std::span<const char> data) {
-                   OnTransportMessageReceived(data);
-                 },
              .on_accept =
                  [this](std::unique_ptr<Transport> transport) {
                    return OnTransportAccepted(std::move(transport));
@@ -276,10 +272,6 @@ awaitable<Error> Session::Connect() {
   co_return co_await transport_->Open(
       {.on_open = [this] { OnTransportOpened(); },
        .on_close = [this](net::Error error) { OnTransportClosed(error); },
-       .on_message =
-           [this](std::span<const char> data) {
-             OnTransportMessageReceived(data);
-           },
        .on_accept =
            [this](std::unique_ptr<Transport> transport) {
              return OnTransportAccepted(std::move(transport));
@@ -372,15 +364,15 @@ void Session::ProcessSessionMessage(uint16_t id,
     std::vector<char> sequence_message;
     sequence_message.swap(sequence_message_);
 
-    if (handlers_.on_message) {
+    /*if (handlers_.on_message) {
       handlers_.on_message(sequence_message);
-    }
+    }*/
 
   } else {
     // Short message.
-    if (handlers_.on_message) {
+    /*if (handlers_.on_message) {
       handlers_.on_message({static_cast<const char*>(data), len});
-    }
+    }*/
   }
 
   // Acknowledgement goes on OnTimer() now to allow other tasks to be performed.

@@ -11,7 +11,7 @@ namespace net {
 template <class T>
 class [[nodiscard]] ErrorOr {
  public:
-  ErrorOr(Error error) : value_{std::move(error)} { assert(!this->error()); }
+  ErrorOr(Error error) : value_{error} { assert(error != OK); }
   ErrorOr(T value) : value_{std::move(value)} {}
 
   bool ok() const { return std::holds_alternative<T>(value_); }
@@ -43,6 +43,12 @@ class [[nodiscard]] ErrorOr {
   const T* operator->() const {
     assert(ok());
     return &std::get<T>(value_);
+  }
+
+  bool operator==(Error error) const { return this->error() == error; }
+
+  bool operator==(const T& value) const {
+    return ok() && this->value() == value;
   }
 
  private:

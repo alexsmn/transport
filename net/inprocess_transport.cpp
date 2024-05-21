@@ -1,6 +1,7 @@
 #include "net/inprocess_transport.h"
 
 #include <format>
+#include <queue>
 
 namespace net {
 
@@ -45,9 +46,7 @@ class InprocessTransportHost::Client final : public Transport {
     // Must be opened.
     assert(accepted_client_);
 
-    if (handlers_.on_message) {
-      handlers_.on_message(data);
-    }
+    received_messages_.emplace(data.begin(), data.end());
   }
 
   void OnServerClosed() {
@@ -66,6 +65,8 @@ class InprocessTransportHost::Client final : public Transport {
 
   Handlers handlers_;
   AcceptedClient* accepted_client_ = nullptr;
+
+  std::queue<std::vector<char>> received_messages_;
 };
 
 class InprocessTransportHost::Server final : public Transport {
@@ -210,9 +211,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     // Must be opened.
     assert(opened_);
 
-    if (handlers_.on_message) {
-      handlers_.on_message(data);
-    }
+    received_messages_.emplace(data.begin(), data.end());
   }
 
  private:
@@ -221,6 +220,8 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
   Handlers handlers_;
   bool opened_ = false;
+
+  std::queue<std::vector<char>> received_messages_;
 };
 
 // InprocessTransportHost::Client

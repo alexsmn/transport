@@ -48,7 +48,7 @@ class NullLogger final : public Logger {
 class ProxyLogger final : public Logger {
  public:
   explicit ProxyLogger(std::shared_ptr<const Logger> underlying_logger,
-                       const char* channel = nullptr)
+                       std::string_view channel = {})
       : underlying_logger_{underlying_logger}, prefix_{MakePrefix(channel)} {}
 
   virtual void Write(LogSeverity severity, const char* message) const override {
@@ -82,9 +82,9 @@ class ProxyLogger final : public Logger {
   }
 
  private:
-  static std::string MakePrefix(const char* channel) {
+  static std::string MakePrefix(std::string_view channel) {
     std::string prefix;
-    if (channel && channel[0]) {
+    if (!channel.empty()) {
       prefix += channel;
       prefix += ": ";
     }

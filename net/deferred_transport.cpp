@@ -29,7 +29,6 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   void OnOpened();
   void OnClosed(Error error);
-  void OnMessage(std::span<const char> data);
   void OnAccepted(std::unique_ptr<Transport> transport);
 
   DFAKE_MUTEX(mutex_);
@@ -101,13 +100,6 @@ awaitable<Error> DeferredTransport::Core::Open(Handlers handlers) {
            executor_, BindFrontWeakPtr(&Core::OnOpened, weak_from_this())),
        .on_close = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnClosed, weak_from_this())),
-       .on_message =
-           [this](std::span<const char> data) {
-             // Capture the `data` as a vector.
-             boost::asio::dispatch(std::bind_front(
-                 BindFrontWeakPtr(&Core::OnMessage, weak_from_this()),
-                 std::vector<char>{data.begin(), data.end()}));
-           },
        .on_accept = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnAccepted, weak_from_this()))});
 }
@@ -137,14 +129,6 @@ void DeferredTransport::Core::OnClosed(Error error) {
 
   if (additional_close_handler) {
     additional_close_handler(error);
-  }
-}
-
-void DeferredTransport::Core::OnMessage(std::span<const char> data) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-  if (opened_ && handlers_.on_message) {
-    handlers_.on_message(data);
   }
 }
 

@@ -1,6 +1,8 @@
 #include "net/transport.h"
 #include "base/auto_reset.h"
+#include "net/message_reader_transport.h"
 #include "net/test/debug_logger.h"
+#include "net/test/test_message_reader.h"
 #include "net/transport_factory_impl.h"
 #include "net/transport_string.h"
 
@@ -8,10 +10,10 @@
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/experimental/as_tuple.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/experimental/channel.hpp>
-#include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
 #include <future>
@@ -22,61 +24,58 @@ using namespace testing;
 
 namespace net {
 
+struct TestParams {
+  std::string transport_string;
+  bool use_message_reader = false;
+};
+
 // The test parameter is a transport string with no active/passive parameter.
-class TransportTest : public TestWithParam<std::string /*transport_string*/> {
+class TransportTest : public TestWithParam<TestParams> {
  public:
   TransportTest();
 
  protected:
+  struct Server {
+    [[nodiscard]] awaitable<Error> Init();
+    void Stop();
+
+    [[nodiscard]] awaitable<Error> StartEchoing(
+        std::unique_ptr<Transport> transport);
+
+    std::shared_ptr<const Logger> logger_;
+    std::unique_ptr<Transport> transport_;
+  };
+
+  struct Client {
+    [[nodiscard]] awaitable<Error> Run();
+
+    [[nodiscard]] awaitable<Error> StartReading();
+    [[nodiscard]] awaitable<Error> Write(std::span<const char> data);
+    [[nodiscard]] awaitable<Error> ExchangeMessage(
+        std::span<const char> message);
+
+    std::shared_ptr<const Logger> logger_;
+    std::unique_ptr<Transport> transport_;
+  };
+
   virtual void SetUp() override;
   virtual void TearDown() override;
+
+  std::unique_ptr<Transport> CreateTransport(
+      const Executor& executor,
+      const std::shared_ptr<const Logger>& logger,
+      bool active);
+
+  Server MakeServer();
 
   boost::asio::io_context io_context_;
 
   TransportFactoryImpl transport_factory_{io_context_};
 
-  struct Server {
-    [[nodiscard]] awaitable<void> Init();
-
-    [[nodiscard]] awaitable<void> StartEchoing(
-        std::unique_ptr<Transport> transport);
-
-    Executor executor_;
-    TransportFactory& transport_factory_;
-
-    std::shared_ptr<Logger> logger_ =
-        std::make_shared<ProxyLogger>(kLogger, "Server");
-
-    std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
-        TransportString{GetParam() + ";Passive"},
-        executor_,
-        logger_);
-  };
-
-  struct Client {
-    [[nodiscard]] awaitable<void> Run();
-
-    [[nodiscard]] awaitable<void> StartReading();
-    void Write(std::span<const char> data);
-
-    std::string name_;
-    Executor executor_;
-    TransportFactory& transport_factory_;
-
-    std::shared_ptr<Logger> logger_ =
-        std::make_shared<ProxyLogger>(kLogger, name_.c_str());
-
-    std::unique_ptr<Transport> transport_ = transport_factory_.CreateTransport(
-        TransportString{GetParam() + ";Active"},
-        executor_,
-        logger_);
-
-    bool reading_ = false;
-  };
-
   std::vector<std::jthread> threads_;
 
-  Server server_{boost::asio::make_strand(io_context_), transport_factory_};
+  Server server_ = MakeServer();
+
   std::vector<std::unique_ptr<Client>> clients_;
 
   // Must be the latest member.
@@ -86,153 +85,171 @@ class TransportTest : public TestWithParam<std::string /*transport_string*/> {
   static inline std::shared_ptr<Logger> kLogger =
       std::make_shared<DebugLogger>();
 
-  static const int kThreadCount = 10;
-  static const int kClientCount = 100;
-  static constexpr const char kMessage[] = "Message";
+  static const int kThreadCount = 1;
+  static const int kClientCount = 10;
+  static const int kExchangeMessageCount = 3;
+
+  // The message format must correspond to `TestMessageReader`.
+  static constexpr const char kMessage[] = {3, 1, 2, 3};
 };
 
-INSTANTIATE_TEST_SUITE_P(AllTransportTests,
-                         TransportTest,
-                         // TODO: Random port.
-                         // TODO: Implement send retries and enable UDP tests.
-                         testing::Values("TCP;Port=4321" /*,
-                                         "UDP;Port=4322"*/));
+INSTANTIATE_TEST_SUITE_P(
+    AllTransportTests,
+    TransportTest,
+    // TODO: Random port.
+    // TODO: Implement send retries and enable UDP tests: "UDP;Port=4322".
+    testing::Values(TestParams{.transport_string = "TCP;Port=4321"},
+                    TestParams{.transport_string = "TCP;Port=4321",
+                               .use_message_reader = true}));
 
 namespace {
 
-[[nodiscard]] awaitable<void> EchoData(Transport& transport) {
+[[nodiscard]] awaitable<Error> EchoData(Transport& transport) {
+  std::vector<char> buffer;
   for (;;) {
-    std::vector<char> buffer(64);
+    buffer.resize(64);
     auto bytes_read = co_await transport.Read(buffer);
     if (!bytes_read.ok()) {
-      break;
+      co_return bytes_read.error();
     }
     buffer.resize(*bytes_read);
 
     if (auto bytes_written = co_await transport.Write(buffer);
         !bytes_written.ok() || *bytes_written != buffer.size()) {
-      throw std::runtime_error{"Failed to write echoed data"};
+      co_return ERR_FAILED;
     }
   }
+
+  co_return OK;
 }
 
 }  // namespace
 
 // TransportTest::Server
 
-awaitable<void> TransportTest::Server::Init() {
+awaitable<Error> TransportTest::Server::Init() {
   auto error = co_await transport_->Open(
       {.on_accept = [this](std::unique_ptr<Transport> accepted_transport) {
         logger_->Write(LogSeverity::Normal, "Connected");
-        boost::asio::co_spawn(executor_,
+        boost::asio::co_spawn(transport_->GetExecutor(),
                               StartEchoing(std::move(accepted_transport)),
                               boost::asio::detached);
       }});
 
   if (error != net::OK) {
-    throw std::runtime_error{"Failed to open the server transport"};
+    logger_->Write(LogSeverity::Error, "Failed to open the server transport");
+    co_return error;
   }
+
+  co_return OK;
 }
 
-awaitable<void> TransportTest::Server::StartEchoing(
+void TransportTest::Server::Stop() {
+  transport_->Close();
+}
+
+awaitable<Error> TransportTest::Server::StartEchoing(
     std::unique_ptr<Transport> transport) {
   auto open_result = co_await transport->Open(
-      {.on_close =
-           [this, &transport](net::Error) mutable {
-             logger_->Write(LogSeverity::Warning, "Disconnected");
-             transport.reset();
-           },
-       .on_message =
-           [this, &transport](std::span<const char> data) {
-             logger_->Write(LogSeverity::Normal, "Message received. Send echo");
+      {.on_close = [this, &transport](net::Error) mutable {
+        logger_->Write(LogSeverity::Warning, "Disconnected");
+        transport.reset();
+      }});
 
-             boost::asio::co_spawn(
-                 executor_,
-                 [&transport,
-                  write_data = std::vector<char>{data.begin(), data.end()}]()
-                     -> net::awaitable<void> {
-                   // TODO: Handle write result.
-                   auto _ = co_await transport->Write(write_data);
-                 },
-                 boost::asio::detached);
-           }});
-
-  if (open_result == net::OK && !transport->IsMessageOriented()) {
-    boost::asio::co_spawn(executor_, EchoData(*transport),
-                          boost::asio::detached);
+  if (open_result != OK) {
+    co_return open_result;
   }
+
+  co_return co_await EchoData(*transport);
 }
 
 // TransportTest::Client
 
-awaitable<void> TransportTest::Client::Run() {
-  auto open_result = co_await transport_->Open(
-      {.on_close =
-           [this](Error error) {
-             logger_->Write(LogSeverity::Normal, "Closed");
-           },
-       .on_message =
-           [this](std::span<const char> data) {
-             logger_->Write(LogSeverity::Normal, "Message received. Send echo");
-
-             if (!std::ranges::equal(data, kMessage)) {
-               throw std::runtime_error{
-                   "Received message is not equal to the sent one."};
-             }
-
-             Write(data);
-           }});
-
-  if (open_result != net::OK) {
-    throw std::runtime_error{"Failed to open the client transport"};
+awaitable<Error> TransportTest::Client::Run() {
+  if (auto result = co_await transport_->Open(); result != net::OK) {
+    logger_->Write(LogSeverity::Error, "Failed to open the client transport");
+    co_return result;
   }
 
-  if (transport_->IsMessageOriented()) {
-    boost::asio::co_spawn(executor_, StartReading(), boost::asio::detached);
+  logger_->Write(LogSeverity::Normal, "Transport opened");
+
+  for (int i = 0; i < kExchangeMessageCount; ++i) {
+    if (auto result = co_await ExchangeMessage(kMessage); result != OK) {
+      co_return result;
+    }
   }
-
-  logger_->Write(LogSeverity::Normal, "Send message");
-
-  Write(kMessage);
-
-  transport_->Close();
 }
 
-awaitable<void> TransportTest::Client::StartReading() {
-  if (!reading_) {
-    co_return;
+awaitable<Error> TransportTest::Client::ExchangeMessage(
+    std::span<const char> message) {
+  logger_->Write(LogSeverity::Normal, "Exchange message");
+
+  if (auto result = co_await Write(message); result != OK) {
+    co_return result;
   }
 
-  base::AutoReset reading{&reading_, true};
+  std::vector<char> buffer(64);
+  auto bytes_read = co_await transport_->Read(buffer);
+  if (!bytes_read.ok()) {
+    logger_->Write(LogSeverity::Error, "Failed to read echoed message");
+    co_return bytes_read.error();
+  }
 
+  buffer.resize(*bytes_read);
+
+  if (!std::ranges::equal(buffer, kMessage)) {
+    logger_->Write(LogSeverity::Error,
+                   "Received message is not equal to the sent one.");
+    co_return ERR_FAILED;
+  }
+
+  logger_->Write(LogSeverity::Normal, "Echo received");
+
+  transport_->Close();
+
+  co_return OK;
+}
+
+awaitable<Error> TransportTest::Client::StartReading() {
   std::array<char, std::size(kMessage)> data;
 
   if (auto bytes_read = co_await transport_->Read(data);
       !bytes_read.ok() || *bytes_read != std::size(kMessage)) {
-    throw std::runtime_error{"Received message is too short"};
+    logger_->WriteF(LogSeverity::Error, "Received message is too short");
+    co_return ERR_FAILED;
   }
 
   if (!std::ranges::equal(data, kMessage)) {
-    throw std::runtime_error{"Received message is not equal to the sent one."};
+    logger_->WriteF(LogSeverity::Error,
+                    "Received message is not equal to the sent one");
+    co_return ERR_FAILED;
   }
 
   if (auto result = co_await transport_->Write(kMessage);
       !result.ok() || *result != std::size(kMessage)) {
-    throw std::runtime_error{"Failed to write echoed data"};
+    logger_->WriteF(LogSeverity::Error, "Failed to write echoed data");
+    co_return ERR_FAILED;
   }
+
+  co_return OK;
 }
 
-void TransportTest::Client::Write(std::span<const char> data) {
-  boost::asio::co_spawn(
-      executor_,
-      [this, write_data = std::vector<char>{data.begin(),
-                                            data.end()}]() -> awaitable<void> {
-        if (auto result = co_await transport_->Write(write_data);
-            !result.ok() || *result != write_data.size()) {
-          throw std::runtime_error{"Failed to write echoed data"};
-        }
-      },
-      boost::asio::detached);
+awaitable<Error> TransportTest::Client::Write(std::span<const char> data) {
+  logger_->Write(LogSeverity::Normal, "Send message");
+
+  auto result = co_await transport_->Write(data);
+  if (!result.ok()) {
+    logger_->WriteF(LogSeverity::Error, "Error on writing echoed data: %s",
+                    ErrorToShortString(result.error()).c_str());
+    co_return result.error();
+  }
+
+  if (*result != data.size()) {
+    logger_->Write(LogSeverity::Error, "Failed to write all echoed data");
+    co_return ERR_FAILED;
+  }
+
+  co_return OK;
 }
 
 // TransportTest
@@ -241,10 +258,15 @@ TransportTest::TransportTest() {}
 
 void TransportTest::SetUp() {
   for (int i = 0; i < kClientCount; ++i) {
-    clients_.emplace_back(std::make_unique<Client>(
-        /*name=*/std::format("Client {}", i + 1),
-        /*executor=*/boost::asio::make_strand(io_context_),
-        transport_factory_));
+    std::shared_ptr<Logger> logger =
+        std::make_shared<ProxyLogger>(kLogger, std::format("Client {}", i + 1));
+
+    auto transport =
+        CreateTransport(boost::asio::make_strand(io_context_), logger,
+                        /*active=*/true);
+
+    clients_.emplace_back(
+        std::make_unique<Client>(logger, std::move(transport)));
   }
 
   for (int i = 0; i < kThreadCount; ++i) {
@@ -254,12 +276,43 @@ void TransportTest::SetUp() {
 
 void TransportTest::TearDown() {}
 
+std::unique_ptr<Transport> TransportTest::CreateTransport(
+    const Executor& executor,
+    const std::shared_ptr<const Logger>& logger,
+    bool active) {
+  auto transport_string_suffix = active ? ";Active" : ";Passive";
+
+  auto transport = transport_factory_.CreateTransport(
+      TransportString{GetParam().transport_string + transport_string_suffix},
+      executor, logger);
+
+  if (!GetParam().use_message_reader) {
+    return transport;
+  }
+
+  return std::make_unique<MessageReaderTransport>(
+      executor, std::move(transport), std::make_unique<TestMessageReader>(),
+      logger);
+}
+
+TransportTest::Server TransportTest::MakeServer() {
+  std::shared_ptr<Logger> logger =
+      std::make_shared<ProxyLogger>(kLogger, "Server");
+
+  auto transport =
+      CreateTransport(boost::asio::make_strand(io_context_), logger,
+                      /*active=*/false);
+
+  return Server{.logger_ = logger, .transport_ = std::move(transport)};
+}
+
 TEST_P(TransportTest, StressTest) {
+  assert(clients_.size() == kClientCount);
+
   boost::asio::co_spawn(
       io_context_,
       [this]() -> awaitable<void> {
-        // Connect all.
-        co_await server_.Init();
+        EXPECT_EQ(co_await server_.Init(), OK);
 
         using OpType = decltype(boost::asio::co_spawn(
             io_context_, clients_[0]->Run(), boost::asio::deferred));
@@ -269,11 +322,18 @@ TEST_P(TransportTest, StressTest) {
           ops.emplace_back(boost::asio::co_spawn(io_context_, c->Run(),
                                                  boost::asio::deferred));
         }
-        co_await boost::asio::experimental::make_parallel_group(std::move(ops))
-            .async_wait(boost::asio::experimental::wait_for_one_error{},
-                        boost::asio::use_awaitable);
+
+        auto [_a, _b, results] =
+            co_await boost::asio::experimental::make_parallel_group(
+                std::move(ops))
+                .async_wait(boost::asio::experimental::wait_for_one_error{},
+                            boost::asio::use_awaitable);
+
+        io_context_.stop();
       },
       boost::asio::detached);
+
+  io_context_.run();
 }
 
 }  // namespace net
