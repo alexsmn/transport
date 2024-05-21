@@ -46,6 +46,38 @@ class MessageReader {
   // Get read position.
   void* ptr() { return buffer_.ptr(); }
 
+  std::span<char> Alloc(size_t size) {
+    assert(size <= buffer_.max_read());
+    return std::span<char>{reinterpret_cast<char*>(buffer_.ptr()),
+                           reinterpret_cast<char*>(buffer_.ptr()) + size};
+  }
+
+  std::span<char> Prepare() {
+    assert(buffer_.max_write() != 0);
+
+    return std::span<char>{
+        reinterpret_cast<char*>(buffer_.ptr()),
+        reinterpret_cast<char*>(buffer_.ptr()) + buffer_.max_write()};
+  }
+
+  // Returns an empty span if there is no data to pop.
+  ErrorOr<size_t> Pop(std::span<char> data) {
+    size_t bytes_expected = 0;
+    if (!GetBytesExpected(buffer_.data, buffer_.size, bytes_expected)) {
+      return ERR_FAILED;
+    }
+
+    if (bytes_expected > buffer_.size) {
+      return 0;
+    }
+
+    std::copy_n(buffer_.data, bytes_expected, data.data());
+    buffer_.Pop(bytes_expected);
+    return bytes_expected;
+  }
+
+  bool IsEmpty() const { return buffer_.empty(); }
+
   bool has_error_correction() const { return error_correction_; }
   void set_error_correction(bool correction) { error_correction_ = correction; }
 

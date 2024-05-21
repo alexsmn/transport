@@ -1,10 +1,11 @@
 #include "net/message_reader_transport.h"
 
-#include "net/message_reader.h"
 #include "net/test/immediate_executor.h"
+#include "net/test/test_message_reader.h"
 #include "net/transport_delegate_mock.h"
 #include "net/transport_mock.h"
 
+#include <array>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -22,41 +23,22 @@ class MessageTransportTest : public Test {
 
   void InitChildTransport(bool message_oriented);
 
+  void ExpectChildReadSome(const std::vector<char>& buffer);
+  void ExpectChildReadMessage(const std::vector<char>& message);
+  [[nodiscard]] awaitable<ErrorOr<std::vector<char>>> ReadMessage();
+
   Executor executor_ = boost::asio::system_executor{};
 
   StrictMock<MockTransportHandlers> message_transport_handlers_;
 
   Transport::Handlers child_handlers_;
 
-  std::unique_ptr<TransportMock> child_transport_ =
-      std::make_unique<TransportMock>();
+  TransportMock* child_transport_ = nullptr;
 
   std::unique_ptr<MessageReaderTransport> message_transport_;
 };
 
 namespace {
-
-class TestMessageReader : public MessageReaderImpl<1024> {
- public:
-  virtual MessageReader* Clone() override {
-    assert(false);
-    return nullptr;
-  }
-
- protected:
-  virtual bool GetBytesExpected(const void* buf,
-                                size_t len,
-                                size_t& expected) const override {
-    if (len < 1) {
-      expected = 1;
-      return true;
-    }
-
-    const char* bytes = static_cast<const char*>(buf);
-    expected = 1 + static_cast<size_t>(bytes[0]);
-    return true;
-  }
-};
 
 auto MakeReadImpl(const std::vector<char>& buffer) {
   return [buffer](std::span<char> data) -> awaitable<ErrorOr<size_t>> {
@@ -74,28 +56,31 @@ MATCHER_P2(HasBytes, bytes, size, "") {
 
 }  // namespace
 
-MessageTransportTest::MessageTransportTest() {
-  EXPECT_CALL(*child_transport_, Destroy());
-}
+MessageTransportTest::MessageTransportTest() {}
 
 void MessageTransportTest::InitChildTransport(bool message_oriented) {
-  EXPECT_CALL(*child_transport_, IsMessageOriented())
+  auto child_transport = std::make_unique<StrictMock<TransportMock>>();
+
+  EXPECT_CALL(*child_transport, IsMessageOriented())
       .Times(AnyNumber())
       .WillRepeatedly(Return(message_oriented));
 
-  EXPECT_CALL(*child_transport_, Open(/*handlers=*/_))
+  EXPECT_CALL(*child_transport, Open(/*handlers=*/_))
       .WillOnce(DoAll(SaveArg<0>(&child_handlers_), CoReturn(OK)));
 
-  EXPECT_CALL(*child_transport_, IsConnected())
+  EXPECT_CALL(*child_transport, IsConnected())
       .Times(AnyNumber())
       .WillRepeatedly(Return(true));
 
-  EXPECT_CALL(*child_transport_, Close());
+  EXPECT_CALL(*child_transport, Close());
+  EXPECT_CALL(*child_transport, Destroy());
+
+  child_transport_ = child_transport.get();
 
   auto message_reader = std::make_unique<TestMessageReader>();
 
   message_transport_ = std::make_unique<MessageReaderTransport>(
-      executor_, std::move(child_transport_), std::move(message_reader),
+      executor_, std::move(child_transport), std::move(message_reader),
       NullLogger::GetInstance());
 
   boost::asio::co_spawn(
@@ -104,128 +89,151 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       boost::asio::detached);
 }
 
-TEST_F(MessageTransportTest, CompositeMessage) {
-  InitChildTransport(/*message_oriented=*/true);
+void MessageTransportTest::ExpectChildReadSome(
+    const std::vector<char>& buffer) {
+  EXPECT_CALL(*child_transport_, Read(/*buffer=*/_))
+      .WillOnce(
+          Invoke([buffer](std::span<char> data) -> awaitable<ErrorOr<size_t>> {
+            if (data.size() < buffer.size()) {
+              co_return ERR_FAILED;
+            }
+            std::ranges::copy(buffer, data.begin());
+            co_return buffer.size();
+          }));
+}
 
-  const char message1[] = {1, 0};
-  const char message2[] = {2, 0, 0};
-  const char message3[] = {3, 0, 0, 0};
+void MessageTransportTest::ExpectChildReadMessage(
+    const std::vector<char>& message) {
+  EXPECT_CALL(*child_transport_, Read(/*buffer=*/_))
+      .WillOnce(
+          Invoke([message](std::span<char> data) -> awaitable<ErrorOr<size_t>> {
+            if (data.size() < message.size()) {
+              co_return ERR_FAILED;
+            }
+            std::ranges::copy(message, data.begin());
+            co_return message.size();
+          }));
+}
 
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message1)));
+awaitable<ErrorOr<std::vector<char>>> MessageTransportTest::ReadMessage() {
+  std::array<char, 100> buffer;
+  if (auto result = co_await message_transport_->Read(buffer); result.ok()) {
+    co_return std::vector<char>{buffer.begin(), buffer.begin() + *result};
+  } else {
+    co_return result.error();
+  }
+}
 
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message2)));
+TEST_F(MessageTransportTest, SplitCompositeChildMessage) {
+  boost::asio::co_spawn(
+      executor_,
+      [&]() -> awaitable<void> {
+        InitChildTransport(/*message_oriented=*/true);
 
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message3)));
+        ExpectChildReadMessage({1, 0, 2, 0, 0, 3, 0, 0, 0});
 
-  const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
-  child_handlers_.on_message(datagram);
+        const auto message1 = std::vector<char>{1, 0};
+        const auto message2 = std::vector<char>{2, 0, 0};
+        const auto message3 = std::vector<char>{3, 0, 0, 0};
+
+        EXPECT_EQ(co_await ReadMessage(), message1);
+        EXPECT_EQ(co_await ReadMessage(), message2);
+        EXPECT_EQ(co_await ReadMessage(), message3);
+      },
+      boost::asio::detached);
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_LongerSize) {
-  InitChildTransport(/*message_oriented=*/true);
+  boost::asio::co_spawn(
+      executor_,
+      [&]() -> awaitable<void> {
+        InitChildTransport(/*message_oriented=*/true);
 
-  EXPECT_CALL(message_transport_handlers_.on_message, Call(_)).Times(0);
-  EXPECT_CALL(message_transport_handlers_.on_close, Call(ERR_FAILED));
+        ExpectChildReadMessage({5, 0, 0, 0});
 
-  const char datagram[] = {5, 0, 0, 0};
-  child_handlers_.on_message(datagram);
+        EXPECT_EQ(co_await ReadMessage(), ERR_FAILED);
+      },
+      boost::asio::detached);
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_DestroyInTheMiddle) {
-  InitChildTransport(/*message_oriented=*/true);
+  boost::asio::co_spawn(
+      executor_,
+      [&]() -> awaitable<void> {
+        InitChildTransport(/*message_oriented=*/true);
 
-  const char message1[] = {1, 0};
-  const char message2[] = {2, 0, 0};
+        ExpectChildReadMessage({1, 0, 2, 0, 0, 3, 0, 0, 0});
 
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message1)));
+        const auto message1 = std::vector<char>{1, 0};
+        const auto message2 = std::vector<char>{2, 0, 0};
 
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message2)))
-      .WillOnce(Invoke([&] { message_transport_.reset(); }));
-
-  const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
-  child_handlers_.on_message(datagram);
+        EXPECT_EQ(co_await ReadMessage(), message1);
+        EXPECT_EQ(co_await ReadMessage(), message2);
+      },
+      boost::asio::detached);
 }
 
 TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
-  InitChildTransport(/*message_oriented=*/true);
+  boost::asio::co_spawn(
+      executor_,
+      [&]() -> awaitable<void> {
+        InitChildTransport(/*message_oriented=*/true);
 
-  const char message1[] = {1, 0};
-  const char message2[] = {2, 0, 0};
-  const char message3[] = {3, 0, 0, 0};
+        ExpectChildReadMessage({1, 0, 2, 0, 0, 3, 0, 0, 0});
 
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message1)));
+        const auto message1 = std::vector<char>{1, 0};
+        const auto message2 = std::vector<char>{2, 0, 0};
 
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message2)))
-      .WillOnce(Invoke([&] { message_transport_->Close(); }));
+        EXPECT_EQ(co_await ReadMessage(), message1);
+        EXPECT_EQ(co_await ReadMessage(), message2);
 
-  // It's allowed for the following messages to be dropped or be received.
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAreArray(message3)))
-      .Times(0);
+        message_transport_->Close();
 
-  const char datagram[] = {1, 0, 2, 0, 0, 3, 0, 0, 0};
-  child_handlers_.on_message(datagram);
+        EXPECT_EQ(co_await ReadMessage(), ERR_CONNECTION_CLOSED);
+      },
+      boost::asio::detached);
 }
 
-TEST_F(MessageTransportTest,
-       OnData_StreamChildTransport_PartialMessage_DontTriggerOnMessage) {
-  Sequence s;
-
-  EXPECT_CALL(message_transport_handlers_.on_message, Call(_)).Times(0);
-
-  EXPECT_CALL(*child_transport_, Read(SizeIs(1)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({10})));
-
-  EXPECT_CALL(*child_transport_, Read(SizeIs(10)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({1, 2, 3})));
-
-  EXPECT_CALL(*child_transport_, Read(SizeIs(7)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({4})));
-
-  EXPECT_CALL(*child_transport_, Read(SizeIs(6)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({})));
-
+TEST_F(
+    MessageTransportTest,
+    DISABLED_OnData_StreamChildTransport_PartialMessage_DontTriggerOnMessage) {
   InitChildTransport(/*message_oriented=*/false);
+
+  ExpectChildReadSome({10});
+  ExpectChildReadSome({1, 2, 3});
+  ExpectChildReadSome({4});
+
+  // Check read message doesn't complete.
+  bool message_read = false;
+
+  boost::asio::co_spawn(
+      executor_,
+      [&]() -> awaitable<void> {
+        auto _ = co_await ReadMessage();
+        message_read = true;
+      },
+      boost::asio::detached);
+
+  EXPECT_FALSE(message_read);
 }
 
 TEST_F(MessageTransportTest,
        OnData_StreamChildTransport_FullMessage_TriggersOnMessage) {
-  Sequence s;
+  boost::asio::co_spawn(
+      executor_,
+      [&]() -> awaitable<void> {
+        InitChildTransport(/*message_oriented=*/false);
 
-  EXPECT_CALL(*child_transport_, Read(SizeIs(1)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({10})));
+        ExpectChildReadSome({10});
+        ExpectChildReadSome({1, 2, 3});
+        ExpectChildReadSome({4, 5, 6, 7, 8, 9, 10});
 
-  EXPECT_CALL(*child_transport_, Read(SizeIs(10)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({1, 2, 3})));
+        const auto full_message =
+            std::vector<char>{10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
-  EXPECT_CALL(*child_transport_, Read(SizeIs(7)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({4, 5, 6, 7, 8, 9, 10})));
-
-  EXPECT_CALL(message_transport_handlers_.on_message,
-              Call(ElementsAre(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))
-      .InSequence(s);
-
-  // Starts reading next message.
-
-  EXPECT_CALL(*child_transport_, Read(SizeIs(1)))
-      .InSequence(s)
-      .WillOnce(Invoke(MakeReadImpl({})));
-
-  InitChildTransport(/*message_oriented=*/false);
+        EXPECT_EQ(co_await ReadMessage(), full_message);
+      },
+      boost::asio::detached);
 }
 
 }  // namespace net

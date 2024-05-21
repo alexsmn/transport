@@ -115,9 +115,9 @@ void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
 void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  if (handlers_.on_message) {
+  /*if (handlers_.on_message) {
     handlers_.on_message(datagram);
-  }
+  }*/
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketClosed(
@@ -497,8 +497,8 @@ Executor AsioUdpTransport::AcceptedTransport::GetExecutor() const {
 void AsioUdpTransport::AcceptedTransport::ProcessDatagram(Datagram&& datagram) {
   assert(core_);
 
-  if (connected_ && handlers_.on_message)
-    handlers_.on_message(datagram);
+  /* if (connected_ && handlers_.on_message)
+    handlers_.on_message(datagram);*/
 }
 
 void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {

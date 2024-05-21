@@ -65,10 +65,10 @@ awaitable<void> WebSocketTransport::ConnectionCore::StartReading() {
       co_return;
     }
 
-    if (handlers_.on_message) {
+    /* if (handlers_.on_message) {
       handlers_.on_message({static_cast<const char*>(buffer.data().data()),
                             buffer.data().size()});
-    }
+    }*/
   }
 
   if (handlers_.on_close) {

@@ -22,7 +22,6 @@ class Connector {
 
   using OpenHandler = std::function<void()>;
   using CloseHandler = std::function<void(Error error)>;
-  using MessageHandler = std::function<void(std::span<const char>)>;
   using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
 
   struct Handlers {
@@ -30,14 +29,11 @@ class Connector {
     OpenHandler on_open;
     // Triggered also when open fails.
     CloseHandler on_close;
-    // For message-oriented transports.
-    // TODO: Remove and substitute with a promised `Read`.
-    MessageHandler on_message;
     // TODO: Introduce an `Accept` method returning a promised transport.
     AcceptHandler on_accept;
   };
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) = 0;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers = {}) = 0;
 };
 
 class Sender {

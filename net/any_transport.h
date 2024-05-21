@@ -22,12 +22,14 @@ class any_transport {
     return transport_ ? transport_->GetExecutor() : Executor{};
   }
 
-  [[nodiscard]] awaitable<Error> open(const Transport::Handlers& handlers) {
+  [[nodiscard]] Transport* get_impl() { return transport_.get(); }
+
+  [[nodiscard]] awaitable<Error> open(Transport::Handlers handlers = {}) {
     if (!transport_) {
       co_return ERR_INVALID_HANDLE;
     }
 
-    co_return co_await transport_->Open(handlers);
+    co_return co_await transport_->Open(std::move(handlers));
   }
 
   void close() {
@@ -52,7 +54,7 @@ class any_transport {
       co_return ERR_INVALID_HANDLE;
     }
 
-    co_return co_await transport_->Write(std::move(data));
+    co_return co_await transport_->Write(data);
   }
 
  private:

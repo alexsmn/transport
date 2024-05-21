@@ -80,8 +80,6 @@ class AsioTransport::IoCore : public Core,
  protected:
   IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
 
-  [[nodiscard]] awaitable<void> StartWriting();
-
   void ProcessError(Error error);
 
   // Must be called under `io_object_.get_executor()`.
@@ -99,11 +97,7 @@ class AsioTransport::IoCore : public Core,
 
  private:
   bool reading_ = false;
-
   bool writing_ = false;
-  std::vector<char> write_buffer_;
-  // The buffer being currently written with sync operation.
-  std::vector<char> writing_buffer_;
 };
 
 template <class IoObject>
@@ -155,52 +149,30 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Read(
 template <class IoObject>
 inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
     std::span<const char> data) {
+  if (closed_) {
+    co_return ERR_CONNECTION_CLOSED;
+  }
+
+  if (writing_) {
+    co_return ERR_IO_PENDING;
+  }
+
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
+  base::AutoReset reading{&writing_, true};
 
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  auto [ec, bytes_transferred] = co_await boost::asio::async_write(
+      io_object_, boost::asio::buffer(data),
+      boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  write_buffer_.insert(write_buffer_.end(), data.begin(), data.end());
-
-  boost::asio::co_spawn(io_object_.get_executor(),
-                        std::bind_front(&IoCore::StartWriting, ref),
-                        boost::asio::detached);
-
-  // TODO: Handle properly.
-  co_return data.size();
-}
-
-template <class IoObject>
-inline awaitable<void> AsioTransport::IoCore<IoObject>::StartWriting() {
-  if (closed_ || writing_) {
-    co_return;
+  if (ec) {
+    co_return MapSystemError(ec.value());
   }
 
-  auto ref = shared_from_this();
-  base::AutoReset writing{&writing_, true};
+  // Per ASIO specs, the number of bytes transferred is always equal to the
+  // size of the buffer.
+  assert(bytes_transferred == data.size());
 
-  while (!write_buffer_.empty()) {
-    writing_buffer_.swap(write_buffer_);
-
-    auto [ec, bytes_transferred] = co_await boost::asio::async_write(
-        io_object_, boost::asio::buffer(writing_buffer_),
-        boost::asio::as_tuple(boost::asio::use_awaitable));
-
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-    if (closed_) {
-      co_return;
-    }
-
-    if (ec) {
-      if (ec != boost::asio::error::operation_aborted) {
-        ProcessError(MapSystemError(ec.value()));
-      }
-      co_return;
-    }
-
-    assert(bytes_transferred == writing_buffer_.size());
-    writing_buffer_.clear();
-  }
+  co_return bytes_transferred;
 }
 
 template <class IoObject>
@@ -237,12 +209,12 @@ inline void AsioTransport::Close() {
 }
 
 inline awaitable<ErrorOr<size_t>> AsioTransport::Read(std::span<char> data) {
-  return core_->Read(data);
+  co_return co_await core_->Read(data);
 }
 
 inline awaitable<ErrorOr<size_t>> AsioTransport::Write(
     std::span<const char> data) {
-  return core_->Write(data);
+  co_return co_await core_->Write(data);
 }
 
 inline bool AsioTransport::IsMessageOriented() const {

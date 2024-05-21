@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <stdexcept>
-#include <string.h> // memcpy
+#include <string.h>  // memcpy
 
 namespace net {
 
@@ -14,8 +14,7 @@ class ByteMessage {
       : data(reinterpret_cast<uint8_t*>(data)),
         capacity(capacity),
         size(size),
-        pos(0) {
-  }
+        pos(0) {}
 
   void* ptr() { return data + pos; }
   const void* ptr() const { return data + pos; }
@@ -60,16 +59,19 @@ class ByteMessage {
       memcpy(buffer, data, size);
   }
 
-  template<typename T> T ReadT() {
+  template <typename T>
+  T ReadT() {
     T data;
     Read(&data, sizeof(data));
     return data;
   }
-  template<typename T> void ReadT(T& data) {
+  template <typename T>
+  void ReadT(T& data) {
     Read(&data, sizeof(data));
   }
 
-  template<typename T> void WriteT(const T& data) {
+  template <typename T>
+  void WriteT(const T& data) {
     Write(&data, sizeof(data));
   }
 
@@ -82,9 +84,25 @@ class ByteMessage {
   void WriteLong(uint32_t v) { WriteT(v); }
 
   void Seek(size_t pos) {
-    if (pos >= size)
+    if (pos >= size) {
       throw std::runtime_error("Seek error");
+    }
     this->pos = pos;
+  }
+
+  void Pop(size_t count) {
+    if (count > size) {
+      throw std::runtime_error{"Too much data to pop"};
+    }
+
+    std::rotate(data, data + count, data + size);
+    size -= count;
+
+    if (pos >= count) {
+      pos -= count;
+    } else {
+      pos = 0;
+    }
   }
 
   size_t capacity = 0;
@@ -93,4 +111,4 @@ class ByteMessage {
   uint8_t* data = nullptr;
 };
 
-} // namespace net
+}  // namespace net
