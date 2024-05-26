@@ -38,24 +38,6 @@ class MessageTransportTest : public Test {
   std::unique_ptr<MessageReaderTransport> message_transport_;
 };
 
-namespace {
-
-auto MakeReadImpl(const std::vector<char>& buffer) {
-  return [buffer](std::span<char> data) -> awaitable<ErrorOr<size_t>> {
-    if (data.size() < buffer.size()) {
-      throw std::runtime_error{"The read buffer is too small"};
-    }
-    std::ranges::copy(buffer, data.begin());
-    co_return buffer.size();
-  };
-}
-
-MATCHER_P2(HasBytes, bytes, size, "") {
-  return std::memcmp(arg, bytes, size) == 0;
-}
-
-}  // namespace
-
 MessageTransportTest::MessageTransportTest() {}
 
 void MessageTransportTest::InitChildTransport(bool message_oriented) {

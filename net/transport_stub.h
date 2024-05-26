@@ -6,44 +6,31 @@ namespace net {
 
 class StubTransport : public Transport {
  public:
-  virtual Error Open(Delegate& delegate) override;
-  virtual void Close() override;
-  virtual int Read(void* data, size_t len) override;
-  virtual int Write(const void* data, size_t len) override;
-  virtual std::string GetName() const override;
-  virtual bool IsMessageOriented() const override;
-  virtual bool IsConnected() const override;
-  virtual bool IsActive() const override;
+  explicit StubTransport(const Executor& executor) : executor_{executor} {}
+
+  virtual awaitable<Error> Open(Handlers handlers) override {
+    co_return net::OK;
+  }
+
+  virtual void Close() override {}
+
+  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> buffer) override {
+    co_return 0;
+  }
+
+  virtual awaitable<ErrorOr<size_t>> Write(
+      std::span<const char> buffer) override {
+    co_return buffer.size();
+  }
+
+  virtual std::string GetName() const override { return "StubTransport"; }
+  virtual bool IsMessageOriented() const override { return true; }
+  virtual bool IsConnected() const override { return false; }
+  virtual bool IsActive() const override { return true; }
+  virtual Executor GetExecutor() const override { return executor_; }
+
+ private:
+  Executor executor_;
 };
-
-inline Error StubTransport::Open(Delegate& delegate) {
-  return net::OK;
-}
-
-inline void StubTransport::Close() {}
-
-inline int StubTransport::Read(void* data, size_t len) {
-  return 0;
-}
-
-inline int StubTransport::Write(const void* data, size_t len) {
-  return 0;
-}
-
-inline std::string StubTransport::GetName() const {
-  return "StubTransport";
-}
-
-inline bool StubTransport::IsMessageOriented() const {
-  return true;
-}
-
-inline bool StubTransport::IsConnected() const {
-  return false;
-}
-
-inline bool StubTransport::IsActive() const {
-  return true;
-}
 
 }  // namespace net

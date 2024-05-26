@@ -17,10 +17,17 @@ void WriteQueue::BlindWrite(std::span<const char> data) {
 }
 
 awaitable<ErrorOr<size_t>> WriteQueue::Write(std::span<const char> data) {
-  auto current_write = std::make_shared<Channel>(transport_.GetExecutor());
+  auto current_write = std::make_shared<Channel>(transport_.GetExecutor(),
+                                                 /*max_buffer_size =*/1);
+
+  auto cancelation = std::weak_ptr{cancelation_};
 
   if (auto last_write = std::exchange(last_write_, current_write)) {
     co_await last_write->async_receive(boost::asio::use_awaitable);
+  }
+
+  if (cancelation.expired()) {
+    co_return ERR_ABORTED;
   }
 
   auto write_result = co_await transport_.Write(data);

@@ -416,7 +416,7 @@ AsioTcpTransport::~AsioTcpTransport() {
 }
 
 awaitable<Error> AsioTcpTransport::Open(Handlers handlers) {
-  return core_->Open(std::move(handlers));
+  co_return co_await core_->Open(std::move(handlers));
 }
 
 int AsioTcpTransport::GetLocalPort() const {

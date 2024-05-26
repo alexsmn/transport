@@ -158,7 +158,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
   }
 
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
-  base::AutoReset reading{&writing_, true};
+  base::AutoReset writing{&writing_, true};
 
   auto [ec, bytes_transferred] = co_await boost::asio::async_write(
       io_object_, boost::asio::buffer(data),

@@ -14,6 +14,7 @@ class Transport;
 class WriteQueue {
  public:
   explicit WriteQueue(Transport& transport) : transport_{transport} {}
+  ~WriteQueue() {}
 
   void BlindWrite(std::span<const char> data);
 
@@ -26,6 +27,8 @@ class WriteQueue {
       boost::asio::experimental::channel<void(boost::system::error_code)>;
 
   std::shared_ptr<Channel> last_write_;
+
+  std::shared_ptr<bool> cancelation_ = std::make_shared<bool>();
 };
 
 }  // namespace net
