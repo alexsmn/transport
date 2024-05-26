@@ -27,7 +27,6 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
   [[nodiscard]] awaitable<Error> Open(Handlers handlers);
   void Close();
 
-  void OnOpened();
   void OnClosed(Error error);
   void OnAccepted(std::unique_ptr<Transport> transport);
 
@@ -96,20 +95,10 @@ awaitable<Error> DeferredTransport::Core::Open(Handlers handlers) {
   }
 
   co_return co_await underlying_transport_->Open(
-      {.on_open = boost::asio::bind_executor(
-           executor_, BindFrontWeakPtr(&Core::OnOpened, weak_from_this())),
-       .on_close = boost::asio::bind_executor(
+      {.on_close = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnClosed, weak_from_this())),
        .on_accept = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnAccepted, weak_from_this()))});
-}
-
-void DeferredTransport::Core::OnOpened() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-  if (opened_ && handlers_.on_open) {
-    handlers_.on_open();
-  }
 }
 
 void DeferredTransport::Core::OnClosed(Error error) {

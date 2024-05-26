@@ -126,10 +126,6 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
 
   connected_ = true;
 
-  if (handlers_.on_open) {
-    handlers_.on_open();
-  }
-
   co_return OK;
 }
 
@@ -257,10 +253,6 @@ awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndStartAccepting() {
   logger_->Write(LogSeverity::Normal, "Bind completed");
 
   connected_ = true;
-
-  if (handlers_.on_open) {
-    handlers_.on_open();
-  }
 
   boost::asio::co_spawn(acceptor_.get_executor(),
                         std::bind_front(&PassiveCore::StartAccepting, ref),

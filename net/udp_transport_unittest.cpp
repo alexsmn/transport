@@ -82,7 +82,6 @@ void AsioUdpTransportTest::OpenTransport(bool active) {
   EXPECT_FALSE(transport_->IsConnected());
 
   const UdpSocket::Endpoint endpoint;
-  EXPECT_CALL(transport_handlers_.on_open, Call());
   open_handler(endpoint);
   EXPECT_TRUE(transport_->IsConnected());
 }

@@ -119,6 +119,7 @@ class NET_EXPORT Session final : public Transport {
 
   using SessionMap = std::map<SessionID, Session*, SessionIDLess>;
 
+  [[nodiscard]] awaitable<void> OpenTransport();
   [[nodiscard]] awaitable<Error> Connect();
   void CloseTransport();
 

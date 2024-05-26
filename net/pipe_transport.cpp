@@ -57,10 +57,6 @@ awaitable<Error> PipeTransport::Open(Handlers handlers) {
   handle_ = handle;
   connected_ = true;
 
-  if (auto on_open = std::move(handlers_.on_open)) {
-    on_open();
-  }
-
   co_return OK;
 }
 

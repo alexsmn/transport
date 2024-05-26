@@ -25,8 +25,6 @@ class Connector {
   using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
 
   struct Handlers {
-    // TODO: Remove `on_open` and keep only `on_accept`.
-    OpenHandler on_open;
     // Triggered also when open fails.
     CloseHandler on_close;
     // TODO: Introduce an `Accept` method returning a promised transport.
@@ -88,7 +86,7 @@ class NET_EXPORT Transport : public Connector,
 
   [[nodiscard]] virtual Executor GetExecutor() const = 0;
 
-  // TODO: Should return a promise.
+  // TODO: Should be a coroutine.
   virtual void Close() = 0;
 };
 

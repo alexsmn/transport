@@ -121,17 +121,23 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
 
   if (transport_) {
     cancelation_ = std::make_shared<bool>(false);
-    boost::asio::co_spawn(
-        executor_,
-        transport_->Open(
-            {.on_open = [this] { OnTransportOpened(); },
-             .on_close = [this](net::Error error) { OnTransportClosed(error); },
-             .on_accept =
-                 [this](std::unique_ptr<Transport> transport) {
-                   return OnTransportAccepted(std::move(transport));
-                 }}),
-        boost::asio::detached);
+    boost::asio::co_spawn(executor_, OpenTransport(), boost::asio::detached);
   }
+}
+
+awaitable<void> Session::OpenTransport() {
+  auto open_result = co_await transport_->Open(
+      {.on_close = [this](net::Error error) { OnTransportClosed(error); },
+       .on_accept =
+           [this](std::unique_ptr<Transport> transport) {
+             return OnTransportAccepted(std::move(transport));
+           }});
+
+  if (open_result != OK) {
+    co_return;
+  }
+
+  OnTransportOpened();
 }
 
 std::unique_ptr<Transport> Session::DetachTransport() {
@@ -269,13 +275,20 @@ awaitable<Error> Session::Connect() {
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  co_return co_await transport_->Open(
-      {.on_open = [this] { OnTransportOpened(); },
-       .on_close = [this](net::Error error) { OnTransportClosed(error); },
+  auto open_result = co_await transport_->Open(
+      {.on_close = [this](Error error) { OnTransportClosed(error); },
        .on_accept =
            [this](std::unique_ptr<Transport> transport) {
              return OnTransportAccepted(std::move(transport));
            }});
+
+  if (open_result != OK) {
+    co_return open_result;
+  }
+
+  OnTransportOpened();
+
+  co_return OK;
 }
 
 void Session::SendQueuedMessage() {
@@ -438,9 +451,6 @@ void Session::OnCreateResponse(const SessionID& session_id,
   id_ = session_id;
   session_info_ = session_info;
   state_ = OPENED;
-
-  if (handlers_.on_open)
-    handlers_.on_open();
 }
 
 void Session::OnTransportClosed(Error error) {
