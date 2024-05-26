@@ -76,12 +76,7 @@ awaitable<Error> SerialTransport::SerialPortCore::Open(Handlers handlers) {
   }
 
   connected_ = true;
-
   handlers_ = std::move(handlers);
-
-  if (handlers_.on_open) {
-    handlers_.on_open();
-  }
 
   co_return OK;
 }

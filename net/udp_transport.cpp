@@ -106,10 +106,6 @@ void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
   peer_endpoint_ = endpoint;
   connected_ = true;
-
-  if (handlers_.on_open) {
-    handlers_.on_open();
-  }
 }
 
 void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
@@ -378,10 +374,6 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
                   ToString(endpoint).c_str());
 
   connected_ = true;
-
-  if (handlers_.on_open) {
-    handlers_.on_open();
-  }
 }
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(

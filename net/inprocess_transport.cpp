@@ -103,10 +103,6 @@ class InprocessTransportHost::Server final : public Transport {
 
     handlers_ = handlers;
     opened_ = true;
-
-    if (auto on_open = std::move(handlers_.on_open)) {
-      on_open();
-    }
   }
 
   virtual void Close() override {
@@ -169,10 +165,6 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
     handlers_ = std::move(handlers);
     opened_ = true;
-
-    // Accepted transport doesn't trigger `on_open` by design.
-    assert(!handlers_.on_open);
-    handlers_.on_open = nullptr;
 
     co_return OK;
   }
@@ -241,10 +233,6 @@ awaitable<Error> InprocessTransportHost::Client::Open(Handlers handlers) {
   handlers_ = std::move(handlers);
 
   accepted_client_ = server->AcceptClient(*this);
-
-  if (auto on_open = std::move(handlers_.on_open)) {
-    on_open();
-  }
 
   co_return OK;
 }

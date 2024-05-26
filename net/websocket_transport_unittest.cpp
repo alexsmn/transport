@@ -32,22 +32,22 @@ class WebSocketTransportTest : public Test {};
 
 TEST_F(WebSocketTransportTest, Test) {
   boost::asio::io_context io_context;
+  boost::asio::co_spawn(
+      io_context,
+      [&]() -> awaitable<void> {
+        int port = GenerateTestNetworkPort();
 
-  int port = GenerateTestNetworkPort();
+        // `boost::asio::ip::make_address` doesn't support an empty string for
+        // any IP address.
+        WebSocketTransport server{io_context.get_executor(), "0.0.0.0", port};
 
-  // `boost::asio::ip::make_address` doesn't support an empty string for any IP
-  // address.
-  WebSocketTransport server{io_context.get_executor(), "0.0.0.0", port};
+        StrictMock<MockTransportHandlers> server_handlers;
 
-  StrictMock<MockTransportHandlers> server_handlers;
+        co_await server.Open(server_handlers.AsHandlers());
 
-  EXPECT_CALL(server_handlers.on_open, Call()).WillOnce(Invoke([&] {
-    io_context.stop();
-  }));
-
-  boost::asio::co_spawn(io_context, server.Open(server_handlers.AsHandlers()),
-                        boost::asio::detached);
-
+        io_context.stop();
+      },
+      boost::asio::detached);
   io_context.run();
 }
 

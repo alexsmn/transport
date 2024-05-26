@@ -240,10 +240,6 @@ awaitable<Error> WebSocketTransport::Core::Open(Handlers handlers) {
     co_return MapSystemError(ec.value());
   }
 
-  if (auto on_open = std::move(handlers_.on_open)) {
-    on_open();
-  }
-
   boost::asio::co_spawn(
       executor_, std::bind_front(&Core::StartAccepting, shared_from_this()),
       boost::asio::detached);
