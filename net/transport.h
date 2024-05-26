@@ -20,7 +20,6 @@ class Connector {
  public:
   virtual ~Connector() = default;
 
-  using OpenHandler = std::function<void()>;
   using CloseHandler = std::function<void(Error error)>;
   using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
 
