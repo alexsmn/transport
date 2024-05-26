@@ -11,8 +11,13 @@ namespace net {
 void WriteQueue::BlindWrite(std::span<const char> data) {
   boost::asio::co_spawn(
       transport_.GetExecutor(),
-      [this, data = std::vector<char>{data.begin(), data.end()}]()
-          -> awaitable<void> { auto _ = co_await Write(data); },
+      [this, data = std::vector<char>{data.begin(), data.end()},
+       cancelation = std::weak_ptr{cancelation_}]() -> awaitable<void> {
+        if (cancelation.expired()) {
+          co_return;
+        }
+        auto _ = co_await Write(data);
+      },
       boost::asio::detached);
 }
 
