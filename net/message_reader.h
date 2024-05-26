@@ -1,9 +1,11 @@
 #pragma once
 
 #include "net/bytemsg.h"
+#include "net/error_or.h"
 #include "net/logger.h"
 
 #include <cassert>
+#include <span>
 
 namespace net {
 
