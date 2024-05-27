@@ -20,12 +20,9 @@ class Connector {
  public:
   virtual ~Connector() = default;
 
-  using CloseHandler = std::function<void(Error error)>;
   using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
 
   struct Handlers {
-    // Triggered also when open fails.
-    CloseHandler on_close;
     // TODO: Introduce an `Accept` method returning a promised transport.
     AcceptHandler on_accept;
   };

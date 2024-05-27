@@ -38,7 +38,6 @@ awaitable<Error> PipeTransport::Open(Handlers handlers) {
   }
 
   if (handle == INVALID_HANDLE_VALUE) {
-    handlers.on_close(ERR_FAILED);
     co_return ERR_FAILED;
   }
 
@@ -47,7 +46,6 @@ awaitable<Error> PipeTransport::Open(Handlers handlers) {
       DWORD error = GetLastError();
       if (error != ERROR_PIPE_LISTENING) {
         CloseHandle(handle);
-        handlers.on_close(ERR_FAILED);
         co_return ERR_FAILED;
       }
     }

@@ -5,68 +5,11 @@
 #include "net/logger.h"
 #include "net/message_reader.h"
 
-#include <boost/asio/bind_executor.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/dispatch.hpp>
 
 namespace net {
-
-namespace {
-
-int GetBytesToRead(MessageReader& message_reader, const Logger& logger) {
-  for (;;) {
-    size_t bytes_to_read = 0;
-    bool ok = message_reader.GetBytesToRead(bytes_to_read);
-    if (ok) {
-      return bytes_to_read;
-    }
-
-    if (!message_reader.TryCorrectError()) {
-      logger.WriteF(LogSeverity::Warning,
-                    "Can't estimate remaining message size");
-      message_reader.Reset();
-      return ERR_FAILED;
-    }
-  }
-}
-
-int ReadMessage(std::span<const char>& buffer,
-                MessageReader& message_reader,
-                const Logger& logger,
-                ByteMessage& message) {
-  for (;;) {
-    int bytes_to_read = GetBytesToRead(message_reader, logger);
-    if (bytes_to_read < 0) {
-      return bytes_to_read;
-    } else if (bytes_to_read == 0) {
-      break;
-    }
-
-    if (bytes_to_read > buffer.size()) {
-      logger.WriteF(LogSeverity::Warning, "Message is too short");
-      return ERR_FAILED;
-    }
-
-    memcpy(message_reader.ptr(), buffer.data(), bytes_to_read);
-    message_reader.BytesRead(bytes_to_read);
-    buffer = buffer.subspan(bytes_to_read);
-  }
-
-  if (!message_reader.complete()) {
-    logger.WriteF(LogSeverity::Warning, "Incomplete message");
-    return ERR_FAILED;
-  }
-
-  // Message is complete.
-  message = message_reader.message();
-
-  // Clear buffer.
-  message_reader.Reset();
-  return static_cast<int>(message.size);
-}
-
-}  // namespace
 
 // MessageReaderTransport::Core
 
@@ -90,7 +33,6 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
 
   // Child handlers.
   void OnChildTransportAccepted(std::unique_ptr<Transport> transport);
-  void OnChildTransportClosed(Error error);
 
   Executor executor_;
   std::unique_ptr<Transport> child_transport_;
@@ -99,7 +41,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
 
   Handlers handlers_;
 
-  bool closed_ = false;
+  bool opened_ = false;
 
   bool reading_ = false;
   // TODO: Move into Context.
@@ -159,31 +101,31 @@ bool MessageReaderTransport::IsMessageOriented() const {
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
   assert(!cancelation_);
+  assert(!opened_);
 
   handlers_ = std::move(handlers);
   cancelation_ = std::make_shared<bool>(false);
+  opened_ = true;
 
   auto ref = shared_from_this();
 
   co_return co_await child_transport_->Open(
-      {.on_close = boost::asio::bind_executor(
-           executor_, std::bind_front(&Core::OnChildTransportClosed, ref)),
-       .on_accept = [this, ref](std::unique_ptr<Transport> transport) {
-         auto shared_transport =
-             std::make_shared<std::unique_ptr<Transport>>(std::move(transport));
+      {.on_accept = [this, ref](std::unique_ptr<Transport> transport) {
+        auto shared_transport =
+            std::make_shared<std::unique_ptr<Transport>>(std::move(transport));
 
-         boost::asio::dispatch(executor_, [this, ref, shared_transport] {
-           OnChildTransportAccepted(std::move(*shared_transport));
-         });
-       }});
+        boost::asio::dispatch(executor_, [this, ref, shared_transport] {
+          OnChildTransportAccepted(std::move(*shared_transport));
+        });
+      }});
 }
 
 void MessageReaderTransport::Core::Close() {
-  if (closed_) {
+  if (!opened_) {
     return;
   }
 
-  closed_ = true;
+  opened_ = false;
   handlers_ = {};
   cancelation_ = nullptr;
   message_reader_->Reset();
@@ -196,12 +138,12 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Read(std::span<char> data) {
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     std::span<char> buffer) {
-  if (closed_) {
-    co_return ERR_CONNECTION_CLOSED;
+  if (!child_transport_) {
+    co_return ERR_INVALID_HANDLE;
   }
 
-  if (!child_transport_.get()) {
-    co_return ERR_INVALID_HANDLE;
+  if (!opened_) {
+    co_return ERR_CONNECTION_CLOSED;
   }
 
   if (reading_) {
@@ -209,17 +151,22 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
   }
 
   auto ref = shared_from_this();
+  auto cancelation = std::weak_ptr{cancelation_};
   base::AutoReset reading{&reading_, true};
 
   for (;;) {
-    auto pop_result = message_reader_->Pop(buffer);
+    auto bytes_popped = message_reader_->Pop(buffer);
 
-    if (!pop_result.ok()) {
-      co_return pop_result.error();
+    if (!bytes_popped.ok()) {
+      // TODO: Add UT.
+      // TODO: Print message.
+      logger_->Write(LogSeverity::Warning, "Invalid message");
+      opened_ = false;
+      co_return bytes_popped;
     }
 
-    if (*pop_result != 0) {
-      co_return *pop_result;
+    if (*bytes_popped != 0) {
+      co_return bytes_popped;
     }
 
     // Don't allow composite message to contain partial messages.
@@ -233,13 +180,13 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     auto bytes_read =
         co_await child_transport_->Read(message_reader_->Prepare());
 
-    if (!bytes_read.ok()) {
-      co_return bytes_read.error();
+    if (cancelation.expired()) {
+      co_return ERR_ABORTED;
     }
 
-    // Connection graceful close.
-    if (*bytes_read == 0) {
-      co_return 0;
+    if (!bytes_read.ok() || *bytes_read == 0) {
+      opened_ = false;
+      co_return bytes_read;
     }
 
     message_reader_->BytesRead(*bytes_read);
@@ -248,7 +195,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Write(
     std::span<const char> data) {
-  return core_->WriteMessage(std::move(data));
+  co_return co_await core_->WriteMessage(std::move(data));
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::WriteMessage(
@@ -272,18 +219,6 @@ void MessageReaderTransport::Core::OnChildTransportAccepted(
     std::unique_ptr<Transport> transport) {
   if (handlers_.on_accept) {
     handlers_.on_accept(std::move(transport));
-  }
-}
-
-void MessageReaderTransport::Core::OnChildTransportClosed(Error error) {
-  assert(child_transport_);
-
-  closed_ = true;
-
-  auto cancelation = std::exchange(cancelation_, nullptr);
-
-  if (handlers_.on_close && cancelation) {
-    handlers_.on_close(error);
   }
 }
 

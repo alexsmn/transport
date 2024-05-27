@@ -150,17 +150,16 @@ void TransportTest::Server::Stop() {
 
 awaitable<Error> TransportTest::Server::StartEchoing(
     std::unique_ptr<Transport> transport) {
-  auto open_result = co_await transport->Open(
-      {.on_close = [this, &transport](net::Error) mutable {
-        logger_->Write(LogSeverity::Warning, "Disconnected");
-        transport.reset();
-      }});
+  auto open_result = co_await transport->Open();
 
   if (open_result != OK) {
+    logger_->Write(LogSeverity::Warning, "Connect error");
     co_return open_result;
   }
 
   co_return co_await EchoData(*transport);
+
+  logger_->Write(LogSeverity::Warning, "Disconnected");
 }
 
 // TransportTest::Client

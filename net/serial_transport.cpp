@@ -57,9 +57,6 @@ awaitable<Error> SerialTransport::SerialPortCore::Open(Handlers handlers) {
   boost::system::error_code ec;
   io_object_.open(device_, ec);
   if (ec) {
-    if (handlers.on_close) {
-      handlers.on_close(ERR_FAILED);
-    }
     co_return ERR_FAILED;
   }
 
@@ -69,9 +66,6 @@ awaitable<Error> SerialTransport::SerialPortCore::Open(Handlers handlers) {
       !SetOption(io_object_, options_.stop_bits) ||
       !SetOption(io_object_, options_.character_size)) {
     io_object_.close(ec);
-    if (handlers.on_close) {
-      handlers.on_close(ERR_FAILED);
-    }
     co_return ERR_FAILED;
   }
 
