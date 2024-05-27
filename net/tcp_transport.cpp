@@ -374,10 +374,6 @@ void AsioTcpTransport::PassiveCore::ProcessError(
 
   connected_ = false;
   closed_ = true;
-
-  if (handlers_.on_close) {
-    handlers_.on_close(error);
-  }
 }
 
 // AsioTcpTransport

@@ -18,6 +18,7 @@ class DeferredTransport final : public Transport {
   void AllowReOpen();
 
   // Refactor so it's not needed. Or document.
+  using CloseHandler = std::function<void(Error error)>;
   void set_additional_close_handler(CloseHandler handler);
 
   // Transport

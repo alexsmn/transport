@@ -28,10 +28,6 @@ void QueueTransport::SetActive(QueueTransport& peer) {
 
   connected_ = true;
 
-  if (auto on_open = std::move(handlers_.on_open)) {
-    on_open();
-  }
-
   co_return OK;
 }
 
@@ -70,8 +66,6 @@ void QueueTransport::Exec() {
   read_queue_.pop();
 
   assert(!message.empty());
-  if (handlers_.on_message)
-    handlers_.on_message(message);
 }
 
 std::string QueueTransport::GetName() const {
@@ -80,10 +74,6 @@ std::string QueueTransport::GetName() const {
 
 void QueueTransport::OnMessage(const void* data, size_t size) {
   assert(connected_);
-
-  if (handlers_.on_message) {
-    handlers_.on_message({static_cast<const char*>(data), size});
-  }
 }
 
 void QueueTransport::OnAccept(QueueTransport& transport) {

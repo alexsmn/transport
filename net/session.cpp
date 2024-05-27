@@ -127,13 +127,12 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
 
 awaitable<void> Session::OpenTransport() {
   auto open_result = co_await transport_->Open(
-      {.on_close = [this](net::Error error) { OnTransportClosed(error); },
-       .on_accept =
-           [this](std::unique_ptr<Transport> transport) {
-             return OnTransportAccepted(std::move(transport));
-           }});
+      {.on_accept = [this](std::unique_ptr<Transport> transport) {
+        return OnTransportAccepted(std::move(transport));
+      }});
 
   if (open_result != OK) {
+    OnTransportClosed(open_result);
     co_return;
   }
 
@@ -209,10 +208,9 @@ void Session::OnClosed(Error error) {
 
   Close();
 
-  if (handlers_.on_close)
-    handlers_.on_close(error);
-  else if (accepted_)
+  if (accepted_) {
     delete this;
+  }
 }
 
 void Session::OnSessionRestored() {
@@ -276,13 +274,12 @@ awaitable<Error> Session::Connect() {
   cancelation_ = std::make_shared<bool>(false);
 
   auto open_result = co_await transport_->Open(
-      {.on_close = [this](Error error) { OnTransportClosed(error); },
-       .on_accept =
-           [this](std::unique_ptr<Transport> transport) {
-             return OnTransportAccepted(std::move(transport));
-           }});
+      {.on_accept = [this](std::unique_ptr<Transport> transport) {
+        return OnTransportAccepted(std::move(transport));
+      }});
 
   if (open_result != OK) {
+    OnTransportClosed(open_result);
     co_return open_result;
   }
 
@@ -400,8 +397,9 @@ void Session::OnTransportOpened() {
 
   connecting_ = false;
 
-  if (!transport()->IsActive())
+  if (!transport()->IsActive()) {
     return;
+  }
 
   repeat_sending_messages_ = true;
 

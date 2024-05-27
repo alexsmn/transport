@@ -119,10 +119,6 @@ void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
 void AsioUdpTransport::UdpActiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
   connected_ = false;
-
-  if (handlers_.on_close) {
-    handlers_.on_close(net::MapSystemError(error.value()));
-  }
 }
 
 UdpSocketContext AsioUdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
@@ -385,10 +381,6 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
   auto net_error = net::MapSystemError(error.value());
   connected_ = false;
   CloseAllAcceptedTransports(net_error);
-
-  if (handlers_.on_close) {
-    handlers_.on_close(net_error);
-  }
 }
 
 UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
@@ -501,12 +493,7 @@ void AsioUdpTransport::AcceptedTransport::ProcessError(Error error) {
     core_ = nullptr;
   }
 
-  if (connected_) {
-    connected_ = false;
-
-    if (handlers_.on_close)
-      handlers_.on_close(error);
-  }
+  connected_ = false;
 }
 
 // AsioUdpTransport

@@ -94,11 +94,22 @@ awaitable<Error> DeferredTransport::Core::Open(Handlers handlers) {
     co_return OK;
   }
 
-  co_return co_await underlying_transport_->Open(
-      {.on_close = boost::asio::bind_executor(
-           executor_, BindFrontWeakPtr(&Core::OnClosed, weak_from_this())),
-       .on_accept = boost::asio::bind_executor(
+  auto weak_ref = weak_from_this();
+
+  auto open_result = co_await underlying_transport_->Open(
+      {.on_accept = boost::asio::bind_executor(
            executor_, BindFrontWeakPtr(&Core::OnAccepted, weak_from_this()))});
+
+  if (weak_ref.expired()) {
+    co_return ERR_ABORTED;
+  }
+
+  if (open_result != OK) {
+    OnClosed(open_result);
+    co_return open_result;
+  }
+
+  co_return OK;
 }
 
 void DeferredTransport::Core::OnClosed(Error error) {
@@ -108,16 +119,9 @@ void DeferredTransport::Core::OnClosed(Error error) {
     return;
   }
 
-  // Capture the additional close handler, as the object may be
-  // deleted from the normal close handler.
-  auto additional_close_handler = additional_close_handler_;
-
-  if (handlers_.on_close) {
-    handlers_.on_close(error);
-  }
-
-  if (additional_close_handler) {
-    additional_close_handler(error);
+  // WARNING: The object may be deleted from the handler.
+  if (additional_close_handler_) {
+    additional_close_handler_(error);
   }
 }
 

@@ -60,8 +60,6 @@ awaitable<void> WebSocketTransport::ConnectionCore::StartReading() {
       break;
 
     if (ec) {
-      if (handlers_.on_close)
-        handlers_.on_close(net::ERR_ABORTED);
       co_return;
     }
 
@@ -69,10 +67,6 @@ awaitable<void> WebSocketTransport::ConnectionCore::StartReading() {
       handlers_.on_message({static_cast<const char*>(buffer.data().data()),
                             buffer.data().size()});
     }*/
-  }
-
-  if (handlers_.on_close) {
-    handlers_.on_close(net::OK);
   }
 }
 
@@ -108,9 +102,6 @@ awaitable<void> WebSocketTransport::ConnectionCore::StartWriting() {
         boost::asio::as_tuple(boost::asio::use_awaitable));
 
     if (ec) {
-      if (handlers_.on_close) {
-        handlers_.on_close(net::ERR_ABORTED);
-      }
       co_return;
     }
   }

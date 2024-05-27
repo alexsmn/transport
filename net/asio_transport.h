@@ -188,14 +188,10 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
     logger_->WriteF(LogSeverity::Normal, "Graceful close");
   }
 
-  auto on_close = handlers_.on_close;
   closed_ = true;
   handlers_ = {};
 
   Cleanup();
-
-  if (on_close)
-    on_close(error);
 }
 
 // AsioTransport

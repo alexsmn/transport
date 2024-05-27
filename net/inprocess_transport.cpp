@@ -52,10 +52,6 @@ class InprocessTransportHost::Client final : public Transport {
   void OnServerClosed() {
     // Must be opened.
     assert(accepted_client_);
-
-    if (handlers_.on_close) {
-      handlers_.on_close(OK);
-    }
   }
 
  private:
@@ -92,17 +88,17 @@ class InprocessTransportHost::Server final : public Transport {
 
   [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
     if (opened_) {
-      handlers.on_close(ERR_ADDRESS_IN_USE);
       co_return ERR_ADDRESS_IN_USE;
     }
 
     if (!host_.listeners_.try_emplace(channel_name_, this).second) {
-      handlers.on_close(ERR_ADDRESS_IN_USE);
       co_return ERR_ADDRESS_IN_USE;
     }
 
     handlers_ = handlers;
     opened_ = true;
+
+    co_return OK;
   }
 
   virtual void Close() override {
@@ -159,7 +155,6 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
   [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
     if (opened_) {
-      handlers.on_close(ERR_ADDRESS_IN_USE);
       co_return ERR_ADDRESS_IN_USE;
     }
 
@@ -190,13 +185,8 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
   virtual Executor GetExecutor() const override { return server_.executor_; }
 
   void OnClientClosed() {
-    // Client might have not called `Open` yet.
-    if (opened_) {
-      opened_ = false;
-      if (handlers_.on_close) {
-        handlers_.on_close(OK);
-      }
-    }
+    // WARNING: Client might have not called `Open` yet.
+    opened_ = false;
   }
 
   void Receive(std::span<const char> data) {
@@ -220,13 +210,11 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
 awaitable<Error> InprocessTransportHost::Client::Open(Handlers handlers) {
   if (accepted_client_) {
-    handlers.on_close(ERR_ADDRESS_IN_USE);
     co_return ERR_ADDRESS_IN_USE;
   }
 
   auto* server = host_.FindServer(channel_name_);
   if (!server) {
-    handlers.on_close(ERR_ADDRESS_INVALID);
     co_return ERR_ADDRESS_IN_USE;
   }
 
