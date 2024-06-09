@@ -1,7 +1,5 @@
 #include "net/websocket_transport.h"
 
-#include "net/transport_delegate_mock.h"
-
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -41,9 +39,7 @@ TEST_F(WebSocketTransportTest, Test) {
         // any IP address.
         WebSocketTransport server{io_context.get_executor(), "0.0.0.0", port};
 
-        StrictMock<MockTransportHandlers> server_handlers;
-
-        co_await server.Open(server_handlers.AsHandlers());
+        co_await server.Open();
 
         io_context.stop();
       },

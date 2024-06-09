@@ -126,10 +126,7 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
 }
 
 awaitable<void> Session::OpenTransport() {
-  auto open_result = co_await transport_->Open(
-      {.on_accept = [this](std::unique_ptr<Transport> transport) {
-        return OnTransportAccepted(std::move(transport));
-      }});
+  auto open_result = co_await transport_->Open();
 
   if (open_result != OK) {
     OnTransportClosed(open_result);
@@ -273,10 +270,7 @@ awaitable<Error> Session::Connect() {
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  auto open_result = co_await transport_->Open(
-      {.on_accept = [this](std::unique_ptr<Transport> transport) {
-        return OnTransportAccepted(std::move(transport));
-      }});
+  auto open_result = co_await transport_->Open();
 
   if (open_result != OK) {
     OnTransportClosed(open_result);
@@ -649,6 +643,7 @@ void Session::SendDataMessage(const SendingMessage& message) {
   SendInternal(msg.data, msg.size);
 }
 
+/*
 net::Error Session::OnTransportAccepted(std::unique_ptr<Transport> transport) {
   auto session = std::make_unique<Session>(executor_);
   session->accepted_ = true;
@@ -658,6 +653,7 @@ net::Error Session::OnTransportAccepted(std::unique_ptr<Transport> transport) {
   session->OnAccepted(std::move(transport));
   return net::OK;
 }
+*/
 
 void Session::OnAccepted(std::unique_ptr<Transport> transport) {
   SetTransport(std::move(transport));
@@ -675,13 +671,13 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
 
   std::unique_ptr<net::Transport> self(this);
 
-  if (!parent_session_ || !parent_session_->handlers_.on_accept) {
+  if (!parent_session_) {
     error = ERR_FAILED;
 
   } else {
     create_info_ = create_info;
     // TODO: Refactor!
-    parent_session_->handlers_.on_accept(std::move(self));
+    //parent_session_->handlers_.on_accept(std::move(self));
     state_ = OPENED;
 
     do {

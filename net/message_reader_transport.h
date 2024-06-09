@@ -27,7 +27,7 @@ class MessageReaderTransport final : public Transport {
   MessageReader& message_reader();
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers = {}) override;
 
   virtual void Close() override;
 

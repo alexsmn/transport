@@ -28,7 +28,6 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
   void Close();
 
   void OnClosed(Error error);
-  void OnAccepted(std::unique_ptr<Transport> transport);
 
   DFAKE_MUTEX(mutex_);
 
@@ -96,9 +95,7 @@ awaitable<Error> DeferredTransport::Core::Open(Handlers handlers) {
 
   auto weak_ref = weak_from_this();
 
-  auto open_result = co_await underlying_transport_->Open(
-      {.on_accept = boost::asio::bind_executor(
-           executor_, BindFrontWeakPtr(&Core::OnAccepted, weak_from_this()))});
+  auto open_result = co_await underlying_transport_->Open();
 
   if (weak_ref.expired()) {
     co_return ERR_ABORTED;
@@ -122,14 +119,6 @@ void DeferredTransport::Core::OnClosed(Error error) {
   // WARNING: The object may be deleted from the handler.
   if (additional_close_handler_) {
     additional_close_handler_(error);
-  }
-}
-
-void DeferredTransport::Core::OnAccepted(std::unique_ptr<Transport> transport) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
-  if (opened_ && handlers_.on_accept) {
-    handlers_.on_accept(std::move(transport));
   }
 }
 

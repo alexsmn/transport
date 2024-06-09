@@ -22,10 +22,7 @@ class Connector {
 
   using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
 
-  struct Handlers {
-    // TODO: Introduce an `Accept` method returning a promised transport.
-    AcceptHandler on_accept;
-  };
+  struct Handlers {};
 
   [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers = {}) = 0;
 };

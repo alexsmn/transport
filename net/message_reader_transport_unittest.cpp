@@ -2,7 +2,6 @@
 
 #include "net/test/immediate_executor.h"
 #include "net/test/test_message_reader.h"
-#include "net/transport_delegate_mock.h"
 #include "net/transport_mock.h"
 
 #include <array>
@@ -27,8 +26,6 @@ class MessageTransportTest : public Test {
   [[nodiscard]] awaitable<ErrorOr<std::vector<char>>> ReadMessage();
 
   Executor executor_ = boost::asio::system_executor{};
-
-  StrictMock<MockTransportHandlers> message_transport_handlers_;
 
   Transport::Handlers child_handlers_;
 
@@ -64,10 +61,8 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       executor_, std::move(child_transport), std::move(message_reader),
       NullLogger::GetInstance());
 
-  boost::asio::co_spawn(
-      executor_,
-      message_transport_->Open(message_transport_handlers_.AsHandlers()),
-      boost::asio::detached);
+  boost::asio::co_spawn(executor_, message_transport_->Open(),
+                        boost::asio::detached);
 }
 
 void MessageTransportTest::ExpectChildReadSome(

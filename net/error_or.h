@@ -31,6 +31,10 @@ class [[nodiscard]] ErrorOr {
     return std::get<T>(value_);
   }
 
+  const T& value_or(const T& other_value) const& {
+    return ok() ? value() : other_value;
+  }
+
   T& operator*() { return value(); }
 
   const T& operator*() const { return value(); }

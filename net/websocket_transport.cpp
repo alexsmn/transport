@@ -301,10 +301,10 @@ awaitable<void> WebSocketTransport::Core::DoSession(
     co_return;
   }
 
-  if (handlers_.on_accept) {
+  /*if (handlers_.on_accept) {
     auto connection_core = std::make_shared<ConnectionCore>(std::move(ws));
     handlers_.on_accept(std::make_unique<Connection>(connection_core));
-  }
+  }*/
 }
 
 // WebSocketTransport

@@ -128,19 +128,26 @@ namespace {
 // TransportTest::Server
 
 awaitable<Error> TransportTest::Server::Init() {
-  auto error = co_await transport_->Open(
-      {.on_accept = [this](std::unique_ptr<Transport> accepted_transport) {
-        logger_->Write(LogSeverity::Normal, "Connected");
-        boost::asio::co_spawn(transport_->GetExecutor(),
-                              StartEchoing(std::move(accepted_transport)),
-                              boost::asio::detached);
-      }});
+  auto error = co_await transport_->Open();
 
   if (error != net::OK) {
     logger_->Write(LogSeverity::Error, "Failed to open the server transport");
     co_return error;
   }
 
+  for (;;) {
+    auto accepted_transport = co_await transport_->Accept();
+    if (!accepted_transport.ok()) {
+      break;
+    }
+
+    logger_->Write(LogSeverity::Normal, "Connected");
+    boost::asio::co_spawn(transport_->GetExecutor(),
+                          StartEchoing(std::move(*accepted_transport)),
+                          boost::asio::detached);
+  }
+
+  logger_->Write(LogSeverity::Normal, "Closed");
   co_return OK;
 }
 

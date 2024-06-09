@@ -16,8 +16,10 @@ class AsioUdpTransport final : public AsioTransport {
                    std::string service,
                    bool active);
 
+  explicit AsioUdpTransport(std::shared_ptr<Core> core);
+
   // Transport overrides
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers = {}) override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -29,7 +31,7 @@ class AsioUdpTransport final : public AsioTransport {
  private:
   class UdpActiveCore;
   class UdpPassiveCore;
-  class AcceptedTransport;
+  class UdpAcceptedCore;
 
   const bool active_;
 };
