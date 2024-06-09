@@ -34,6 +34,9 @@ class AsioUdpTransport::UdpActiveCore final
 
   virtual void Close() override;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override;
+
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override;
 
@@ -90,6 +93,11 @@ void AsioUdpTransport::UdpActiveCore::Close() {
                           std::bind_front(&UdpSocket::Close, socket_),
                           boost::asio::detached);
   });
+}
+
+awaitable<ErrorOr<std::unique_ptr<Transport>>>
+AsioUdpTransport::UdpActiveCore::Accept() {
+  co_return ERR_INVALID_ARGUMENT;
 }
 
 awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpActiveCore::Read(
@@ -157,6 +165,7 @@ class NET_EXPORT AsioUdpTransport::AcceptedTransport final : public Transport {
   // Transport
   virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
+  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
   virtual std::string GetName() const override;
@@ -200,6 +209,7 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual bool IsConnected() const override { return connected_; }
   virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
+  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
 
@@ -278,6 +288,12 @@ void AsioUdpTransport::UdpPassiveCore::Close() {
 
     CloseAllAcceptedTransports(OK);
   });
+}
+
+awaitable<ErrorOr<std::unique_ptr<Transport>>>
+AsioUdpTransport::UdpPassiveCore::Accept() {
+  // TODO: Implement.
+  co_return ERR_FAILED;
 }
 
 awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::Read(
@@ -444,6 +460,11 @@ void AsioUdpTransport::AcceptedTransport::Close() {
   connected_ = false;
 }
 
+awaitable<ErrorOr<std::unique_ptr<Transport>>>
+AsioUdpTransport::AcceptedTransport::Accept() {
+  co_return ERR_FAILED;
+}
+
 awaitable<ErrorOr<size_t>> AsioUdpTransport::AcceptedTransport::Read(
     std::span<char> data) {
   co_return ERR_FAILED;
@@ -522,6 +543,10 @@ awaitable<Error> AsioUdpTransport::Open(Handlers handlers) {
 
 std::string AsioUdpTransport::GetName() const {
   return "UDP";
+}
+
+awaitable<ErrorOr<std::unique_ptr<Transport>>> AsioUdpTransport::Accept() {
+  return core_->Accept();
 }
 
 }  // namespace net

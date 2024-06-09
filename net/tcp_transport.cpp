@@ -165,6 +165,9 @@ class AsioTcpTransport::PassiveCore final
   virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override;
+
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override;
 
@@ -307,6 +310,11 @@ void AsioTcpTransport::PassiveCore::Close() {
                         });
 }
 
+awaitable<ErrorOr<std::unique_ptr<Transport>>>
+AsioTcpTransport::PassiveCore::Accept() {
+  co_return ERR_ACCESS_DENIED;
+}
+
 awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Read(
     std::span<char> data) {
   co_return ERR_ACCESS_DENIED;
@@ -405,6 +413,10 @@ AsioTcpTransport::~AsioTcpTransport() {
 
 awaitable<Error> AsioTcpTransport::Open(Handlers handlers) {
   co_return co_await core_->Open(std::move(handlers));
+}
+
+awaitable<ErrorOr<std::unique_ptr<Transport>>> AsioTcpTransport::Accept() {
+  co_return co_await core_->Accept();
 }
 
 int AsioTcpTransport::GetLocalPort() const {

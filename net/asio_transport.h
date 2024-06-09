@@ -53,6 +53,9 @@ class AsioTransport::Core {
 
   virtual void Close() = 0;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
+  Accept() = 0;
+
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) = 0;
 
@@ -70,6 +73,9 @@ class AsioTransport::IoCore : public Core,
   virtual Executor GetExecutor() override { return io_object_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
   virtual void Close() override;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override;
@@ -123,6 +129,12 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
 
                           Cleanup();
                         });
+}
+
+template <class IoObject>
+inline awaitable<ErrorOr<std::unique_ptr<Transport>>>
+AsioTransport::IoCore<IoObject>::Accept() {
+  co_return ERR_INVALID_ARGUMENT;
 }
 
 template <class IoObject>

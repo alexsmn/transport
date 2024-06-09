@@ -77,6 +77,9 @@ class NET_EXPORT Session final : public Transport {
   [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
   virtual void Close() override;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override;
+
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override;
 

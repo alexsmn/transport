@@ -120,6 +120,9 @@ class WebSocketTransport::Connection : public Transport {
 
   virtual void Close() override;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override;
+
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override {
     co_return ERR_NOT_IMPLEMENTED;
@@ -157,6 +160,11 @@ void WebSocketTransport::Connection::Close() {
   core_->Close();
 }
 
+awaitable<ErrorOr<std::unique_ptr<Transport>>>
+WebSocketTransport::Connection::Accept() {
+  co_return ERR_ACCESS_DENIED;
+}
+
 awaitable<ErrorOr<size_t>> WebSocketTransport::Connection::Write(
     std::span<const char> data) {
   assert(opened_);
@@ -177,6 +185,8 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
 
   [[nodiscard]] awaitable<Error> Open(Handlers handlers);
   void Close();
+
+  [[nodiscard]] awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept();
 
   [[nodiscard]] awaitable<void> StartAccepting();
 
@@ -240,6 +250,12 @@ awaitable<Error> WebSocketTransport::Core::Open(Handlers handlers) {
 
 void WebSocketTransport::Core::Close() {
   handlers_ = {};
+}
+
+awaitable<ErrorOr<std::unique_ptr<Transport>>>
+WebSocketTransport::Core::Accept() {
+  // TODO: Implement this.
+  co_return ERR_ACCESS_DENIED;
 }
 
 awaitable<void> WebSocketTransport::Core::StartAccepting() {
@@ -315,6 +331,10 @@ void WebSocketTransport::Close() {
 
 Executor WebSocketTransport::GetExecutor() const {
   return core_->executor();
+}
+
+awaitable<ErrorOr<std::unique_ptr<Transport>>> WebSocketTransport::Accept() {
+  co_return co_await core_->Accept();
 }
 
 }  // namespace net

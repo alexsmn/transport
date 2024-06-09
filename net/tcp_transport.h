@@ -25,6 +25,9 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
   // Transport overrides
   [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override;
+
   virtual std::string GetName() const override;
   virtual bool IsActive() const override { return type_ == Type::ACTIVE; }
 

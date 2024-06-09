@@ -67,8 +67,11 @@ void PipeTransport::Close() {
   handlers_ = {};
 }
 
-[[nodiscard]] awaitable<ErrorOr<size_t>> PipeTransport::Read(
-    std::span<char> data) {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> PipeTransport::Accept() {
+  co_return ERR_ACCESS_DENIED;
+}
+
+awaitable<ErrorOr<size_t>> PipeTransport::Read(std::span<char> data) {
   OVERLAPPED overlapped = {0};
   DWORD bytes_read;
   if (!ReadFile(handle_, data.data(), data.size(), &bytes_read, &overlapped)) {

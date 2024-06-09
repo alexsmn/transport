@@ -105,4 +105,8 @@ std::string SerialTransport::GetName() const {
   return device_;
 }
 
+awaitable<ErrorOr<std::unique_ptr<Transport>>> SerialTransport::Accept() {
+  co_return ERR_ACCESS_DENIED;
+}
+
 }  // namespace net
