@@ -31,9 +31,6 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   [[nodiscard]] awaitable<ErrorOr<size_t>> WriteMessage(
       std::span<const char> data);
 
-  // Child handlers.
-  void OnChildTransportAccepted(std::unique_ptr<Transport> transport);
-
   Executor executor_;
   std::unique_ptr<Transport> child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
@@ -109,15 +106,7 @@ bool MessageReaderTransport::IsMessageOriented() const {
 
   auto ref = shared_from_this();
 
-  co_return co_await child_transport_->Open(
-      {.on_accept = [this, ref](std::unique_ptr<Transport> transport) {
-        auto shared_transport =
-            std::make_shared<std::unique_ptr<Transport>>(std::move(transport));
-
-        boost::asio::dispatch(executor_, [this, ref, shared_transport] {
-          OnChildTransportAccepted(std::move(*shared_transport));
-        });
-      }});
+  co_return co_await child_transport_->Open();
 }
 
 void MessageReaderTransport::Core::Close() {
@@ -219,13 +208,6 @@ std::string MessageReaderTransport::GetName() const {
 
 Executor MessageReaderTransport::GetExecutor() const {
   return core_->child_transport_->GetExecutor();
-}
-
-void MessageReaderTransport::Core::OnChildTransportAccepted(
-    std::unique_ptr<Transport> transport) {
-  if (handlers_.on_accept) {
-    handlers_.on_accept(std::move(transport));
-  }
 }
 
 }  // namespace net

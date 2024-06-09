@@ -352,12 +352,12 @@ awaitable<Error> AsioTcpTransport::PassiveCore::StartAccepting() {
 
     logger_->Write(LogSeverity::Normal, "Connection accepted");
 
-    if (handlers_.on_accept) {
+    /*if (handlers_.on_accept) {
       auto accepted_transport =
           std::make_unique<AsioTcpTransport>(logger_, std::move(peer));
 
       handlers_.on_accept(std::move(accepted_transport));
-    }
+    }*/
   }
 
   co_return OK;

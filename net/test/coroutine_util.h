@@ -2,6 +2,8 @@
 
 #include "net/awaitable.h"
 
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <gmock/gmock.h>
 
 namespace net {
@@ -21,6 +23,25 @@ ACTION_P(CoReturn, value) {
 
 ACTION(CoReturnVoid) {
   return CoVoid();
+}
+
+template <class F>
+void CoTest(F&& func) {
+  bool passed = false;
+
+  boost::asio::io_context io_context;
+
+  boost::asio::co_spawn(
+      io_context,
+      [&]() -> awaitable<void> {
+        co_await func();
+        passed = true;
+      },
+      boost::asio::detached);
+
+  io_context.run();
+
+  EXPECT_TRUE(passed);
 }
 
 }  // namespace net

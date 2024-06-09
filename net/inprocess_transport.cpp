@@ -267,7 +267,7 @@ InprocessTransportHost::Server::AcceptClient(Client& client) {
   assert(opened_);
   auto accepted_client = std::make_unique<AcceptedClient>(client, *this);
   AcceptedClient* accepted_client_ptr = accepted_client.get();
-  handlers_.on_accept(std::move(accepted_client));
+  //handlers_.on_accept(std::move(accepted_client));
   return accepted_client_ptr;
 }
 

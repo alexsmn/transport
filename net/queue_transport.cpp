@@ -36,6 +36,11 @@ void QueueTransport::Close() {
   timer_.Stop();
 }
 
+awaitable<ErrorOr<std::unique_ptr<Transport>>> QueueTransport::Accept() {
+  assert(false);
+  co_return ERR_FAILED;
+}
+
 awaitable<ErrorOr<size_t>> QueueTransport::Read(std::span<char> data) {
   assert(false);
   co_return ERR_FAILED;
@@ -80,9 +85,6 @@ void QueueTransport::OnAccept(QueueTransport& transport) {
   assert(!peer_);
   assert(connected_);
 
-  if (!handlers_.on_accept)
-    return;
-
   auto t = std::make_unique<QueueTransport>(executor_);
   t->peer_ = &transport;
   t->connected_ = true;
@@ -91,7 +93,7 @@ void QueueTransport::OnAccept(QueueTransport& transport) {
   t->timer_.StartRepeating(10ms, [this] { Exec(); });
 
   transport.peer_ = t.get();
-  handlers_.on_accept(std::move(t));
+  // handlers_.on_accept(std::move(t));
 }
 
 }  // namespace net

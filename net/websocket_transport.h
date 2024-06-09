@@ -9,7 +9,7 @@ class WebSocketTransport final : public Transport {
   WebSocketTransport(const Executor& executor, std::string host, int port);
   ~WebSocketTransport();
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers = {}) override;
 
   virtual void Close() override;
 
