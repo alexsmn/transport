@@ -22,7 +22,7 @@ class DeferredTransport final : public Transport {
   void set_additional_close_handler(CloseHandler handler);
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open() override;
 
   virtual void Close() override;
 

@@ -233,14 +233,13 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-awaitable<Error> Session::Open(Handlers handlers) {
+awaitable<Error> Session::Open() {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
 
   logger_->Write(LogSeverity::Normal, "Opening session");
 
-  handlers_ = std::move(handlers);
   state_ = OPENING;
 
   return Connect();
@@ -677,7 +676,7 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
   } else {
     create_info_ = create_info;
     // TODO: Refactor!
-    //parent_session_->handlers_.on_accept(std::move(self));
+    // parent_session_->handlers_.on_accept(std::move(self));
     state_ = OPENED;
 
     do {

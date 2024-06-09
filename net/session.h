@@ -74,7 +74,7 @@ class NET_EXPORT Session final : public Transport {
   std::unique_ptr<Transport> DetachTransport();
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open() override;
   virtual void Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
@@ -175,8 +175,6 @@ class NET_EXPORT Session final : public Transport {
   Executor executor_;
 
   std::shared_ptr<const Logger> logger_;
-
-  Handlers handlers_;
 
   SessionID id_;
   Session* parent_session_ = nullptr;

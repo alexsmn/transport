@@ -23,7 +23,7 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-awaitable<Error> PipeTransport::Open(Handlers handlers) {
+awaitable<Error> PipeTransport::Open() {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
   HANDLE handle;
@@ -51,7 +51,6 @@ awaitable<Error> PipeTransport::Open(Handlers handlers) {
     }
   }
 
-  handlers_ = handlers;
   handle_ = handle;
   connected_ = true;
 
@@ -63,8 +62,6 @@ void PipeTransport::Close() {
     CloseHandle(handle_);
     handle_ = INVALID_HANDLE_VALUE;
   }
-
-  handlers_ = {};
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>> PipeTransport::Accept() {

@@ -19,7 +19,7 @@ class AsioUdpTransport final : public AsioTransport {
   explicit AsioUdpTransport(std::shared_ptr<Core> core);
 
   // Transport overrides
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers = {}) override;
+  [[nodiscard]] virtual awaitable<Error> Open() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;

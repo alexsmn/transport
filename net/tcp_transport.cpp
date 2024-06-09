@@ -21,7 +21,7 @@ class AsioTcpTransport::ActiveCore final
   ActiveCore(std::shared_ptr<const Logger> logger, Socket socket);
 
   // Core
-  virtual awaitable<Error> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open() override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
@@ -56,18 +56,14 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
   connected_ = true;
 }
 
-awaitable<Error> AsioTcpTransport::ActiveCore::Open(Handlers handlers) {
+awaitable<Error> AsioTcpTransport::ActiveCore::Open() {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   if (connected_) {
-    handlers_ = std::move(handlers);
-
     co_return OK;
   }
 
   logger_->WriteF(LogSeverity::Normal, "Open");
-
-  handlers_ = std::move(handlers);
 
   co_return co_await ResolveAndConnect();
 }
@@ -162,7 +158,7 @@ class AsioTcpTransport::PassiveCore final
   // Core
   virtual Executor GetExecutor() override { return acceptor_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
-  virtual awaitable<Error> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open() override;
   virtual void Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
@@ -189,7 +185,6 @@ class AsioTcpTransport::PassiveCore final
   const std::shared_ptr<const Logger> logger_;
   std::string host_;
   std::string service_;
-  Handlers handlers_;
 
   Resolver resolver_;
   boost::asio::ip::tcp::acceptor acceptor_;
@@ -213,12 +208,10 @@ int AsioTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-awaitable<Error> AsioTcpTransport::PassiveCore::Open(Handlers handlers) {
+awaitable<Error> AsioTcpTransport::PassiveCore::Open() {
   auto ref = shared_from_this();
 
   logger_->WriteF(LogSeverity::Normal, "Open");
-
-  handlers_ = std::move(handlers);
 
   return ResolveAndStartAccepting();
 }
@@ -411,8 +404,8 @@ AsioTcpTransport::~AsioTcpTransport() {
   // The base class closes the core on destruction.
 }
 
-awaitable<Error> AsioTcpTransport::Open(Handlers handlers) {
-  co_return co_await core_->Open(std::move(handlers));
+awaitable<Error> AsioTcpTransport::Open() {
+  co_return co_await core_->Open();
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>> AsioTcpTransport::Accept() {

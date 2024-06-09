@@ -32,7 +32,7 @@ class AsioUdpTransport::UdpActiveCore final
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open() override;
 
   virtual void Close() override;
 
@@ -62,8 +62,6 @@ class AsioUdpTransport::UdpActiveCore final
 
   std::shared_ptr<UdpSocket> socket_;
 
-  Handlers handlers_;
-
   bool connected_ = false;
   UdpSocket::Endpoint peer_endpoint_;
 };
@@ -78,10 +76,9 @@ AsioUdpTransport::UdpActiveCore::UdpActiveCore(
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-awaitable<Error> AsioUdpTransport::UdpActiveCore::Open(Handlers handlers) {
+awaitable<Error> AsioUdpTransport::UdpActiveCore::Open() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  handlers_ = std::move(handlers);
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
 
   return socket_->Open();
@@ -168,7 +165,7 @@ class AsioUdpTransport::UdpAcceptedCore final
   // Core
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
-  virtual awaitable<Error> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open() override;
   virtual void Close() override;
   virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
@@ -215,7 +212,7 @@ class AsioUdpTransport::UdpPassiveCore final
   // Core
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
-  virtual awaitable<Error> Open(Handlers handlers) override;
+  virtual awaitable<Error> Open() override;
   virtual void Close() override;
   virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
@@ -245,8 +242,6 @@ class AsioUdpTransport::UdpPassiveCore final
   DFAKE_MUTEX(mutex_);
 
   std::shared_ptr<UdpSocket> socket_;
-
-  Handlers handlers_;
 
   bool connected_ = false;
 
@@ -279,10 +274,9 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
 }
 
-awaitable<Error> AsioUdpTransport::UdpPassiveCore::Open(Handlers handlers) {
+awaitable<Error> AsioUdpTransport::UdpPassiveCore::Open() {
   logger_->WriteF(LogSeverity::Normal, "Open");
 
-  handlers_ = std::move(handlers);
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
 
   return socket_->Open();
@@ -465,7 +459,7 @@ AsioUdpTransport::UdpAcceptedCore::~UdpAcceptedCore() {
   }
 }
 
-awaitable<Error> AsioUdpTransport::UdpAcceptedCore::Open(Handlers handlers) {
+awaitable<Error> AsioUdpTransport::UdpAcceptedCore::Open() {
   co_return ERR_ADDRESS_IN_USE;
 }
 
@@ -558,8 +552,8 @@ AsioUdpTransport::AsioUdpTransport(std::shared_ptr<Core> core)
   core_ = std::move(core);
 }
 
-awaitable<Error> AsioUdpTransport::Open(Handlers handlers) {
-  return core_->Open(std::move(handlers));
+awaitable<Error> AsioUdpTransport::Open() {
+  return core_->Open();
 }
 
 std::string AsioUdpTransport::GetName() const {

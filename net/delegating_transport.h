@@ -9,8 +9,8 @@ class DelegatingTransport : public Transport {
  public:
   explicit DelegatingTransport(Transport& delegate) : delegate_{delegate} {}
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
-    return delegate_.Open(std::move(handlers));
+  [[nodiscard]] virtual awaitable<Error> Open() override {
+    return delegate_.Open();
   }
 
   virtual void Close() override { delegate_.Close(); }

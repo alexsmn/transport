@@ -28,7 +28,7 @@ class InprocessTransportHost::Client final : public Transport {
     return std::format("client:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open() override;
 
   virtual void Close() override;
 
@@ -64,7 +64,6 @@ class InprocessTransportHost::Client final : public Transport {
   const Executor executor_;
   const std::string channel_name_;
 
-  Handlers handlers_;
   AcceptedClient* accepted_client_ = nullptr;
 
   std::queue<std::vector<char>> received_messages_;
@@ -91,7 +90,7 @@ class InprocessTransportHost::Server final : public Transport {
     return std::format("server:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
+  [[nodiscard]] virtual awaitable<Error> Open() override {
     if (opened_) {
       co_return ERR_ADDRESS_IN_USE;
     }
@@ -100,7 +99,6 @@ class InprocessTransportHost::Server final : public Transport {
       co_return ERR_ADDRESS_IN_USE;
     }
 
-    handlers_ = handlers;
     opened_ = true;
 
     co_return OK;
@@ -109,7 +107,6 @@ class InprocessTransportHost::Server final : public Transport {
   virtual void Close() override {
     if (opened_) {
       host_.listeners_.erase(channel_name_);
-      handlers_ = {};
       opened_ = false;
     }
   }
@@ -138,7 +135,6 @@ class InprocessTransportHost::Server final : public Transport {
   const Executor executor_;
   const std::string channel_name_;
 
-  Handlers handlers_;
   bool opened_ = false;
   std::vector<AcceptedClient*> accepted_clients_;
 
@@ -164,12 +160,11 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override {
+  [[nodiscard]] virtual awaitable<Error> Open() override {
     if (opened_) {
       co_return ERR_ADDRESS_IN_USE;
     }
 
-    handlers_ = std::move(handlers);
     opened_ = true;
 
     co_return OK;
@@ -178,7 +173,6 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
   virtual void Close() override {
     if (opened_) {
       opened_ = false;
-      handlers_ = {};
       client_.OnServerClosed();
     }
   }
@@ -216,7 +210,6 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
   Client& client_;
   Server& server_;
 
-  Handlers handlers_;
   bool opened_ = false;
 
   std::queue<std::vector<char>> received_messages_;
@@ -224,7 +217,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
 // InprocessTransportHost::Client
 
-awaitable<Error> InprocessTransportHost::Client::Open(Handlers handlers) {
+awaitable<Error> InprocessTransportHost::Client::Open() {
   if (accepted_client_) {
     co_return ERR_ADDRESS_IN_USE;
   }
@@ -233,8 +226,6 @@ awaitable<Error> InprocessTransportHost::Client::Open(Handlers handlers) {
   if (!server) {
     co_return ERR_ADDRESS_IN_USE;
   }
-
-  handlers_ = std::move(handlers);
 
   accepted_client_ = server->AcceptClient(*this);
 
@@ -245,7 +236,6 @@ void InprocessTransportHost::Client::Close() {
   if (accepted_client_) {
     auto* accepted_client = accepted_client_;
     accepted_client_ = nullptr;
-    handlers_ = {};
     accepted_client->OnClientClosed();
   }
 }
@@ -267,7 +257,7 @@ InprocessTransportHost::Server::AcceptClient(Client& client) {
   assert(opened_);
   auto accepted_client = std::make_unique<AcceptedClient>(client, *this);
   AcceptedClient* accepted_client_ptr = accepted_client.get();
-  //handlers_.on_accept(std::move(accepted_client));
+  // handlers_.on_accept(std::move(accepted_client));
   return accepted_client_ptr;
 }
 

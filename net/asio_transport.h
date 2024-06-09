@@ -49,7 +49,7 @@ class AsioTransport::Core {
 
   [[nodiscard]] virtual bool IsConnected() const = 0;
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) = 0;
+  [[nodiscard]] virtual awaitable<Error> Open() = 0;
 
   virtual void Close() = 0;
 
@@ -94,7 +94,6 @@ class AsioTransport::IoCore : public Core,
   DFAKE_MUTEX(mutex_);
 
   const std::shared_ptr<const Logger> logger_;
-  Handlers handlers_;
 
   IoObject io_object_;
 
@@ -125,7 +124,6 @@ inline void AsioTransport::IoCore<IoObject>::Close() {
                           logger_->WriteF(LogSeverity::Normal, "Close");
 
                           closed_ = true;
-                          handlers_ = {};
 
                           Cleanup();
                         });
@@ -201,7 +199,6 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
   }
 
   closed_ = true;
-  handlers_ = {};
 
   Cleanup();
 }
