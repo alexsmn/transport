@@ -19,7 +19,7 @@ class NET_EXPORT QueueTransport final : public Transport {
 
   // Transport
 
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open() override;
 
   virtual void Close() override;
 
@@ -46,8 +46,6 @@ class NET_EXPORT QueueTransport final : public Transport {
   void OnAccept(QueueTransport& transport);
 
   Executor executor_;
-
-  Handlers handlers_;
 
   MessageQueue read_queue_;
 

@@ -24,7 +24,7 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   ~Core();
 
-  [[nodiscard]] awaitable<Error> Open(Handlers handlers);
+  [[nodiscard]] awaitable<Error> Open();
   void Close();
 
   void OnClosed(Error error);
@@ -33,7 +33,6 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   Executor executor_;
   std::unique_ptr<Transport> underlying_transport_;
-  Handlers handlers_;
   CloseHandler additional_close_handler_;
   std::atomic<bool> opened_ = false;
 };
@@ -77,17 +76,16 @@ bool DeferredTransport::IsConnected() const {
   return core_->opened_;
 }
 
-awaitable<Error> DeferredTransport::Open(Handlers handlers) {
-  return core_->Open(std::move(handlers));
+awaitable<Error> DeferredTransport::Open() {
+  return core_->Open();
 }
 
-awaitable<Error> DeferredTransport::Core::Open(Handlers handlers) {
+awaitable<Error> DeferredTransport::Core::Open() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   assert(!opened_);
 
   opened_ = true;
-  handlers_ = std::move(handlers);
 
   if (underlying_transport_->IsConnected()) {
     co_return OK;
@@ -130,7 +128,6 @@ void DeferredTransport::Core::Close() {
   auto additional_close_handler =
       std::exchange(additional_close_handler_, nullptr);
 
-  handlers_ = {};
   opened_ = false;
 
   underlying_transport_->Close();

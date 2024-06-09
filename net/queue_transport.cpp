@@ -16,9 +16,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-[[nodiscard]] awaitable<Error> QueueTransport::Open(Handlers handlers) {
-  handlers_ = std::move(handlers);
-
+[[nodiscard]] awaitable<Error> QueueTransport::Open() {
   if (active_) {
     assert(peer_);
     peer_->OnAccept(*this);

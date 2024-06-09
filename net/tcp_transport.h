@@ -23,7 +23,7 @@ class NET_EXPORT AsioTcpTransport final : public AsioTransport {
   int GetLocalPort() const;
 
   // Transport overrides
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
+  [[nodiscard]] virtual awaitable<Error> Open() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;

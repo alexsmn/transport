@@ -27,8 +27,6 @@ class MessageTransportTest : public Test {
 
   Executor executor_ = boost::asio::system_executor{};
 
-  Transport::Handlers child_handlers_;
-
   TransportMock* child_transport_ = nullptr;
 
   std::unique_ptr<MessageReaderTransport> message_transport_;
@@ -43,8 +41,7 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       .Times(AnyNumber())
       .WillRepeatedly(Return(message_oriented));
 
-  EXPECT_CALL(*child_transport, Open(/*handlers=*/_))
-      .WillOnce(DoAll(SaveArg<0>(&child_handlers_), CoReturn(OK)));
+  EXPECT_CALL(*child_transport, Open()).WillOnce(CoReturn(OK));
 
   EXPECT_CALL(*child_transport, IsConnected())
       .Times(AnyNumber())
@@ -79,10 +76,12 @@ void MessageTransportTest::ExpectChildReadSome(
         if (shared_fragments->empty()) {
           co_return ERR_FAILED;
         }
+
         auto& buffer = shared_fragments->front();
         if (data.size() < buffer.size()) {
           co_return ERR_FAILED;
         }
+
         std::ranges::copy(buffer, data.begin());
         auto bytes_read = buffer.size();
         shared_fragments->erase(shared_fragments->begin());

@@ -17,7 +17,7 @@ class WebSocketTransport::ConnectionCore
 
   Executor executor() { return ws.get_executor(); }
 
-  [[nodiscard]] awaitable<Error> Open(Handlers handlers);
+  [[nodiscard]] awaitable<Error> Open();
   void Close();
 
   [[nodiscard]] awaitable<ErrorOr<size_t>> Write(std::span<const char> data);
@@ -28,15 +28,11 @@ class WebSocketTransport::ConnectionCore
 
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws;
 
-  Handlers handlers_;
-
   std::queue<std::vector<char>> write_queue_;
   bool writing_ = false;
 };
 
-awaitable<Error> WebSocketTransport::ConnectionCore::Open(Handlers handlers) {
-  handlers_ = std::move(handlers);
-
+awaitable<Error> WebSocketTransport::ConnectionCore::Open() {
   boost::asio::co_spawn(
       ws.get_executor(),
       std::bind_front(&ConnectionCore::StartReading, shared_from_this()),
@@ -71,8 +67,6 @@ awaitable<void> WebSocketTransport::ConnectionCore::StartReading() {
 }
 
 void WebSocketTransport::ConnectionCore::Close() {
-  handlers_ = {};
-
   boost::beast::error_code ec;
   ws.close(boost::beast::websocket::close_code::normal, ec);
 }
@@ -116,8 +110,7 @@ class WebSocketTransport::Connection : public Transport {
   ~Connection();
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers) override;
-
+  [[nodiscard]] virtual awaitable<Error> Open() override;
   virtual void Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
@@ -147,12 +140,12 @@ WebSocketTransport::Connection::~Connection() {
     core_->Close();
 }
 
-awaitable<Error> WebSocketTransport::Connection::Open(Handlers handlers) {
+awaitable<Error> WebSocketTransport::Connection::Open() {
   assert(!opened_);
 
   opened_ = true;
 
-  return core_->Open(std::move(handlers));
+  return core_->Open();
 }
 
 void WebSocketTransport::Connection::Close() {
@@ -183,7 +176,7 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
 
   Executor executor() const { return executor_; }
 
-  [[nodiscard]] awaitable<Error> Open(Handlers handlers);
+  [[nodiscard]] awaitable<Error> Open();
   void Close();
 
   [[nodiscard]] awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept();
@@ -198,8 +191,6 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
   const std::string host_;
   const int port_;
 
-  Handlers handlers_;
-
   boost::asio::ip::tcp::acceptor acceptor_{executor_};
 };
 
@@ -208,9 +199,7 @@ WebSocketTransport::Core::Core(const Executor& executor,
                                int port)
     : executor_{executor}, host_{std::move(host)}, port_{port} {}
 
-awaitable<Error> WebSocketTransport::Core::Open(Handlers handlers) {
-  handlers_ = std::move(handlers);
-
+awaitable<Error> WebSocketTransport::Core::Open() {
   auto const address = boost::asio::ip::make_address(host_);
   auto const port = static_cast<unsigned short>(port_);
   const boost::asio::ip::tcp::endpoint endpoint{address, port};
@@ -248,9 +237,7 @@ awaitable<Error> WebSocketTransport::Core::Open(Handlers handlers) {
   co_return OK;
 }
 
-void WebSocketTransport::Core::Close() {
-  handlers_ = {};
-}
+void WebSocketTransport::Core::Close() {}
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
 WebSocketTransport::Core::Accept() {
@@ -319,9 +306,9 @@ WebSocketTransport::~WebSocketTransport() {
     core_->Close();
 }
 
-awaitable<Error> WebSocketTransport::Open(Handlers handlers) {
+awaitable<Error> WebSocketTransport::Open() {
   assert(core_);
-  return core_->Open(std::move(handlers));
+  return core_->Open();
 }
 
 void WebSocketTransport::Close() {

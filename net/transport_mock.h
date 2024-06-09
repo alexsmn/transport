@@ -12,7 +12,7 @@ class TransportMock : public Transport {
   TransportMock() {
     using namespace testing;
 
-    ON_CALL(*this, Open(/*handlers=*/_)).WillByDefault(CoReturn(ERR_FAILED));
+    ON_CALL(*this, Open()).WillByDefault(CoReturn(ERR_FAILED));
 
     ON_CALL(*this, Read(/*buffer=*/_))
         .WillByDefault(
@@ -27,7 +27,7 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(void, Destroy, ());
 
-  MOCK_METHOD(awaitable<Error>, Open, (Handlers handlers), (override));
+  MOCK_METHOD(awaitable<Error>, Open, (), (override));
 
   MOCK_METHOD(void, Close, (), (override));
 

@@ -23,7 +23,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
 
-  [[nodiscard]] awaitable<Error> Open(Handlers handlers);
+  [[nodiscard]] awaitable<Error> Open();
   void Close();
 
   [[nodiscard]] awaitable<ErrorOr<size_t>> ReadMessage(std::span<char> buffer);
@@ -35,8 +35,6 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   std::unique_ptr<Transport> child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
   const std::shared_ptr<const Logger> logger_;
-
-  Handlers handlers_;
 
   bool opened_ = false;
 
@@ -81,8 +79,8 @@ bool MessageReaderTransport::IsActive() const {
   return core_->child_transport_->IsActive();
 }
 
-awaitable<Error> MessageReaderTransport::Open(Handlers handlers) {
-  co_return co_await core_->Open(std::move(handlers));
+awaitable<Error> MessageReaderTransport::Open() {
+  co_return co_await core_->Open();
 }
 
 void MessageReaderTransport::Close() {
@@ -93,14 +91,12 @@ bool MessageReaderTransport::IsMessageOriented() const {
   return true;
 }
 
-[[nodiscard]] awaitable<Error> MessageReaderTransport::Core::Open(
-    Handlers handlers) {
+[[nodiscard]] awaitable<Error> MessageReaderTransport::Core::Open() {
   // Passive transport can be connected.
   // assert(!child_transport_->IsConnected());
   assert(!cancelation_);
   assert(!opened_);
 
-  handlers_ = std::move(handlers);
   cancelation_ = std::make_shared<bool>(false);
   opened_ = true;
 
@@ -115,7 +111,6 @@ void MessageReaderTransport::Core::Close() {
   }
 
   opened_ = false;
-  handlers_ = {};
   cancelation_ = nullptr;
   message_reader_->Reset();
   child_transport_->Close();

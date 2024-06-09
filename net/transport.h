@@ -20,11 +20,7 @@ class Connector {
  public:
   virtual ~Connector() = default;
 
-  using AcceptHandler = std::function<void(std::unique_ptr<Transport>)>;
-
-  struct Handlers {};
-
-  [[nodiscard]] virtual awaitable<Error> Open(Handlers handlers = {}) = 0;
+  [[nodiscard]] virtual awaitable<Error> Open() = 0;
 };
 
 class Sender {
