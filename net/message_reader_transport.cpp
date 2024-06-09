@@ -132,6 +132,12 @@ void MessageReaderTransport::Core::Close() {
   child_transport_->Close();
 }
 
+awaitable<ErrorOr<std::unique_ptr<Transport>>>
+MessageReaderTransport::Accept() {
+  // TODO: Bind message reader to the accepted transport.
+  co_return co_await core_->child_transport_->Accept();
+}
+
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Read(std::span<char> data) {
   co_return co_await core_->ReadMessage(data);
 }

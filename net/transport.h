@@ -82,6 +82,9 @@ class NET_EXPORT Transport : public Connector,
 
   [[nodiscard]] virtual Executor GetExecutor() const = 0;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
+  Accept() = 0;
+
   // TODO: Should be a coroutine.
   virtual void Close() = 0;
 };

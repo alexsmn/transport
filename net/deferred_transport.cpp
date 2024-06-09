@@ -151,6 +151,14 @@ void DeferredTransport::Core::Close() {
   }
 }
 
+awaitable<ErrorOr<std::unique_ptr<Transport>>> DeferredTransport::Accept() {
+  if (!core_->opened_) {
+    co_return ERR_ACCESS_DENIED;
+  }
+
+  co_return co_await core_->underlying_transport_->Accept();
+}
+
 awaitable<ErrorOr<size_t>> DeferredTransport::Read(std::span<char> data) {
   if (!core_->opened_) {
     co_return ERR_ACCESS_DENIED;

@@ -32,6 +32,11 @@ class InprocessTransportHost::Client final : public Transport {
 
   virtual void Close() override;
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
+  Accept() {
+    co_return ERR_ACCESS_DENIED;
+  }
+
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override {
     co_return ERR_ACCESS_DENIED;
@@ -109,6 +114,12 @@ class InprocessTransportHost::Server final : public Transport {
     }
   }
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override {
+    // TODO: Implement.
+    co_return ERR_ACCESS_DENIED;
+  }
+
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override {
     co_return ERR_ACCESS_DENIED;
   }
@@ -170,6 +181,11 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
       handlers_ = {};
       client_.OnServerClosed();
     }
+  }
+
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override {
+    co_return ERR_ACCESS_DENIED;
   }
 
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override {

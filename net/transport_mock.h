@@ -31,6 +31,11 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(void, Close, (), (override));
 
+  MOCK_METHOD(awaitable<ErrorOr<std::unique_ptr<Transport>>>,
+              Accept,
+              (),
+              (override));
+
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               Read,
               (std::span<char> buffer),
