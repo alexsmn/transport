@@ -9,6 +9,11 @@ class StubTransport : public Transport {
   explicit StubTransport(const Executor& executor) : executor_{executor} {}
 
   virtual awaitable<Error> Open() override { co_return net::OK; }
+
+  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() {
+    co_return ERR_NOT_IMPLEMENTED;
+  }
+
   virtual void Close() override {}
 
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> buffer) override {

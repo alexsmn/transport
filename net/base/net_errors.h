@@ -28,6 +28,8 @@ constexpr Error ERR_NOT_IMPLEMENTED = boost::system::errc::make_error_code(
     boost::system::errc::function_not_supported);
 constexpr Error ERR_TIMED_OUT =
     boost::system::errc::make_error_code(boost::system::errc::timed_out);
+constexpr Error ERR_SSL_BAD_PEER_PUBLIC_KEY =
+    boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
 #if 0
 constexpr Error ERR_CONNECTION_REFUSED =

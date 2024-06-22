@@ -22,14 +22,17 @@ class any_transport {
     return transport_ ? transport_->GetExecutor() : Executor{};
   }
 
-  [[nodiscard]] Transport* get_impl() { return transport_.get(); }
+  [[nodiscard]] std::string name() const { return transport_->GetName(); }
 
-  [[nodiscard]] awaitable<Error> open(Transport::Handlers handlers = {}) {
+  [[nodiscard]] Transport* get_impl() { return transport_.get(); }
+  std::unique_ptr<Transport> release_impl() { return std::move(transport_); }
+
+  [[nodiscard]] awaitable<Error> open() {
     if (!transport_) {
       co_return ERR_INVALID_HANDLE;
     }
 
-    co_return co_await transport_->Open(std::move(handlers));
+    co_return co_await transport_->Open();
   }
 
   void close() {
@@ -38,6 +41,16 @@ class any_transport {
     if (transport_) {
       transport_->Close();
     }
+  }
+
+  [[nodiscard]] awaitable<ErrorOr<any_transport>> accept() {
+    if (!transport_) {
+      co_return ERR_INVALID_HANDLE;
+    }
+
+    NET_ASSIGN_OR_CO_RETURN(auto transport, co_await transport_->Accept());
+
+    co_return any_transport{std::move(transport)};
   }
 
   [[nodiscard]] awaitable<ErrorOr<size_t>> read(std::span<char> data) const {

@@ -297,8 +297,7 @@ std::unique_ptr<Transport> TransportTest::CreateTransport(
   }
 
   return std::make_unique<MessageReaderTransport>(
-      executor, std::move(transport), std::make_unique<TestMessageReader>(),
-      logger);
+      std::move(transport), std::make_unique<TestMessageReader>(), logger);
 }
 
 TransportTest::Server TransportTest::MakeServer() {
