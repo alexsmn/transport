@@ -495,7 +495,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     case NETS_CREATE | NETS_RESPONSE: {
       // Client-only: Login response.
       // Parse
-      Error error = static_cast<Error>(msg.ReadLong());
+      Error error = boost::system::errc::make_error_code(
+          static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
       logger_->WriteF(LogSeverity::Normal, "Create session response - %s",
                       ErrorToString(error).c_str());
@@ -516,7 +517,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     }
 
     case NETS_OPEN | NETS_RESPONSE: {
-      Error error = static_cast<Error>(msg.ReadLong());
+      Error error = boost::system::errc::make_error_code(
+          static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
       logger_->WriteF(LogSeverity::Normal, "Restore session response - %s",
                       ErrorToString(error).c_str());
@@ -694,7 +696,7 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
     msg.WriteWord(5 + sizeof(id_) + sizeof(session_info.user_id) +
                   sizeof(session_info.user_rights));
     msg.WriteByte(NETS_CREATE | NETS_RESPONSE);
-    msg.WriteLong(error);
+    msg.WriteLong(error.value());
     msg.WriteT(session_id);
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
@@ -748,7 +750,7 @@ void Session::OnRestore(const SessionID& session_id) {
     ByteBuffer<> msg;
     msg.WriteWord(13);
     msg.WriteByte(NETS_OPEN | NETS_RESPONSE);
-    msg.WriteLong(error);
+    msg.WriteLong(error.value());
     msg.WriteLong(session_info.user_id);
     msg.WriteLong(session_info.user_rights);
 

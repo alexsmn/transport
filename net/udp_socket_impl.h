@@ -71,7 +71,7 @@ inline awaitable<Error> UdpSocketImpl::Open() {
     if (error != boost::asio::error::operation_aborted) {
       ProcessError(error);
     }
-    co_return MapSystemError(error.value());
+    co_return error;
   }
 
   boost::system::error_code ec = boost::asio::error::fault;
@@ -96,7 +96,7 @@ inline awaitable<Error> UdpSocketImpl::Open() {
 
   if (ec) {
     ProcessError(ec);
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   connected_ = true;

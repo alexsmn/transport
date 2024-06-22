@@ -1,56 +1,57 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+#pragma once
 
-#ifndef NET_BASE_NET_ERRORS_H_
-#define NET_BASE_NET_ERRORS_H_
-
-#include <string>
-#include <variant>
-#include <vector>
-
-#include "net/base/net_export.h"
+#include <boost/system/errc.hpp>
 
 namespace net {
 
-// Error domain of the net module's error codes.
-NET_EXPORT extern const char kErrorDomain[];
+using Error = boost::system::error_code;
 
-// Error values are negative.
-// NOLINTBEGIN(readability-identifier-naming)
-enum Error {
-  // No error.
-  OK = 0,
+constexpr Error OK =
+    boost::system::errc::make_error_code(boost::system::errc::success);
+constexpr Error ERR_FAILED =
+    boost::system::errc::make_error_code(boost::system::errc::io_error);
+constexpr Error ERR_ABORTED = boost::system::errc::make_error_code(
+    boost::system::errc::operation_canceled);
+constexpr Error ERR_INVALID_ARGUMENT =
+    boost::system::errc::make_error_code(boost::system::errc::invalid_argument);
+constexpr Error ERR_ACCESS_DENIED = boost::system::errc::make_error_code(
+    boost::system::errc::permission_denied);
+constexpr Error ERR_ADDRESS_IN_USE =
+    boost::system::errc::make_error_code(boost::system::errc::address_in_use);
+constexpr Error ERR_CONNECTION_CLOSED =
+    boost::system::errc::make_error_code(boost::system::errc::connection_reset);
+constexpr Error ERR_INVALID_HANDLE = boost::system::errc::make_error_code(
+    boost::system::errc::bad_file_descriptor);
+constexpr Error ERR_IO_PENDING = boost::system::errc::make_error_code(
+    boost::system::errc::resource_unavailable_try_again);
+constexpr Error ERR_NOT_IMPLEMENTED = boost::system::errc::make_error_code(
+    boost::system::errc::function_not_supported);
+constexpr Error ERR_TIMED_OUT =
+    boost::system::errc::make_error_code(boost::system::errc::timed_out);
 
-#define NET_ERROR(label, value) ERR_##label = value,
-#include "net/base/net_error_list.h"
-#undef NET_ERROR
+#if 0
+constexpr Error ERR_CONNECTION_REFUSED =
+    boost::system::errc::make_error_code(boost::system::errc::connection_refused);
+constexpr Error ERR_NOT_FOUND =
+    boost::system::errc::make_error_code(boost::system::errc::no_such_file_or_directory);
+constexpr Error ERR_NOT_SUPPORTED =
+    boost::system::errc::make_error_code(boost::system::errc::operation_not_supported);
+constexpr Error ERR_FAILED =
+    boost::system::errc::operation_canceled;
+constexpr Error ERR_INTERNAL =
+    boost::system::errc::make_error_code(boost::system::errc::bad_message);
+constexpr Error ERR_FAILED_PRECONDITION =
+    boost::system::errc::make_error_code(boost::system::errc::bad_address);
+constexpr Error ERR_OUT_OF_RANGE =
+    boost::system::errc::make_error_code(boost::system::errc::result_out_of_range);
+#endif
 
-  // The value of the first certificate error code.
-  ERR_CERT_BEGIN = ERR_CERT_COMMON_NAME_INVALID,
-};
-// NOLINTEND(readability-identifier-naming)
+inline std::string ErrorToString(Error error) {
+  return error.message();
+}
 
-// Returns a textual representation of the error code for logging purposes.
-NET_EXPORT std::string ErrorToString(int error);
-
-// Same as above, but leaves off the leading "net::".
-NET_EXPORT std::string ErrorToShortString(int error);
-
-// Returns true if |error| is a certificate error code.
-NET_EXPORT bool IsCertificateError(int error);
-
-// Returns true if |error| is a client certificate authentication error. This
-// does not include ERR_SSL_PROTOCOL_ERROR which may also signal a bad client
-// certificate.
-NET_EXPORT bool IsClientCertificateError(int error);
-
-// Returns true if |error| is a DNS error.
-NET_EXPORT bool IsDnsError(int error);
-
-// Map system error code to Error.
-NET_EXPORT Error MapSystemError(int os_error);
+inline std::string ErrorToShortString(Error error) {
+  return error.message();
+}
 
 }  // namespace net
-
-#endif  // NET_BASE_NET_ERRORS_H_

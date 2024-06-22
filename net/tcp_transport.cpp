@@ -82,12 +82,11 @@ awaitable<Error> AsioTcpTransport::ActiveCore::ResolveAndConnect() {
   }
 
   if (error) {
-    auto net_error = MapSystemError(error.value());
     if (error != boost::asio::error::operation_aborted) {
       logger_->Write(LogSeverity::Warning, "DNS resolution error");
-      ProcessError(net_error);
+      ProcessError(error);
     }
-    co_return net_error;
+    co_return error;
   }
 
   logger_->Write(LogSeverity::Normal, "DNS resolution completed");
@@ -109,12 +108,11 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
   }
 
   if (error) {
-    auto net_error = MapSystemError(error.value());
     if (error != boost::asio::error::operation_aborted) {
       logger_->Write(LogSeverity::Warning, "Connect error");
-      ProcessError(net_error);
+      ProcessError(error);
     }
-    co_return net_error;
+    co_return error;
   }
 
   logger_->WriteF(LogSeverity::Normal, "Connected to %s",
@@ -235,7 +233,7 @@ awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndStartAccepting() {
       logger_->Write(LogSeverity::Warning, "DNS resolution error");
       ProcessError(error);
     }
-    co_return MapSystemError(error.value());
+    co_return error;
   }
 
   logger_->Write(LogSeverity::Normal, "DNS resolution completed");
@@ -243,7 +241,7 @@ awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndStartAccepting() {
   if (auto ec = Bind(std::move(iterator)); ec) {
     logger_->Write(LogSeverity::Warning, "Bind error");
     ProcessError(ec);
-    co_return MapSystemError(error.value());
+    co_return error;
   }
 
   logger_->Write(LogSeverity::Normal, "Bind completed");
@@ -340,7 +338,7 @@ awaitable<Error> AsioTcpTransport::PassiveCore::StartAccepting() {
         logger_->Write(LogSeverity::Warning, "Accept connection error");
         ProcessError(error);
       }
-      co_return MapSystemError(error.value());
+      co_return error;
     }
 
     logger_->Write(LogSeverity::Normal, "Connection accepted");
@@ -364,11 +362,9 @@ void AsioTcpTransport::PassiveCore::ProcessError(
     return;
   }
 
-  auto error = MapSystemError(ec.value());
-
-  if (error != OK) {
+  if (ec != OK) {
     logger_->WriteF(LogSeverity::Warning, "Error: %s",
-                    ErrorToShortString(error).c_str());
+                    ErrorToShortString(ec).c_str());
   } else {
     logger_->WriteF(LogSeverity::Normal, "Graceful close");
   }

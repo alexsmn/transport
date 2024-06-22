@@ -175,7 +175,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (ec) {
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   // Per ASIO specs, the number of bytes transferred is always equal to the

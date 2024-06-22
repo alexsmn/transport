@@ -209,25 +209,25 @@ awaitable<Error> WebSocketTransport::Core::Open() {
   // Open the acceptor
   acceptor_.open(endpoint.protocol(), ec);
   if (ec) {
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   // Allow address reuse
   acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
   if (ec) {
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   // Bind to the server address
   acceptor_.bind(endpoint, ec);
   if (ec) {
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   // Start listening for connections
   acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
   if (ec) {
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   boost::asio::co_spawn(
