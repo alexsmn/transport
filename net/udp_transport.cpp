@@ -306,7 +306,7 @@ AsioUdpTransport::UdpPassiveCore::Accept() {
       boost::asio::experimental::as_tuple(boost::asio::use_awaitable));
 
   if (ec) {
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   co_return std::make_unique<AsioUdpTransport>(accepted_transport);
@@ -412,9 +412,8 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
 
   logger_->WriteF(LogSeverity::Normal, "Closed - %s", error.message().c_str());
 
-  auto net_error = net::MapSystemError(error.value());
   connected_ = false;
-  CloseAllAcceptedTransports(net_error);
+  CloseAllAcceptedTransports(error);
 }
 
 UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
@@ -483,7 +482,7 @@ awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpAcceptedCore::Read(
       boost::asio::experimental::as_tuple(boost::asio::use_awaitable));
 
   if (ec) {
-    co_return MapSystemError(ec.value());
+    co_return ec;
   }
 
   if (data.size() < message.size()) {

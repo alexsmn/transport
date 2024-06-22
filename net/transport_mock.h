@@ -15,12 +15,10 @@ class TransportMock : public Transport {
     ON_CALL(*this, Open()).WillByDefault(CoReturn(ERR_FAILED));
 
     ON_CALL(*this, Read(/*buffer=*/_))
-        .WillByDefault(
-            CoReturn(ErrorOr<size_t>{static_cast<size_t>(ERR_ABORTED)}));
+        .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
 
     ON_CALL(*this, Write(/*buffer=*/_))
-        .WillByDefault(
-            CoReturn(ErrorOr<size_t>{static_cast<size_t>(ERR_ABORTED)}));
+        .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
   }
 
   ~TransportMock() { Destroy(); }
