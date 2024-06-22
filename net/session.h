@@ -1,6 +1,6 @@
 #pragma once
 
-#include "net/base/net_errors.h"
+#include "net/error.h"
 #include "net/session_info.h"
 #include "net/timer.h"
 #include "net/transport.h"
@@ -15,7 +15,7 @@ namespace net {
 
 class Logger;
 
-class NET_EXPORT Session final : public Transport {
+class Session final : public Transport {
  public:
   using Clock = std::chrono::steady_clock;
   using TimePoint = Clock::time_point;

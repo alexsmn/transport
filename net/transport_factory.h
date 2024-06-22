@@ -1,6 +1,5 @@
 #pragma once
 
-#include "net/base/net_export.h"
 #include "net/executor.h"
 #include "net/transport.h"
 
@@ -12,7 +11,7 @@ class Logger;
 class Transport;
 class TransportString;
 
-class NET_EXPORT TransportFactory {
+class TransportFactory {
  public:
   virtual ~TransportFactory() {}
 

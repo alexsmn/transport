@@ -1,11 +1,10 @@
 #pragma once
 
 #include "net/asio_transport.h"
-#include "net/base/net_export.h"
 
 namespace net {
 
-class NET_EXPORT AsioTcpTransport final : public AsioTransport {
+class AsioTcpTransport final : public AsioTransport {
  public:
   AsioTcpTransport(const Executor& executor,
                    std::shared_ptr<const Logger> logger,

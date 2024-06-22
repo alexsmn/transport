@@ -1,7 +1,7 @@
 #include "net/message_reader_transport.h"
 
 #include "base/auto_reset.h"
-#include "net/base/net_errors.h"
+#include "net/error.h"
 #include "net/logger.h"
 #include "net/message_reader.h"
 

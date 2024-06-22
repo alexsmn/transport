@@ -1,6 +1,5 @@
 #pragma once
 
-#include "net/base/net_export.h"
 #include "net/transport.h"
 
 #include <Windows.h>
@@ -8,7 +7,7 @@
 namespace net {
 
 // TODO: Rework with `boost/process/async_pipe.hpp`.
-class NET_EXPORT PipeTransport final : public Transport {
+class PipeTransport final : public Transport {
  public:
   explicit PipeTransport(const Executor& executor);
   virtual ~PipeTransport();

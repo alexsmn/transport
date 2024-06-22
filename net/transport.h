@@ -1,8 +1,7 @@
 #pragma once
 
 #include "net/awaitable.h"
-#include "net/base/net_errors.h"
-#include "net/base/net_export.h"
+#include "net/error.h"
 #include "net/error_or.h"
 #include "net/executor.h"
 
@@ -62,10 +61,10 @@ class TransportMetadata {
 // TODO: Make non-virtual.
 // TODO: Split per a stream and a message-oriented transport.
 // TODO: Split per a connected transport and a connector.
-class NET_EXPORT Transport : public Connector,
-                             public Reader,
-                             public Sender,
-                             public TransportMetadata {
+class Transport : public Connector,
+                  public Reader,
+                  public Sender,
+                  public TransportMetadata {
  public:
   Transport() = default;
   virtual ~Transport() = default;

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "net/base/net_export.h"
 #include "net/timer.h"
 #include "net/transport.h"
 
@@ -9,7 +8,7 @@
 
 namespace net {
 
-class NET_EXPORT QueueTransport final : public Transport {
+class QueueTransport final : public Transport {
  public:
   explicit QueueTransport(const Executor& executor);
 

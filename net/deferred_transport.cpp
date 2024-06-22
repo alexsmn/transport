@@ -1,7 +1,7 @@
 #include "net/deferred_transport.h"
 
-#include "net/base/threading/thread_collision_warner.h"
-#include "net/base/bind_util.h"
+#include "base/threading/thread_collision_warner.h"
+#include "net/bind_util.h"
 #include "net/logger.h"
 
 #include <boost/asio/bind_executor.hpp>
