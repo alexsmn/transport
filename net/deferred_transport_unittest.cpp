@@ -24,8 +24,8 @@ void DeferredTransportTest::SetUp() {
   auto underlying_transport = std::make_unique<NiceMock<TransportMock>>();
   underlying_transport_ = underlying_transport.get();
 
-  deferred_transport_ = std::make_unique<DeferredTransport>(
-      boost::asio::system_executor{}, std::move(underlying_transport));
+  deferred_transport_ =
+      std::make_unique<DeferredTransport>(std::move(underlying_transport));
 }
 
 TEST_F(DeferredTransportTest, Destroy_DestroysUnderlyingTransport) {
