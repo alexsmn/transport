@@ -174,7 +174,6 @@ class AsioTcpTransport::PassiveCore final
 
   [[nodiscard]] awaitable<Error> ResolveAndStartAccepting();
   [[nodiscard]] boost::system::error_code Bind(Resolver::iterator iterator);
-  [[nodiscard]] awaitable<Error> StartAccepting();
 
   void ProcessError(const boost::system::error_code& ec);
 
@@ -248,10 +247,6 @@ awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndStartAccepting() {
 
   connected_ = true;
 
-  boost::asio::co_spawn(acceptor_.get_executor(),
-                        std::bind_front(&PassiveCore::StartAccepting, ref),
-                        boost::asio::detached);
-
   co_return OK;
 }
 
@@ -303,7 +298,32 @@ void AsioTcpTransport::PassiveCore::Close() {
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
 AsioTcpTransport::PassiveCore::Accept() {
-  co_return ERR_ACCESS_DENIED;
+  auto ref = shared_from_this();
+
+  // TODO: Use different executor.
+  auto [error, peer] = co_await acceptor_.async_accept(
+      boost::asio::as_tuple(boost::asio::use_awaitable));
+
+  assert(peer.get_executor() == acceptor_.get_executor());
+
+  if (closed_) {
+    co_return ERR_ABORTED;
+  }
+
+  // TODO: Log connection information.
+  logger_->Write(LogSeverity::Normal, "Accept incoming connection");
+
+  if (error) {
+    if (error != boost::asio::error::operation_aborted) {
+      logger_->Write(LogSeverity::Warning, "Accept connection error");
+      ProcessError(error);
+    }
+    co_return error;
+  }
+
+  logger_->Write(LogSeverity::Normal, "Connection accepted");
+
+  co_return std::make_unique<AsioTcpTransport>(logger_, std::move(peer));
 }
 
 awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Read(
@@ -314,44 +334,6 @@ awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Read(
 awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Write(
     std::span<const char> data) {
   co_return ERR_ACCESS_DENIED;
-}
-
-awaitable<Error> AsioTcpTransport::PassiveCore::StartAccepting() {
-  auto ref = shared_from_this();
-
-  while (!closed_) {
-    // TODO: Use different executor.
-    auto [error, peer] = co_await acceptor_.async_accept(
-        boost::asio::as_tuple(boost::asio::use_awaitable));
-
-    assert(peer.get_executor() == acceptor_.get_executor());
-
-    if (closed_) {
-      co_return ERR_ABORTED;
-    }
-
-    // TODO: Log connection information.
-    logger_->Write(LogSeverity::Normal, "Accept incoming connection");
-
-    if (error) {
-      if (error != boost::asio::error::operation_aborted) {
-        logger_->Write(LogSeverity::Warning, "Accept connection error");
-        ProcessError(error);
-      }
-      co_return error;
-    }
-
-    logger_->Write(LogSeverity::Normal, "Connection accepted");
-
-    /*if (handlers_.on_accept) {
-      auto accepted_transport =
-          std::make_unique<AsioTcpTransport>(logger_, std::move(peer));
-
-      handlers_.on_accept(std::move(accepted_transport));
-    }*/
-  }
-
-  co_return OK;
 }
 
 void AsioTcpTransport::PassiveCore::ProcessError(

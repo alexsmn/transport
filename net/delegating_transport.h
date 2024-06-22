@@ -13,6 +13,11 @@ class DelegatingTransport : public Transport {
     return delegate_.Open();
   }
 
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+      override {
+    return delegate_.Accept();
+  }
+
   virtual void Close() override { delegate_.Close(); }
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
