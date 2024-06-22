@@ -18,8 +18,7 @@ class MessageReader;
 // transport messages.
 class MessageReaderTransport final : public Transport {
  public:
-  MessageReaderTransport(const Executor& executor,
-                         std::unique_ptr<Transport> child_transport,
+  MessageReaderTransport(std::unique_ptr<Transport> child_transport,
                          std::unique_ptr<MessageReader> message_reader,
                          std::shared_ptr<const Logger> logger);
   virtual ~MessageReaderTransport();

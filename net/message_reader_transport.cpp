@@ -14,11 +14,10 @@ namespace net {
 // MessageReaderTransport::Core
 
 struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
-  Core(const Executor& executor,
-       std::unique_ptr<Transport> child_transport,
+  Core(std::unique_ptr<Transport> child_transport,
        std::unique_ptr<MessageReader> message_reader,
        std::shared_ptr<const Logger> logger)
-      : executor_{executor},
+      : executor_{child_transport->GetExecutor()},
         child_transport_{std::move(child_transport)},
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
@@ -50,12 +49,10 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
 // MessageReaderTransport
 
 MessageReaderTransport::MessageReaderTransport(
-    const Executor& executor,
     std::unique_ptr<Transport> child_transport,
     std::unique_ptr<MessageReader> message_reader,
     std::shared_ptr<const Logger> logger)
-    : core_{std::make_shared<Core>(executor,
-                                   std::move(child_transport),
+    : core_{std::make_shared<Core>(std::move(child_transport),
                                    std::move(message_reader),
                                    std::move(logger))} {
   assert(core_->child_transport_);
@@ -118,8 +115,16 @@ void MessageReaderTransport::Core::Close() {
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
 MessageReaderTransport::Accept() {
+  auto core = core_;
+
   // TODO: Bind message reader to the accepted transport.
-  co_return co_await core_->child_transport_->Accept();
+  NET_ASSIGN_OR_CO_RETURN(auto accepted_child_transport,
+                          co_await core->child_transport_->Accept());
+
+  co_return std::make_unique<MessageReaderTransport>(
+      std::move(accepted_child_transport),
+      std::unique_ptr<MessageReader>{core->message_reader_->Clone()},
+      core->logger_);
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Read(std::span<char> data) {

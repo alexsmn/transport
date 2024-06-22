@@ -113,8 +113,8 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
 
   if (transport && !transport->IsMessageOriented()) {
     transport = std::make_unique<MessageReaderTransport>(
-        executor_, std::move(transport),
-        std::make_unique<SessionMessageReader>(), logger_);
+        std::move(transport), std::make_unique<SessionMessageReader>(),
+        logger_);
   }
 
   transport_ = std::move(transport);

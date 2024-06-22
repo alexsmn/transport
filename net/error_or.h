@@ -20,14 +20,14 @@
   }                                         \
   lhs = std::move(res.value());
 
-#define NET_RETURN_IF_ERROR(rexpr)     \
-  if (auto res = (rexpr); !res.ok()) { \
-    return res.error();                \
+#define NET_RETURN_IF_ERROR(rexpr)          \
+  if (auto err = (rexpr); err != net::OK) { \
+    return err;                             \
   }
 
-#define NET_CO_RETURN_IF_ERROR(rexpr)  \
-  if (auto res = (rexpr); !res.ok()) { \
-    co_return res.error();             \
+#define NET_CO_RETURN_IF_ERROR(rexpr)       \
+  if (auto err = (rexpr); err != net::OK) { \
+    co_return err;                          \
   }
 
 namespace net {
@@ -36,6 +36,13 @@ template <class T>
 class [[nodiscard]] ErrorOr {
  public:
   ErrorOr(Error error) : value_{error} { assert(error != OK); }
+
+  template <class E>
+    requires boost::system::is_error_code_enum<E>::value
+  ErrorOr(E ec) : value_{Error{ec}} {
+    assert(ec != boost::system::errc::success);
+  }
+
   ErrorOr(T value) : value_{std::move(value)} {}
 
   bool ok() const { return std::holds_alternative<T>(value_); }
