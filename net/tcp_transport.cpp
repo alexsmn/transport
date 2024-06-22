@@ -172,7 +172,7 @@ class AsioTcpTransport::PassiveCore final
   using Socket = boost::asio::ip::tcp::socket;
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  [[nodiscard]] awaitable<Error> ResolveAndStartAccepting();
+  [[nodiscard]] awaitable<Error> ResolveAndBind();
   [[nodiscard]] boost::system::error_code Bind(Resolver::iterator iterator);
 
   void ProcessError(const boost::system::error_code& ec);
@@ -210,10 +210,10 @@ awaitable<Error> AsioTcpTransport::PassiveCore::Open() {
 
   logger_->WriteF(LogSeverity::Normal, "Open");
 
-  return ResolveAndStartAccepting();
+  return ResolveAndBind();
 }
 
-awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndStartAccepting() {
+awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndBind() {
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
 

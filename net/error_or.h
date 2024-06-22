@@ -1,6 +1,6 @@
 #pragma once
 
-#include "net/base/net_errors.h"
+#include "net/error.h"
 
 #include <cassert>
 #include <ostream>

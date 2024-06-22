@@ -1,6 +1,6 @@
 #include "net/pipe_transport.h"
 
-#include "net/base/net_errors.h"
+#include "net/error.h"
 
 #include <Windows.h>
 #include <boost/locale/encoding_utf.hpp>

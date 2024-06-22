@@ -1,13 +1,12 @@
 #pragma once
 
 #include "net/asio_transport.h"
-#include "net/base/net_export.h"
 
 #include <optional>
 
 namespace net {
 
-class NET_EXPORT SerialTransport final : public AsioTransport {
+class SerialTransport final : public AsioTransport {
  public:
   struct Options {
     std::optional<boost::asio::serial_port::baud_rate> baud_rate;

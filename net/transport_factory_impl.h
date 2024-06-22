@@ -1,6 +1,5 @@
 #pragma once
 
-#include "net/base/net_export.h"
 #include "net/executor.h"
 #include "net/logger.h"
 #include "net/transport_factory.h"
@@ -14,7 +13,7 @@ namespace net {
 
 class InprocessTransportHost;
 
-class NET_EXPORT TransportFactoryImpl : public TransportFactory {
+class TransportFactoryImpl : public TransportFactory {
  public:
   explicit TransportFactoryImpl(boost::asio::io_context& io_context);
   ~TransportFactoryImpl();

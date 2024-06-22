@@ -1,7 +1,5 @@
 #pragma once
 
-#include "net/base/net_export.h"
-
 #include <map>
 #include <string>
 #include <string_view>
@@ -10,7 +8,7 @@ namespace net {
 
 class Transport;
 
-class NET_EXPORT TransportString {
+class TransportString {
  public:
   enum Protocol {
     TCP,
