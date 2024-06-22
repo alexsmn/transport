@@ -10,12 +10,8 @@ namespace net {
 // Thread-safe.
 class DeferredTransport final : public Transport {
  public:
-  DeferredTransport(const Executor& executor,
-                    std::unique_ptr<Transport> underlying_transport);
+  explicit DeferredTransport(std::unique_ptr<Transport> underlying_transport);
   ~DeferredTransport();
-
-  // Used for active transports only.
-  void AllowReOpen();
 
   // Refactor so it's not needed. Or document.
   using CloseHandler = std::function<void(Error error)>;

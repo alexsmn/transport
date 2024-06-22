@@ -6,6 +6,30 @@
 #include <ostream>
 #include <variant>
 
+#define NET_ASSIGN_OR_RETURN(lhs, rexpr) \
+  auto res = (rexpr);                    \
+  if (!res.ok()) {                       \
+    return res.error();                  \
+  }                                      \
+  lhs = std::move(res.value());
+
+#define NET_ASSIGN_OR_CO_RETURN(lhs, rexpr) \
+  auto res = (rexpr);                       \
+  if (!res.ok()) {                          \
+    co_return res.error();                  \
+  }                                         \
+  lhs = std::move(res.value());
+
+#define NET_RETURN_IF_ERROR(rexpr)     \
+  if (auto res = (rexpr); !res.ok()) { \
+    return res.error();                \
+  }
+
+#define NET_CO_RETURN_IF_ERROR(rexpr)  \
+  if (auto res = (rexpr); !res.ok()) { \
+    co_return res.error();             \
+  }
+
 namespace net {
 
 template <class T>

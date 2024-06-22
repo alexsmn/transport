@@ -15,9 +15,8 @@ namespace net {
 // The core is destroyed when the deferred transport is destroyed. It only uses
 // weak pointers to itself internally.
 struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
-  Core(const Executor& executor,
-       std::unique_ptr<Transport> underlying_transport)
-      : executor_{executor},
+  Core(std::unique_ptr<Transport> underlying_transport)
+      : executor_{underlying_transport->GetExecutor()},
         underlying_transport_{std::move(underlying_transport)} {
     assert(underlying_transport_);
   }
@@ -34,16 +33,13 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
   Executor executor_;
   std::unique_ptr<Transport> underlying_transport_;
   CloseHandler additional_close_handler_;
-  std::atomic<bool> opened_ = false;
 };
 
 // DeferredTransport
 
 DeferredTransport::DeferredTransport(
-    const Executor& executor,
     std::unique_ptr<Transport> underlying_transport)
-    : core_{std::make_shared<Core>(executor, std::move(underlying_transport))} {
-}
+    : core_{std::make_shared<Core>(std::move(underlying_transport))} {}
 
 DeferredTransport ::~DeferredTransport() {
   // Destroy the core under the executor.
@@ -54,10 +50,6 @@ DeferredTransport ::~DeferredTransport() {
 
 DeferredTransport::Core::~Core() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-}
-
-void DeferredTransport::AllowReOpen() {
-  core_->opened_ = false;
 }
 
 void DeferredTransport::set_additional_close_handler(CloseHandler handler) {
@@ -73,7 +65,7 @@ void DeferredTransport::set_additional_close_handler(CloseHandler handler) {
 }
 
 bool DeferredTransport::IsConnected() const {
-  return core_->opened_;
+  return core_->underlying_transport_->IsConnected();
 }
 
 awaitable<Error> DeferredTransport::Open() {
@@ -83,16 +75,7 @@ awaitable<Error> DeferredTransport::Open() {
 awaitable<Error> DeferredTransport::Core::Open() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  assert(!opened_);
-
-  opened_ = true;
-
-  if (underlying_transport_->IsConnected()) {
-    co_return OK;
-  }
-
   auto weak_ref = weak_from_this();
-
   auto open_result = co_await underlying_transport_->Open();
 
   if (weak_ref.expired()) {
@@ -110,10 +93,6 @@ awaitable<Error> DeferredTransport::Core::Open() {
 void DeferredTransport::Core::OnClosed(Error error) {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  if (!opened_) {
-    return;
-  }
-
   // WARNING: The object may be deleted from the handler.
   if (additional_close_handler_) {
     additional_close_handler_(error);
@@ -128,8 +107,6 @@ void DeferredTransport::Core::Close() {
   auto additional_close_handler =
       std::exchange(additional_close_handler_, nullptr);
 
-  opened_ = false;
-
   underlying_transport_->Close();
 
   if (additional_close_handler) {
@@ -138,27 +115,22 @@ void DeferredTransport::Core::Close() {
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>> DeferredTransport::Accept() {
-  if (!core_->opened_) {
-    co_return ERR_ACCESS_DENIED;
-  }
-
   co_return co_await core_->underlying_transport_->Accept();
 }
 
 awaitable<ErrorOr<size_t>> DeferredTransport::Read(std::span<char> data) {
-  if (!core_->opened_) {
-    co_return ERR_ACCESS_DENIED;
+  NET_ASSIGN_OR_CO_RETURN(auto bytes_transferred,
+                          co_await core_->underlying_transport_->Read(data));
+
+  if (bytes_transferred == 0) {
+    core_->OnClosed(OK);
   }
 
-  co_return co_await core_->underlying_transport_->Read(data);
+  co_return bytes_transferred;
 }
 
 awaitable<ErrorOr<size_t>> DeferredTransport::Write(
     std::span<const char> data) {
-  if (!core_->opened_) {
-    co_return ERR_ACCESS_DENIED;
-  }
-
   co_return co_await core_->underlying_transport_->Write(data);
 }
 
