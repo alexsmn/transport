@@ -25,7 +25,8 @@ class MessageTransportTest : public Test {
   void ExpectChildReadMessage(const std::vector<char>& message);
   [[nodiscard]] awaitable<ErrorOr<std::vector<char>>> ReadMessage();
 
-  Executor executor_ = boost::asio::system_executor{};
+  boost::asio::io_context io_context_;
+  Executor executor_ = io_context_.get_executor();
 
   TransportMock* child_transport_ = nullptr;
 
@@ -47,6 +48,10 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       .Times(AnyNumber())
       .WillRepeatedly(Return(true));
 
+  EXPECT_CALL(*child_transport, GetExecutor())
+      .Times(AnyNumber())
+      .WillRepeatedly(Return(executor_));
+
   EXPECT_CALL(*child_transport, Close());
   EXPECT_CALL(*child_transport, Destroy());
 
@@ -58,8 +63,8 @@ void MessageTransportTest::InitChildTransport(bool message_oriented) {
       std::move(child_transport), std::move(message_reader),
       NullLogger::GetInstance());
 
-  boost::asio::co_spawn(executor_, message_transport_->Open(),
-                        boost::asio::detached);
+  boost::asio::co_spawn(message_transport_->GetExecutor(),
+                        message_transport_->Open(), boost::asio::detached);
 }
 
 void MessageTransportTest::ExpectChildReadSome(

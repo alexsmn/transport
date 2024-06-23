@@ -1,6 +1,7 @@
 #pragma once
 
-#include "net/base/compiler_specific.h"
+#include "net/compiler_specific.h"
+
 #include <cstdarg>
 #include <memory>
 #include <string>

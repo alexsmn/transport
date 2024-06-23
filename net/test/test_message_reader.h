@@ -8,8 +8,7 @@ namespace net {
 class TestMessageReader : public MessageReaderImpl<1024> {
  public:
   virtual MessageReader* Clone() override {
-    assert(false);
-    return nullptr;
+    return new TestMessageReader();
   }
 
  protected:
