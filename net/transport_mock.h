@@ -19,6 +19,9 @@ class TransportMock : public Transport {
 
     ON_CALL(*this, Write(/*buffer=*/_))
         .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
+
+    ON_CALL(*this, GetExecutor())
+        .WillByDefault(Return(boost::asio::system_executor{}));
   }
 
   ~TransportMock() { Destroy(); }

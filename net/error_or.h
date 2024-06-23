@@ -6,28 +6,32 @@
 #include <ostream>
 #include <variant>
 
-#define NET_ASSIGN_OR_RETURN(lhs, rexpr) \
-  auto res = (rexpr);                    \
-  if (!res.ok()) {                       \
-    return res.error();                  \
-  }                                      \
+#define NET_ASSIGN_OR_RETURN(lhs, rexpr)                                  \
+  auto res = (rexpr);                                                     \
+  if (!res.ok()) {                                                        \
+    static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
+    return Error{res.error(), &loc};                                      \
+  }                                                                       \
   lhs = std::move(res.value());
 
-#define NET_ASSIGN_OR_CO_RETURN(lhs, rexpr) \
-  auto res = (rexpr);                       \
-  if (!res.ok()) {                          \
-    co_return res.error();                  \
-  }                                         \
+#define NET_ASSIGN_OR_CO_RETURN(lhs, rexpr)                               \
+  auto res = (rexpr);                                                     \
+  if (!res.ok()) {                                                        \
+    static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
+    co_return Error{res.error(), &loc};                                   \
+  }                                                                       \
   lhs = std::move(res.value());
 
-#define NET_RETURN_IF_ERROR(rexpr)          \
-  if (auto err = (rexpr); err != net::OK) { \
-    return err;                             \
+#define NET_RETURN_IF_ERROR(rexpr)                                        \
+  if (auto err = (rexpr); err != net::OK) {                               \
+    static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
+    return Error{err, &loc};                                              \
   }
 
-#define NET_CO_RETURN_IF_ERROR(rexpr)       \
-  if (auto err = (rexpr); err != net::OK) { \
-    co_return err;                          \
+#define NET_CO_RETURN_IF_ERROR(rexpr)                                     \
+  if (auto err = (rexpr); err != net::OK) {                               \
+    static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
+    co_return Error{err, &loc};                                           \
   }
 
 namespace net {

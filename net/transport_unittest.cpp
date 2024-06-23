@@ -39,6 +39,7 @@ class TransportTest : public TestWithParam<TestParams> {
     [[nodiscard]] awaitable<Error> Init();
     void Stop();
 
+    [[nodiscard]] awaitable<Error> StartAccepting();
     [[nodiscard]] awaitable<Error> StartEchoing(
         std::unique_ptr<Transport> transport);
 
@@ -128,31 +129,31 @@ namespace {
 // TransportTest::Server
 
 awaitable<Error> TransportTest::Server::Init() {
-  auto error = co_await transport_->Open();
-
-  if (error != net::OK) {
-    logger_->Write(LogSeverity::Error, "Failed to open the server transport");
-    co_return error;
-  }
-
-  for (;;) {
-    auto accepted_transport = co_await transport_->Accept();
-    if (!accepted_transport.ok()) {
-      break;
-    }
-
-    logger_->Write(LogSeverity::Normal, "Connected");
-    boost::asio::co_spawn(transport_->GetExecutor(),
-                          StartEchoing(std::move(*accepted_transport)),
-                          boost::asio::detached);
-  }
-
-  logger_->Write(LogSeverity::Normal, "Closed");
+  NET_CO_RETURN_IF_ERROR(co_await transport_->Open());
+  logger_->Write(LogSeverity::Normal, "Opened");
+  boost::asio::co_spawn(transport_->GetExecutor(), StartAccepting(),
+                        boost::asio::detached);
   co_return OK;
 }
 
 void TransportTest::Server::Stop() {
   transport_->Close();
+}
+
+awaitable<Error> TransportTest::Server::StartAccepting() {
+  for (;;) {
+    logger_->Write(LogSeverity::Normal, "Accepting");
+    NET_ASSIGN_OR_CO_RETURN(auto accepted_transport,
+                            co_await transport_->Accept());
+
+    logger_->Write(LogSeverity::Normal, "Accepted");
+    boost::asio::co_spawn(transport_->GetExecutor(),
+                          StartEchoing(std::move(accepted_transport)),
+                          boost::asio::detached);
+  }
+
+  logger_->Write(LogSeverity::Normal, "Closed");
+  co_return OK;
 }
 
 awaitable<Error> TransportTest::Server::StartEchoing(
