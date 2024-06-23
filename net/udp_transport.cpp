@@ -1,6 +1,5 @@
 #include "net/udp_transport.h"
 
-#include "base/threading/thread_collision_warner.h"
 #include "net/logger.h"
 #include "net/udp_socket_impl.h"
 
@@ -58,8 +57,6 @@ class AsioUdpTransport::UdpActiveCore final
   const std::string host_;
   const std::string service_;
 
-  DFAKE_MUTEX(mutex_);
-
   std::shared_ptr<UdpSocket> socket_;
 
   bool connected_ = false;
@@ -77,8 +74,6 @@ AsioUdpTransport::UdpActiveCore::UdpActiveCore(
       service_{std::move(service)} {}
 
 awaitable<Error> AsioUdpTransport::UdpActiveCore::Open() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
 
   return socket_->Open();
@@ -183,8 +178,6 @@ class AsioUdpTransport::UdpAcceptedCore final
   std::shared_ptr<UdpPassiveCore> passive_core_;
   const UdpSocket::Endpoint endpoint_;
 
-  DFAKE_MUTEX(mutex_);
-
   bool connected_ = true;
 
   boost::asio::experimental::channel<void(boost::system::error_code,
@@ -239,8 +232,6 @@ class AsioUdpTransport::UdpPassiveCore final
   const std::string host_;
   const std::string service_;
 
-  DFAKE_MUTEX(mutex_);
-
   std::shared_ptr<UdpSocket> socket_;
 
   bool connected_ = false;
@@ -284,8 +275,6 @@ awaitable<Error> AsioUdpTransport::UdpPassiveCore::Open() {
 
 void AsioUdpTransport::UdpPassiveCore::Close() {
   boost::asio::dispatch(executor_, [this, ref = shared_from_this()] {
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
     logger_->Write(LogSeverity::Normal, "Close");
 
     connected_ = false;
@@ -332,8 +321,6 @@ awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::InternalWrite(
 void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
     const UdpSocket::Endpoint& endpoint) {
   boost::asio::dispatch(executor_, [this, endpoint, ref = shared_from_this()] {
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
     logger_->WriteF(
         LogSeverity::Normal,
         "Remove transport from endpoint %s. There are %d accepted transports",
@@ -349,8 +336,6 @@ void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
 void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   if (auto i = accepted_transports_.find(endpoint);
       i != accepted_transports_.end()) {
     i->second->OnSocketMessage(endpoint, std::move(datagram));
@@ -380,8 +365,6 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
 }
 
 void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   logger_->WriteF(LogSeverity::Normal, "Close %d accepted transports - %s",
                   static_cast<int>(accepted_transports_.size()),
                   ErrorToString(error).c_str());
@@ -398,8 +381,6 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   logger_->WriteF(LogSeverity::Normal, "Opened with endpoint %s",
                   ToString(endpoint).c_str());
 
@@ -408,8 +389,6 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   logger_->WriteF(LogSeverity::Normal, "Closed - %s", error.message().c_str());
 
   connected_ = false;

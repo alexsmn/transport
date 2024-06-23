@@ -1,11 +1,10 @@
 #pragma once
 
+#include "net/auto_reset.h"
 #include "net/executor.h"
 #include "net/logger.h"
 #include "net/transport.h"
 
-#include <base/auto_reset.h>
-#include <base/threading/thread_collision_warner.h>
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/circular_buffer.hpp>
@@ -91,8 +90,6 @@ class AsioTransport::IoCore : public Core,
   // Must be called under `io_object_.get_executor()`.
   virtual void Cleanup() = 0;
 
-  DFAKE_MUTEX(mutex_);
-
   const std::shared_ptr<const Logger> logger_;
 
   IoObject io_object_;
@@ -115,8 +112,6 @@ template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::Close() {
   boost::asio::dispatch(io_object_.get_executor(),
                         [this, ref = shared_from_this()] {
-                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
                           if (closed_) {
                             return;
                           }
@@ -147,7 +142,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Read(
   }
 
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
-  base::AutoReset reading{&reading_, true};
+  AutoReset reading{reading_, true};
 
   auto [ec, bytes_transferred] = co_await io_object_.async_read_some(
       boost::asio::buffer(data),
@@ -168,7 +163,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
   }
 
   auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
-  base::AutoReset writing{&writing_, true};
+  AutoReset writing{writing_, true};
 
   auto [ec, bytes_transferred] = co_await boost::asio::async_write(
       io_object_, boost::asio::buffer(data),
@@ -187,8 +182,6 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
 
 template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   assert(!closed_);
 
   if (error != OK) {

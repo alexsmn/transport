@@ -1,6 +1,6 @@
 #include "net/message_reader_transport.h"
 
-#include "base/auto_reset.h"
+#include "net/auto_reset.h"
 #include "net/error.h"
 #include "net/logger.h"
 #include "net/message_reader.h"
@@ -147,7 +147,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
 
   auto ref = shared_from_this();
   auto cancelation = std::weak_ptr{cancelation_};
-  base::AutoReset reading{&reading_, true};
+  AutoReset reading{reading_, true};
 
   for (;;) {
     auto bytes_popped = message_reader_->Pop(buffer);

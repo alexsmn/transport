@@ -1,8 +1,4 @@
-find_package(Boost REQUIRED)
-find_package(GTest REQUIRED)
-
 file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
-  "*.cc"
   "*.cpp"
   "*.h"
 )
@@ -14,7 +10,6 @@ file(GLOB_RECURSE SOURCES_UT RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPE
 
 file(GLOB_RECURSE sources_win RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
   "*_win*"
-  "winsock*"
 )
 
 list(APPEND sources_win
@@ -53,26 +48,20 @@ add_library(Net::net ALIAS net)
 # Uses `std::span` in API.
 target_compile_features(net PUBLIC cxx_std_20)
 
-target_compile_definitions(net PRIVATE NET_IMPLEMENTATION)
-
 if(WIN32)
   target_compile_options(net PRIVATE /bigobj)
 endif()
 
 target_include_directories(net PUBLIC "..")
 
-target_link_libraries(net PRIVATE Boost::boost)
-
-find_package(ChromiumBase REQUIRED)
-target_link_libraries(net PRIVATE ChromiumBase::base)
+find_package(Boost REQUIRED)
+target_link_libraries(net PUBLIC Boost::boost)
 
 # UTs
 
 add_executable(net_unittests ${SOURCES_UT})
 
-if(WIN32)
-  target_compile_options(net_unittests PRIVATE /bigobj)
-endif()
+find_package(GTest REQUIRED)
 
 target_link_libraries(net_unittests PRIVATE
   GTest::gmock_main

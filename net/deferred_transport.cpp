@@ -1,6 +1,5 @@
 #include "net/deferred_transport.h"
 
-#include "base/threading/thread_collision_warner.h"
 #include "net/bind_util.h"
 #include "net/logger.h"
 
@@ -28,8 +27,6 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   void OnClosed(Error error);
 
-  DFAKE_MUTEX(mutex_);
-
   Executor executor_;
   std::unique_ptr<Transport> underlying_transport_;
   CloseHandler additional_close_handler_;
@@ -48,18 +45,11 @@ DeferredTransport ::~DeferredTransport() {
   assert(!core_);
 }
 
-DeferredTransport::Core::~Core() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-}
+DeferredTransport::Core::~Core() {}
 
 void DeferredTransport::set_additional_close_handler(CloseHandler handler) {
   boost::asio::dispatch(core_->executor_,
                         [core = core_, handler = std::move(handler)]() mutable {
-  // A workaround for `DFAKE_SCOPED_RECURSIVE_LOCK` not supporting expressions.
-#if !defined(NDEBUG)
-                          auto& mutex = core->mutex_;
-                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex);
-#endif
                           core->additional_close_handler_ = std::move(handler);
                         });
 }
@@ -73,8 +63,6 @@ awaitable<Error> DeferredTransport::Open() {
 }
 
 awaitable<Error> DeferredTransport::Core::Open() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   auto weak_ref = weak_from_this();
   auto open_result = co_await underlying_transport_->Open();
 
@@ -91,8 +79,6 @@ awaitable<Error> DeferredTransport::Core::Open() {
 }
 
 void DeferredTransport::Core::OnClosed(Error error) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   // WARNING: The object may be deleted from the handler.
   if (additional_close_handler_) {
     additional_close_handler_(error);
