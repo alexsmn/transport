@@ -101,8 +101,6 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
   auto [error, connected_iterator] = co_await boost::asio::async_connect(
       io_object_, iterator, boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   if (closed_) {
     co_return ERR_ABORTED;
   }
@@ -124,8 +122,6 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
 }
 
 void AsioTcpTransport::ActiveCore::Cleanup() {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   assert(closed_);
 
   logger_->Write(LogSeverity::Normal, "Cleanup");
@@ -177,8 +173,6 @@ class AsioTcpTransport::PassiveCore final
 
   void ProcessError(const boost::system::error_code& ec);
 
-  DFAKE_MUTEX(mutex_);
-
   const std::shared_ptr<const Logger> logger_;
   std::string host_;
   std::string service_;
@@ -201,7 +195,6 @@ AsioTcpTransport::PassiveCore::PassiveCore(const Executor& executor,
       acceptor_{executor} {}
 
 int AsioTcpTransport::PassiveCore::GetLocalPort() const {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
   return acceptor_.local_endpoint().port();
 }
 
@@ -252,8 +245,6 @@ awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndBind() {
 
 boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
     Resolver::iterator iterator) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   logger_->Write(LogSeverity::Normal, "Bind");
 
   boost::system::error_code ec = boost::asio::error::fault;
@@ -282,8 +273,6 @@ boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
 void AsioTcpTransport::PassiveCore::Close() {
   boost::asio::dispatch(acceptor_.get_executor(),
                         [this, ref = shared_from_this()] {
-                          DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
                           if (closed_) {
                             return;
                           }
@@ -338,8 +327,6 @@ awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Write(
 
 void AsioTcpTransport::PassiveCore::ProcessError(
     const boost::system::error_code& ec) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   if (closed_) {
     return;
   }

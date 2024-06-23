@@ -1,5 +1,4 @@
 #include "net/transport.h"
-#include "base/auto_reset.h"
 #include "net/message_reader_transport.h"
 #include "net/test/debug_logger.h"
 #include "net/test/test_message_reader.h"

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "base/threading/thread_collision_warner.h"
 #include "net/udp_socket.h"
 
 #include <memory>
@@ -28,8 +27,6 @@ class UdpSocketImpl : private UdpSocketContext,
   [[nodiscard]] awaitable<void> StartWriting();
 
   void ProcessError(const boost::system::error_code& ec);
-
-  DFAKE_MUTEX(mutex_);
 
   Resolver resolver_{executor_};
   Socket socket_{executor_};
@@ -60,8 +57,6 @@ inline awaitable<Error> UdpSocketImpl::Open() {
   auto [error, iterator] = co_await resolver_.async_resolve(
       /*query=*/{host_, service_},
       boost::asio::as_tuple(boost::asio::use_awaitable));
-
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
   if (closed_) {
     co_return ERR_ABORTED;
@@ -113,8 +108,6 @@ inline awaitable<Error> UdpSocketImpl::Open() {
 inline awaitable<void> UdpSocketImpl::Close() {
   auto ref = shared_from_this();
 
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   if (closed_) {
     co_return;
   }
@@ -129,8 +122,6 @@ inline awaitable<void> UdpSocketImpl::Close() {
 inline awaitable<ErrorOr<size_t>> UdpSocketImpl::SendTo(
     Endpoint endpoint,
     std::span<const char> datagram) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   auto size = datagram.size();
 
   write_queue_.emplace(std::piecewise_construct,
@@ -161,8 +152,6 @@ inline awaitable<void> UdpSocketImpl::StartReading() {
     auto [error, bytes_transferred] = co_await socket_.async_receive_from(
         boost::asio::buffer(read_buffer_), read_endpoint_,
         boost::asio::as_tuple(boost::asio::use_awaitable));
-
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
     reading_ = false;
 
@@ -208,8 +197,6 @@ inline awaitable<void> UdpSocketImpl::StartWriting() {
         boost::asio::buffer(write_buffer_), write_endpoint_,
         boost::asio::as_tuple(boost::asio::use_awaitable));
 
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
     if (closed_) {
       co_return;
     }
@@ -229,8 +216,6 @@ inline awaitable<void> UdpSocketImpl::StartWriting() {
 }
 
 inline void UdpSocketImpl::ProcessError(const boost::system::error_code& ec) {
-  DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
-
   connected_ = false;
   closed_ = true;
   writing_ = false;
