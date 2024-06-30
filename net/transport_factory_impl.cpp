@@ -84,9 +84,9 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
 
 TransportFactoryImpl::~TransportFactoryImpl() = default;
 
-std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
+ErrorOr<any_transport> TransportFactoryImpl::CreateTransport(
     const TransportString& transport_string,
-    const net::Executor& executor,
+    const Executor& executor,
     std::shared_ptr<const Logger> logger) {
   if (!logger)
     logger = NullLogger::GetInstance();
@@ -107,12 +107,12 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     int port = transport_string.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
       logger->Write(LogSeverity::Warning, "TCP port is not specified");
-      return nullptr;
+      return ERR_INVALID_ARGUMENT;
     }
 
-    return std::make_unique<AsioTcpTransport>(executor, std::move(logger),
-                                              std::string{host},
-                                              std::to_string(port), active);
+    return any_transport{std::make_unique<AsioTcpTransport>(
+        executor, std::move(logger), std::string{host}, std::to_string(port),
+        active)};
 
   } else if (protocol == TransportString::UDP) {
     // UDP;Passive;Host=0.0.0.0;Port=3000
@@ -121,12 +121,12 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     int port = transport_string.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
       logger->Write(LogSeverity::Warning, "UDP port is not specified");
-      return nullptr;
+      return ERR_INVALID_ARGUMENT;
     }
 
-    return std::make_unique<AsioUdpTransport>(
+    return any_transport{std::make_unique<AsioUdpTransport>(
         executor, std::move(logger), udp_socket_factory_, std::string{host},
-        std::to_string(port), active);
+        std::to_string(port), active)};
 
   } else if (protocol == TransportString::SERIAL) {
     // SERIAL;Name=COM2
@@ -135,7 +135,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
         transport_string.GetParamStr(TransportString::kParamName);
     if (device.empty()) {
       logger->Write(LogSeverity::Warning, "Serial port name is not specified");
-      return nullptr;
+      return ERR_INVALID_ARGUMENT;
     }
 
     SerialTransport::Options options;
@@ -159,11 +159,11 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     } catch (const std::runtime_error& e) {
       logger->WriteF(LogSeverity::Warning, "Error: %s", e.what());
-      return nullptr;
+      return ERR_INVALID_ARGUMENT;
     }
 
-    return std::make_unique<SerialTransport>(executor, std::move(logger),
-                                             std::string{device}, options);
+    return any_transport{std::make_unique<SerialTransport>(
+        executor, std::move(logger), std::string{device}, options)};
 
   } else if (protocol == TransportString::PIPE) {
 #ifdef OS_WIN
@@ -183,7 +183,7 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 #else
     logger->Write(LogSeverity::Warning,
                   "Pipes are supported only under Windows");
-    return nullptr;
+    return ERR_NOT_IMPLEMENTED;
 #endif
 
   } else if (protocol == TransportString::WEB_SOCKET) {
@@ -193,11 +193,11 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     int port = transport_string.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
       logger->Write(LogSeverity::Warning, "UDP port is not specified");
-      return nullptr;
+      return ERR_INVALID_ARGUMENT;
     }
 
-    return std::make_unique<WebSocketTransport>(executor, std::string{host},
-                                                port);
+    return any_transport{std::make_unique<WebSocketTransport>(
+        executor, std::string{host}, port)};
 
   } else if (protocol == TransportString::INPROCESS) {
     if (!inprocess_transport_host_) {
@@ -211,7 +211,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
                   : inprocess_transport_host_->CreateServer(executor, name);
 
   } else {
-    return nullptr;
+    logger->Write(LogSeverity::Warning,
+                  "Cannot create transport with unknown protocol");
+    return ERR_INVALID_ARGUMENT;
   }
 }
 

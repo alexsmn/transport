@@ -263,16 +263,18 @@ InprocessTransportHost::Server::AcceptClient(Client& client) {
 
 // InprocessTransportHost
 
-std::unique_ptr<Transport> InprocessTransportHost::CreateServer(
+any_transport InprocessTransportHost::CreateServer(
     const Executor& executor,
     std::string_view channel_name) {
-  return std::make_unique<Server>(*this, executor, std::string{channel_name});
+  return any_transport{
+      std::make_unique<Server>(*this, executor, std::string{channel_name})};
 }
 
-std::unique_ptr<Transport> InprocessTransportHost::CreateClient(
+any_transport InprocessTransportHost::CreateClient(
     const Executor& executor,
     std::string_view channel_name) {
-  return std::make_unique<Client>(*this, executor, std::string{channel_name});
+  return any_transport{
+      std::make_unique<Client>(*this, executor, std::string{channel_name})};
 }
 
 InprocessTransportHost::Server* InprocessTransportHost::FindServer(

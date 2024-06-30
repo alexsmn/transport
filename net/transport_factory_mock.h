@@ -8,7 +8,7 @@ namespace net {
 
 class MockTransportFactory : public TransportFactory {
  public:
-  MOCK_METHOD(std::unique_ptr<Transport>,
+  MOCK_METHOD(ErrorOr<any_transport>,
               CreateTransport,
               (const TransportString& transport_string,
                const net::Executor& executor,
