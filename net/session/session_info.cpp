@@ -1,4 +1,4 @@
-#include "net/session_info.h"
+#include "net/session/session_info.h"
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/uuid/uuid_generators.hpp>
