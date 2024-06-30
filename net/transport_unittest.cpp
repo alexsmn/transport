@@ -39,11 +39,10 @@ class TransportTest : public TestWithParam<TestParams> {
     void Stop();
 
     [[nodiscard]] awaitable<Error> StartAccepting();
-    [[nodiscard]] awaitable<Error> StartEchoing(
-        std::unique_ptr<Transport> transport);
+    [[nodiscard]] awaitable<Error> StartEchoing(any_transport transport);
 
     std::shared_ptr<const Logger> logger_;
-    std::unique_ptr<Transport> transport_;
+    any_transport transport_;
   };
 
   struct Client {
@@ -55,16 +54,15 @@ class TransportTest : public TestWithParam<TestParams> {
         std::span<const char> message);
 
     std::shared_ptr<const Logger> logger_;
-    std::unique_ptr<Transport> transport_;
+    any_transport transport_;
   };
 
   virtual void SetUp() override;
   virtual void TearDown() override;
 
-  std::unique_ptr<Transport> CreateTransport(
-      const Executor& executor,
-      const std::shared_ptr<const Logger>& logger,
-      bool active);
+  any_transport CreateTransport(const Executor& executor,
+                                const std::shared_ptr<const Logger>& logger,
+                                bool active);
 
   Server MakeServer();
 
@@ -104,17 +102,17 @@ INSTANTIATE_TEST_SUITE_P(
 
 namespace {
 
-[[nodiscard]] awaitable<Error> EchoData(Transport& transport) {
+[[nodiscard]] awaitable<Error> EchoData(any_transport transport) {
   std::vector<char> buffer;
   for (;;) {
     buffer.resize(64);
-    auto bytes_read = co_await transport.Read(buffer);
+    auto bytes_read = co_await transport.read(buffer);
     if (!bytes_read.ok()) {
       co_return bytes_read.error();
     }
     buffer.resize(*bytes_read);
 
-    if (auto bytes_written = co_await transport.Write(buffer);
+    if (auto bytes_written = co_await transport.write(buffer);
         !bytes_written.ok() || *bytes_written != buffer.size()) {
       co_return ERR_FAILED;
     }
@@ -128,25 +126,30 @@ namespace {
 // TransportTest::Server
 
 awaitable<Error> TransportTest::Server::Init() {
-  NET_CO_RETURN_IF_ERROR(co_await transport_->Open());
+  NET_CO_RETURN_IF_ERROR(co_await transport_.open());
+
   logger_->Write(LogSeverity::Normal, "Opened");
-  boost::asio::co_spawn(transport_->GetExecutor(), StartAccepting(),
+
+  boost::asio::co_spawn(transport_.get_executor(), StartAccepting(),
                         boost::asio::detached);
+
   co_return OK;
 }
 
 void TransportTest::Server::Stop() {
-  transport_->Close();
+  transport_.close();
 }
 
 awaitable<Error> TransportTest::Server::StartAccepting() {
   for (;;) {
     logger_->Write(LogSeverity::Normal, "Accepting");
+
     NET_ASSIGN_OR_CO_RETURN(auto accepted_transport,
-                            co_await transport_->Accept());
+                            co_await transport_.accept());
 
     logger_->Write(LogSeverity::Normal, "Accepted");
-    boost::asio::co_spawn(transport_->GetExecutor(),
+
+    boost::asio::co_spawn(transport_.get_executor(),
                           StartEchoing(std::move(accepted_transport)),
                           boost::asio::detached);
   }
@@ -155,16 +158,15 @@ awaitable<Error> TransportTest::Server::StartAccepting() {
   co_return OK;
 }
 
-awaitable<Error> TransportTest::Server::StartEchoing(
-    std::unique_ptr<Transport> transport) {
-  auto open_result = co_await transport->Open();
+awaitable<Error> TransportTest::Server::StartEchoing(any_transport transport) {
+  auto open_result = co_await transport.open();
 
   if (open_result != OK) {
     logger_->Write(LogSeverity::Warning, "Connect error");
     co_return open_result;
   }
 
-  co_return co_await EchoData(*transport);
+  co_return co_await EchoData(std::move(transport));
 
   logger_->Write(LogSeverity::Warning, "Disconnected");
 }
@@ -172,7 +174,7 @@ awaitable<Error> TransportTest::Server::StartEchoing(
 // TransportTest::Client
 
 awaitable<Error> TransportTest::Client::Run() {
-  if (auto result = co_await transport_->Open(); result != net::OK) {
+  if (auto result = co_await transport_.open(); result != net::OK) {
     logger_->Write(LogSeverity::Error, "Failed to open the client transport");
     co_return result;
   }
@@ -195,7 +197,7 @@ awaitable<Error> TransportTest::Client::ExchangeMessage(
   }
 
   std::vector<char> buffer(64);
-  auto bytes_read = co_await transport_->Read(buffer);
+  auto bytes_read = co_await transport_.read(buffer);
   if (!bytes_read.ok()) {
     logger_->Write(LogSeverity::Error, "Failed to read echoed message");
     co_return bytes_read.error();
@@ -211,7 +213,7 @@ awaitable<Error> TransportTest::Client::ExchangeMessage(
 
   logger_->Write(LogSeverity::Normal, "Echo received");
 
-  transport_->Close();
+  transport_.close();
 
   co_return OK;
 }
@@ -219,7 +221,7 @@ awaitable<Error> TransportTest::Client::ExchangeMessage(
 awaitable<Error> TransportTest::Client::StartReading() {
   std::array<char, std::size(kMessage)> data;
 
-  if (auto bytes_read = co_await transport_->Read(data);
+  if (auto bytes_read = co_await transport_.read(data);
       !bytes_read.ok() || *bytes_read != std::size(kMessage)) {
     logger_->WriteF(LogSeverity::Error, "Received message is too short");
     co_return ERR_FAILED;
@@ -231,7 +233,7 @@ awaitable<Error> TransportTest::Client::StartReading() {
     co_return ERR_FAILED;
   }
 
-  if (auto result = co_await transport_->Write(kMessage);
+  if (auto result = co_await transport_.write(kMessage);
       !result.ok() || *result != std::size(kMessage)) {
     logger_->WriteF(LogSeverity::Error, "Failed to write echoed data");
     co_return ERR_FAILED;
@@ -243,7 +245,7 @@ awaitable<Error> TransportTest::Client::StartReading() {
 awaitable<Error> TransportTest::Client::Write(std::span<const char> data) {
   logger_->Write(LogSeverity::Normal, "Send message");
 
-  auto result = co_await transport_->Write(data);
+  auto result = co_await transport_.write(data);
   if (!result.ok()) {
     logger_->WriteF(LogSeverity::Error, "Error on writing echoed data: %s",
                     ErrorToShortString(result.error()).c_str());
@@ -282,7 +284,7 @@ void TransportTest::SetUp() {
 
 void TransportTest::TearDown() {}
 
-std::unique_ptr<Transport> TransportTest::CreateTransport(
+any_transport TransportTest::CreateTransport(
     const Executor& executor,
     const std::shared_ptr<const Logger>& logger,
     bool active) {
@@ -291,13 +293,17 @@ std::unique_ptr<Transport> TransportTest::CreateTransport(
   auto transport = transport_factory_.CreateTransport(
       TransportString{GetParam().transport_string + transport_string_suffix},
       executor, logger);
-
-  if (!GetParam().use_message_reader) {
-    return transport;
+  if (!transport.ok()) {
+    throw std::runtime_error("Failed to create transport");
   }
 
-  return std::make_unique<MessageReaderTransport>(
-      std::move(transport), std::make_unique<TestMessageReader>(), logger);
+  if (!GetParam().use_message_reader) {
+    return std::move(*transport);
+  }
+
+  return any_transport{std::make_unique<MessageReaderTransport>(
+      transport->release_impl(), std::make_unique<TestMessageReader>(),
+      logger)};
 }
 
 TransportTest::Server TransportTest::MakeServer() {

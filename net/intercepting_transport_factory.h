@@ -16,19 +16,20 @@ class InterceptingTransportFactory : public TransportFactory {
     interceptor_ = interceptor;
   }
 
-  virtual std::unique_ptr<Transport> CreateTransport(
+  virtual ErrorOr<any_transport> CreateTransport(
       const TransportString& transport_string,
       const net::Executor& executor,
       std::shared_ptr<const Logger> logger = nullptr) override {
-    auto transport = underlying_transport_factory_.CreateTransport(
-        transport_string, executor, std::move(logger));
+    NET_ASSIGN_OR_RETURN(auto transport,
+                         underlying_transport_factory_.CreateTransport(
+                             transport_string, executor, std::move(logger)));
 
-    if (transport && interceptor_) {
-      return std::make_unique<InterceptingTransport>(std::move(transport),
-                                                     *interceptor_);
-    } else {
+    if (!interceptor_) {
       return transport;
     }
+
+    return any_transport{std::make_unique<InterceptingTransport>(
+        transport.release_impl(), *interceptor_)};
   }
 
  private:

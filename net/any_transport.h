@@ -22,7 +22,17 @@ class any_transport {
     return transport_ ? transport_->GetExecutor() : Executor{};
   }
 
-  [[nodiscard]] std::string name() const { return transport_->GetName(); }
+  [[nodiscard]] std::string name() const {
+    return transport_ ? transport_->GetName() : std::string{};
+  }
+
+  [[nodiscard]] bool message_oriented() const {
+    return transport_ && transport_->IsMessageOriented();
+  }
+
+  [[nodiscard]] bool active() const {
+    return transport_ && transport_->IsActive();
+  }
 
   [[nodiscard]] Transport* get_impl() { return transport_.get(); }
   std::unique_ptr<Transport> release_impl() { return std::move(transport_); }

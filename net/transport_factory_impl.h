@@ -19,7 +19,7 @@ class TransportFactoryImpl : public TransportFactory {
   ~TransportFactoryImpl();
 
   // Returns nullptr if parameters are invalid.
-  virtual std::unique_ptr<Transport> CreateTransport(
+  virtual ErrorOr<any_transport> CreateTransport(
       const TransportString& transport_string,
       const net::Executor& executor,
       std::shared_ptr<const Logger> logger =
