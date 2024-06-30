@@ -54,12 +54,17 @@ class [[nodiscard]] ErrorOr {
     return error ? *error : OK;
   }
 
-  T& value() {
+  T& value() & {
     assert(ok());
     return std::get<T>(value_);
   }
 
-  const T& value() const {
+  T&& value() && {
+    assert(ok());
+    return std::move(std::get<T>(value_));
+  }
+
+  const T& value() const& {
     assert(ok());
     return std::get<T>(value_);
   }
