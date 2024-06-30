@@ -1,7 +1,7 @@
 #pragma once
 
 #include "net/error.h"
-#include "net/session_info.h"
+#include "net/session/session_info.h"
 #include "net/timer.h"
 #include "net/transport.h"
 

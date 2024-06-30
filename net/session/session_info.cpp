@@ -1,4 +1,4 @@
-#include "net/session_info.h"
+#include "net/session/session_info.h"
 
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -11,4 +11,4 @@ SessionID CreateSessionID() {
   return boost::uuids::to_string(u);
 }
 
-} // namespace net
+}  // namespace net
