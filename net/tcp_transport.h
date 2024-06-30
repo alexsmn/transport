@@ -4,20 +4,20 @@
 
 namespace net {
 
-class AsioTcpTransport final : public AsioTransport {
+class TcpTransport final : public AsioTransport {
  public:
-  AsioTcpTransport(const Executor& executor,
-                   std::shared_ptr<const Logger> logger,
-                   std::string host,
-                   std::string service,
-                   bool active);
+  TcpTransport(const Executor& executor,
+               std::shared_ptr<const Logger> logger,
+               std::string host,
+               std::string service,
+               bool active);
 
   // A constructor for a socket accepted by a passive TCP transport.
   // Uses the executor of the socket.
-  AsioTcpTransport(std::shared_ptr<const Logger> logger,
-                   boost::asio::ip::tcp::socket socket);
+  TcpTransport(std::shared_ptr<const Logger> logger,
+               boost::asio::ip::tcp::socket socket);
 
-  ~AsioTcpTransport();
+  ~TcpTransport();
 
   int GetLocalPort() const;
 

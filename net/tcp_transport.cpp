@@ -4,9 +4,9 @@
 
 namespace net {
 
-// AsioTcpTransport::ActiveCore
+// TcpTransport::ActiveCore
 
-class AsioTcpTransport::ActiveCore final
+class TcpTransport::ActiveCore final
     : public IoCore<boost::asio::ip::tcp::socket> {
  public:
   using Socket = boost::asio::ip::tcp::socket;
@@ -38,7 +38,7 @@ class AsioTcpTransport::ActiveCore final
   Resolver resolver_;
 };
 
-AsioTcpTransport::ActiveCore::ActiveCore(const Executor& executor,
+TcpTransport::ActiveCore::ActiveCore(const Executor& executor,
                                          std::shared_ptr<const Logger> logger,
                                          const std::string& host,
                                          const std::string& service)
@@ -47,7 +47,7 @@ AsioTcpTransport::ActiveCore::ActiveCore(const Executor& executor,
       service_{service},
       resolver_{executor} {}
 
-AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
+TcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
                                          Socket socket)
     : IoCore{socket.get_executor(), std::move(logger)},
       resolver_{socket.get_executor()} {
@@ -55,7 +55,7 @@ AsioTcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
   connected_ = true;
 }
 
-awaitable<Error> AsioTcpTransport::ActiveCore::Open() {
+awaitable<Error> TcpTransport::ActiveCore::Open() {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   if (connected_) {
@@ -67,7 +67,7 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Open() {
   co_return co_await ResolveAndConnect();
 }
 
-awaitable<Error> AsioTcpTransport::ActiveCore::ResolveAndConnect() {
+awaitable<Error> TcpTransport::ActiveCore::ResolveAndConnect() {
   auto ref = shared_from_this();
 
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
@@ -93,7 +93,7 @@ awaitable<Error> AsioTcpTransport::ActiveCore::ResolveAndConnect() {
   co_return co_await Connect(std::move(iterator));
 }
 
-awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
+awaitable<Error> TcpTransport::ActiveCore::Connect(
     Resolver::iterator iterator) {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
@@ -120,7 +120,7 @@ awaitable<Error> AsioTcpTransport::ActiveCore::Connect(
   co_return OK;
 }
 
-void AsioTcpTransport::ActiveCore::Cleanup() {
+void TcpTransport::ActiveCore::Cleanup() {
   assert(closed_);
 
   logger_->Write(LogSeverity::Normal, "Cleanup");
@@ -134,9 +134,9 @@ void AsioTcpTransport::ActiveCore::Cleanup() {
   io_object_.close(ec);
 }
 
-// AsioTcpTransport::PassiveCore
+// TcpTransport::PassiveCore
 
-class AsioTcpTransport::PassiveCore final
+class TcpTransport::PassiveCore final
     : public Core,
       public std::enable_shared_from_this<PassiveCore> {
  public:
@@ -183,7 +183,7 @@ class AsioTcpTransport::PassiveCore final
   bool closed_ = false;
 };
 
-AsioTcpTransport::PassiveCore::PassiveCore(const Executor& executor,
+TcpTransport::PassiveCore::PassiveCore(const Executor& executor,
                                            std::shared_ptr<const Logger> logger,
                                            const std::string& host,
                                            const std::string& service)
@@ -193,11 +193,11 @@ AsioTcpTransport::PassiveCore::PassiveCore(const Executor& executor,
       resolver_{executor},
       acceptor_{executor} {}
 
-int AsioTcpTransport::PassiveCore::GetLocalPort() const {
+int TcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-awaitable<Error> AsioTcpTransport::PassiveCore::Open() {
+awaitable<Error> TcpTransport::PassiveCore::Open() {
   auto ref = shared_from_this();
 
   logger_->WriteF(LogSeverity::Normal, "Open");
@@ -205,7 +205,7 @@ awaitable<Error> AsioTcpTransport::PassiveCore::Open() {
   return ResolveAndBind();
 }
 
-awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndBind() {
+awaitable<Error> TcpTransport::PassiveCore::ResolveAndBind() {
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
 
@@ -242,7 +242,7 @@ awaitable<Error> AsioTcpTransport::PassiveCore::ResolveAndBind() {
   co_return OK;
 }
 
-boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
+boost::system::error_code TcpTransport::PassiveCore::Bind(
     Resolver::iterator iterator) {
   logger_->Write(LogSeverity::Normal, "Bind");
 
@@ -269,7 +269,7 @@ boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
   return ec;
 }
 
-void AsioTcpTransport::PassiveCore::Close() {
+void TcpTransport::PassiveCore::Close() {
   boost::asio::dispatch(acceptor_.get_executor(),
                         [this, ref = shared_from_this()] {
                           if (closed_) {
@@ -285,7 +285,7 @@ void AsioTcpTransport::PassiveCore::Close() {
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
-AsioTcpTransport::PassiveCore::Accept() {
+TcpTransport::PassiveCore::Accept() {
   auto ref = shared_from_this();
 
   // TODO: Use different executor.
@@ -311,20 +311,20 @@ AsioTcpTransport::PassiveCore::Accept() {
 
   logger_->Write(LogSeverity::Normal, "Connection accepted");
 
-  co_return std::make_unique<AsioTcpTransport>(logger_, std::move(peer));
+  co_return std::make_unique<TcpTransport>(logger_, std::move(peer));
 }
 
-awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Read(
+awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::Read(
     std::span<char> data) {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> AsioTcpTransport::PassiveCore::Write(
+awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::Write(
     std::span<const char> data) {
   co_return ERR_ACCESS_DENIED;
 }
 
-void AsioTcpTransport::PassiveCore::ProcessError(
+void TcpTransport::PassiveCore::ProcessError(
     const boost::system::error_code& ec) {
   if (closed_) {
     return;
@@ -341,9 +341,9 @@ void AsioTcpTransport::PassiveCore::ProcessError(
   closed_ = true;
 }
 
-// AsioTcpTransport
+// TcpTransport
 
-AsioTcpTransport::AsioTcpTransport(const Executor& executor,
+TcpTransport::TcpTransport(const Executor& executor,
                                    std::shared_ptr<const Logger> logger,
                                    std::string host,
                                    std::string service,
@@ -358,31 +358,31 @@ AsioTcpTransport::AsioTcpTransport(const Executor& executor,
   }
 }
 
-AsioTcpTransport::AsioTcpTransport(std::shared_ptr<const Logger> logger,
+TcpTransport::TcpTransport(std::shared_ptr<const Logger> logger,
                                    boost::asio::ip::tcp::socket socket)
     : type_{Type::ACCEPTED} {
   core_ = std::make_shared<ActiveCore>(std::move(logger), std::move(socket));
 }
 
-AsioTcpTransport::~AsioTcpTransport() {
+TcpTransport::~TcpTransport() {
   // The base class closes the core on destruction.
 }
 
-awaitable<Error> AsioTcpTransport::Open() {
+awaitable<Error> TcpTransport::Open() {
   co_return co_await core_->Open();
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> AsioTcpTransport::Accept() {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> TcpTransport::Accept() {
   co_return co_await core_->Accept();
 }
 
-int AsioTcpTransport::GetLocalPort() const {
+int TcpTransport::GetLocalPort() const {
   return core_ && type_ == Type::PASSIVE
              ? std::static_pointer_cast<PassiveCore>(core_)->GetLocalPort()
              : 0;
 }
 
-std::string AsioTcpTransport::GetName() const {
+std::string TcpTransport::GetName() const {
   switch (type_) {
     case Type::ACTIVE:
       return "TCP Active";
