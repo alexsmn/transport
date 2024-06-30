@@ -38,11 +38,10 @@ class AsioTcpTransport::ActiveCore final
   Resolver resolver_;
 };
 
-AsioTcpTransport::ActiveCore::ActiveCore(
-    const boost::asio::any_io_executor& executor,
-    std::shared_ptr<const Logger> logger,
-    const std::string& host,
-    const std::string& service)
+AsioTcpTransport::ActiveCore::ActiveCore(const Executor& executor,
+                                         std::shared_ptr<const Logger> logger,
+                                         const std::string& host,
+                                         const std::string& service)
     : IoCore{executor, std::move(logger)},
       host_{host},
       service_{service},
