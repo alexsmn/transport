@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/any_transport.h"
 #include "net/transport.h"
 
 #include <memory>
@@ -9,8 +10,15 @@ namespace net {
 
 class MessageReceiver {
  public:
+  MessageReceiver(any_transport& transport, size_t max_message_size)
+      : transport_{*transport.get_impl()},
+        max_message_size_{max_message_size} {}
+
   MessageReceiver(Transport& transport, size_t max_message_size)
       : transport_{transport}, max_message_size_{max_message_size} {}
+
+  MessageReceiver(const MessageReceiver&) = delete;
+  MessageReceiver& operator=(const MessageReceiver&) = delete;
 
   template <class H, class C>
   awaitable<void> Run(const H& handler, std::weak_ptr<C> cancelation) {

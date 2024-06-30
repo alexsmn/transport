@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/any_transport.h"
 #include "net/awaitable.h"
 #include "net/error_or.h"
 
@@ -13,7 +14,11 @@ class Transport;
 
 class WriteQueue {
  public:
+  explicit WriteQueue(any_transport& transport)
+      : transport_{*transport.get_impl()} {}
+
   explicit WriteQueue(Transport& transport) : transport_{transport} {}
+
   ~WriteQueue() {}
 
   void BlindWrite(std::span<const char> data);
