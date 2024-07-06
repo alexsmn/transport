@@ -27,8 +27,7 @@ class MessageReaderTransport final : public Transport {
 
   // Transport
   [[nodiscard]] virtual awaitable<Error> Open() override;
-
-  virtual void Close() override;
+  [[nodiscard]] virtual awaitable<Error> Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;

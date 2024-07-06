@@ -32,8 +32,7 @@ class AsioUdpTransport::UdpActiveCore final
   virtual bool IsConnected() const override { return connected_; }
 
   [[nodiscard]] virtual awaitable<Error> Open() override;
-
-  virtual void Close() override;
+  [[nodiscard]] virtual awaitable<Error> Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -79,14 +78,16 @@ awaitable<Error> AsioUdpTransport::UdpActiveCore::Open() {
   return socket_->Open();
 }
 
-void AsioUdpTransport::UdpActiveCore::Close() {
-  boost::asio::dispatch(executor_, [this, ref = shared_from_this()] {
-    connected_ = false;
+awaitable<Error> AsioUdpTransport::UdpActiveCore::Close() {
+  auto ref = shared_from_this();
 
-    boost::asio::co_spawn(executor_,
-                          std::bind_front(&UdpSocket::Close, socket_),
-                          boost::asio::detached);
-  });
+  co_await boost::asio::dispatch(executor_, boost::asio::use_awaitable);
+
+  connected_ = false;
+
+  co_await socket_->Close();
+
+  co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
@@ -161,7 +162,7 @@ class AsioUdpTransport::UdpAcceptedCore final
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
   virtual awaitable<Error> Open() override;
-  virtual void Close() override;
+  virtual awaitable<Error> Close() override;
   virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
@@ -206,7 +207,7 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual Executor GetExecutor() override { return executor_; }
   virtual bool IsConnected() const override { return connected_; }
   virtual awaitable<Error> Open() override;
-  virtual void Close() override;
+  virtual awaitable<Error> Close() override;
   virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
@@ -273,18 +274,20 @@ awaitable<Error> AsioUdpTransport::UdpPassiveCore::Open() {
   return socket_->Open();
 }
 
-void AsioUdpTransport::UdpPassiveCore::Close() {
-  boost::asio::dispatch(executor_, [this, ref = shared_from_this()] {
-    logger_->Write(LogSeverity::Normal, "Close");
+awaitable<Error> AsioUdpTransport::UdpPassiveCore::Close() {
+  auto ref = shared_from_this();
 
-    connected_ = false;
+  co_await boost::asio::dispatch(executor_, boost::asio::use_awaitable);
 
-    boost::asio::co_spawn(executor_,
-                          std::bind_front(&UdpSocket::Close, socket_),
-                          boost::asio::detached);
+  logger_->Write(LogSeverity::Normal, "Close");
 
-    CloseAllAcceptedTransports(OK);
-  });
+  connected_ = false;
+
+  co_await socket_->Close();
+
+  CloseAllAcceptedTransports(OK);
+
+  co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
@@ -441,13 +444,15 @@ awaitable<Error> AsioUdpTransport::UdpAcceptedCore::Open() {
   co_return ERR_ADDRESS_IN_USE;
 }
 
-void AsioUdpTransport::UdpAcceptedCore::Close() {
+awaitable<Error> AsioUdpTransport::UdpAcceptedCore::Close() {
   if (passive_core_) {
     passive_core_->RemoveAcceptedTransport(endpoint_);
     passive_core_ = nullptr;
   }
 
   connected_ = false;
+
+  co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>

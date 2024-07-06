@@ -2,6 +2,8 @@
 
 #include "net/logger.h"
 
+#include <boost/asio/connect.hpp>
+
 namespace net {
 
 // TcpTransport::ActiveCore
@@ -39,16 +41,16 @@ class TcpTransport::ActiveCore final
 };
 
 TcpTransport::ActiveCore::ActiveCore(const Executor& executor,
-                                         std::shared_ptr<const Logger> logger,
-                                         const std::string& host,
-                                         const std::string& service)
+                                     std::shared_ptr<const Logger> logger,
+                                     const std::string& host,
+                                     const std::string& service)
     : IoCore{executor, std::move(logger)},
       host_{host},
       service_{service},
       resolver_{executor} {}
 
 TcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
-                                         Socket socket)
+                                     Socket socket)
     : IoCore{socket.get_executor(), std::move(logger)},
       resolver_{socket.get_executor()} {
   io_object_ = std::move(socket);
@@ -149,10 +151,10 @@ class TcpTransport::PassiveCore final
   int GetLocalPort() const;
 
   // Core
+  virtual awaitable<Error> Open() override;
+  virtual awaitable<Error> Close() override;
   virtual Executor GetExecutor() override { return acceptor_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
-  virtual awaitable<Error> Open() override;
-  virtual void Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -184,9 +186,9 @@ class TcpTransport::PassiveCore final
 };
 
 TcpTransport::PassiveCore::PassiveCore(const Executor& executor,
-                                           std::shared_ptr<const Logger> logger,
-                                           const std::string& host,
-                                           const std::string& service)
+                                       std::shared_ptr<const Logger> logger,
+                                       const std::string& host,
+                                       const std::string& service)
     : logger_{std::move(logger)},
       host_{host},
       service_{service},
@@ -269,19 +271,23 @@ boost::system::error_code TcpTransport::PassiveCore::Bind(
   return ec;
 }
 
-void TcpTransport::PassiveCore::Close() {
-  boost::asio::dispatch(acceptor_.get_executor(),
-                        [this, ref = shared_from_this()] {
-                          if (closed_) {
-                            return;
-                          }
+awaitable<Error> TcpTransport::PassiveCore::Close() {
+  auto ref = shared_from_this();
 
-                          logger_->Write(LogSeverity::Normal, "Close");
+  co_await boost::asio::dispatch(acceptor_.get_executor(),
+                                 boost::asio::use_awaitable);
 
-                          closed_ = true;
-                          connected_ = false;
-                          acceptor_.close();
-                        });
+  if (closed_) {
+    co_return ERR_CONNECTION_CLOSED;
+  }
+
+  logger_->Write(LogSeverity::Normal, "Close");
+
+  closed_ = true;
+  connected_ = false;
+  acceptor_.close();
+
+  co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
@@ -344,10 +350,10 @@ void TcpTransport::PassiveCore::ProcessError(
 // TcpTransport
 
 TcpTransport::TcpTransport(const Executor& executor,
-                                   std::shared_ptr<const Logger> logger,
-                                   std::string host,
-                                   std::string service,
-                                   bool active)
+                           std::shared_ptr<const Logger> logger,
+                           std::string host,
+                           std::string service,
+                           bool active)
     : type_{active ? Type::ACTIVE : Type::PASSIVE} {
   if (active) {
     core_ = std::make_shared<ActiveCore>(executor, std::move(logger),
@@ -359,7 +365,7 @@ TcpTransport::TcpTransport(const Executor& executor,
 }
 
 TcpTransport::TcpTransport(std::shared_ptr<const Logger> logger,
-                                   boost::asio::ip::tcp::socket socket)
+                           boost::asio::ip::tcp::socket socket)
     : type_{Type::ACCEPTED} {
   core_ = std::make_shared<ActiveCore>(std::move(logger), std::move(socket));
 }

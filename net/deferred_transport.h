@@ -20,7 +20,7 @@ class DeferredTransport final : public Transport {
   // Transport
   [[nodiscard]] virtual awaitable<Error> Open() override;
 
-  virtual void Close() override;
+  virtual awaitable<Error> Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;

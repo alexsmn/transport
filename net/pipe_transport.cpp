@@ -57,11 +57,15 @@ awaitable<Error> PipeTransport::Open() {
   co_return OK;
 }
 
-void PipeTransport::Close() {
-  if (handle_ != INVALID_HANDLE_VALUE) {
-    CloseHandle(handle_);
-    handle_ = INVALID_HANDLE_VALUE;
+awaitable<Error> PipeTransport::Close() {
+  if (handle_ == INVALID_HANDLE_VALUE) {
+    co_return ERR_INVALID_HANDLE;
   }
+
+  CloseHandle(handle_);
+  handle_ = INVALID_HANDLE_VALUE;
+
+  co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>> PipeTransport::Accept() {

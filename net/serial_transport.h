@@ -2,6 +2,7 @@
 
 #include "net/asio_transport.h"
 
+#include <boost/asio/serial_port.hpp>
 #include <optional>
 
 namespace net {

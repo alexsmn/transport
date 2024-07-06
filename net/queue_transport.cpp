@@ -29,9 +29,10 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   co_return OK;
 }
 
-void QueueTransport::Close() {
+awaitable<Error> QueueTransport::Close() {
   connected_ = false;
   timer_.Stop();
+  co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>> QueueTransport::Accept() {

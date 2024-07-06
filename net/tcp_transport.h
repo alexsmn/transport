@@ -2,6 +2,8 @@
 
 #include "net/asio_transport.h"
 
+#include <boost/asio/ip/tcp.hpp>
+
 namespace net {
 
 class TcpTransport final : public AsioTransport {

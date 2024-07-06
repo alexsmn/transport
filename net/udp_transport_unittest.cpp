@@ -123,8 +123,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
   CoTest([&]() -> awaitable<void> {
     auto accepted_transport = co_await transport->Accept();
     EXPECT_TRUE(accepted_transport.ok());
-
-    (*accepted_transport)->Close();
+    EXPECT_EQ(co_await (*accepted_transport)->Close(), OK);
     EXPECT_FALSE((*accepted_transport)->IsConnected());
   });
 

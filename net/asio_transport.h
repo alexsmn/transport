@@ -5,8 +5,11 @@
 #include "net/logger.h"
 #include "net/transport.h"
 
-#include <boost/asio.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/experimental/as_tuple.hpp>
+#include <boost/asio/write.hpp>
 #include <boost/circular_buffer.hpp>
 #include <memory>
 
@@ -18,8 +21,7 @@ class AsioTransport : public Transport {
  public:
   ~AsioTransport();
 
-  // Transport overrides
-  virtual void Close() override;
+  [[nodiscard]] virtual awaitable<Error> Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override;
@@ -44,13 +46,10 @@ class AsioTransport::Core {
  public:
   virtual ~Core() {}
 
-  [[nodiscard]] virtual Executor GetExecutor() = 0;
-
-  [[nodiscard]] virtual bool IsConnected() const = 0;
-
   [[nodiscard]] virtual awaitable<Error> Open() = 0;
-
-  virtual void Close() = 0;
+  [[nodiscard]] virtual awaitable<Error> Close() = 0;
+  [[nodiscard]] virtual Executor GetExecutor() = 0;
+  [[nodiscard]] virtual bool IsConnected() const = 0;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
   Accept() = 0;
@@ -69,9 +68,9 @@ class AsioTransport::IoCore : public Core,
                               public std::enable_shared_from_this<Core> {
  public:
   // Core
+  [[nodiscard]] virtual awaitable<Error> Close() override;
   virtual Executor GetExecutor() override { return io_object_.get_executor(); }
   virtual bool IsConnected() const override { return connected_; }
-  virtual void Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -109,19 +108,21 @@ inline AsioTransport::IoCore<IoObject>::IoCore(
     : logger_{std::move(logger)}, io_object_{executor} {}
 
 template <class IoObject>
-inline void AsioTransport::IoCore<IoObject>::Close() {
-  boost::asio::dispatch(io_object_.get_executor(),
-                        [this, ref = shared_from_this()] {
-                          if (closed_) {
-                            return;
-                          }
+inline awaitable<Error> AsioTransport::IoCore<IoObject>::Close() {
+  auto ref = shared_from_this();
 
-                          logger_->WriteF(LogSeverity::Normal, "Close");
+  co_await boost::asio::post(io_object_.get_executor(),
+                             boost::asio::use_awaitable);
 
-                          closed_ = true;
+  if (closed_) {
+    co_return ERR_CONNECTION_CLOSED;
+  }
 
-                          Cleanup();
-                        });
+  logger_->WriteF(LogSeverity::Normal, "Close");
+  closed_ = true;
+  Cleanup();
+
+  co_return OK;
 }
 
 template <class IoObject>
@@ -199,11 +200,13 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
 // AsioTransport
 
 inline AsioTransport::~AsioTransport() {
-  core_->Close();
+  boost::asio::co_spawn(
+      core_->GetExecutor(), [core = core_] { return core->Close(); },
+      boost::asio::detached);
 }
 
-inline void AsioTransport::Close() {
-  core_->Close();
+inline awaitable<Error> AsioTransport::Close() {
+  return core_->Close();
 }
 
 inline awaitable<ErrorOr<size_t>> AsioTransport::Read(std::span<char> data) {

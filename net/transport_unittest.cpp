@@ -36,7 +36,6 @@ class TransportTest : public TestWithParam<TestParams> {
  protected:
   struct Server {
     [[nodiscard]] awaitable<Error> Init();
-    void Stop();
 
     [[nodiscard]] awaitable<Error> StartAccepting();
     [[nodiscard]] awaitable<Error> StartEchoing(any_transport transport);
@@ -136,10 +135,6 @@ awaitable<Error> TransportTest::Server::Init() {
   co_return OK;
 }
 
-void TransportTest::Server::Stop() {
-  transport_.close();
-}
-
 awaitable<Error> TransportTest::Server::StartAccepting() {
   for (;;) {
     logger_->Write(LogSeverity::Normal, "Accepting");
@@ -203,6 +198,12 @@ awaitable<Error> TransportTest::Client::ExchangeMessage(
     co_return bytes_read.error();
   }
 
+  if (bytes_read == 0) {
+    logger_->Write(LogSeverity::Error,
+                   "Connection closed gracefully while expecting echo");
+    co_return ERR_CONNECTION_CLOSED;
+  }
+
   buffer.resize(*bytes_read);
 
   if (!std::ranges::equal(buffer, kMessage)) {
@@ -213,7 +214,7 @@ awaitable<Error> TransportTest::Client::ExchangeMessage(
 
   logger_->Write(LogSeverity::Normal, "Echo received");
 
-  transport_.close();
+  co_await transport_.close();
 
   co_return OK;
 }
