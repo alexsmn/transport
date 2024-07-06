@@ -1,6 +1,7 @@
 #pragma once
 
 #include "net/any_transport.h"
+#include "net/message_utils.h"
 #include "net/transport.h"
 
 #include <memory>
@@ -23,12 +24,10 @@ class MessageReceiver {
   template <class H, class C>
   awaitable<void> Run(const H& handler, std::weak_ptr<C> cancelation) {
     for (;;) {
-      buffer_.resize(max_message_size_);
-      auto result = co_await transport_.Read(buffer_);
-      if (cancelation.expired() || !result.ok() || *result == 0) {
+      auto error = co_await ReadMessage(transport_, max_message_size_, buffer_);
+      if (cancelation.expired() || error != OK || buffer_.empty()) {
         co_return;
       }
-      buffer_.resize(*result);
       handler(buffer_);
     }
   }
