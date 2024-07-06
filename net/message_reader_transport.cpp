@@ -36,11 +36,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   const std::shared_ptr<const Logger> logger_;
 
   bool opened_ = false;
-
   bool reading_ = false;
-  // TODO: Move into Context.
-  std::vector<char> read_buffer_ =
-      std::vector<char>(message_reader_->message().capacity);
 
   // TODO: Remove and replace with `weak_from_this`.
   std::shared_ptr<bool> cancelation_;
