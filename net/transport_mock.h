@@ -13,6 +13,7 @@ class TransportMock : public Transport {
     using namespace testing;
 
     ON_CALL(*this, Open()).WillByDefault(CoReturn(ERR_FAILED));
+    ON_CALL(*this, Close()).WillByDefault(CoReturn(ERR_FAILED));
 
     ON_CALL(*this, Read(/*buffer=*/_))
         .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
@@ -30,7 +31,7 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(awaitable<Error>, Open, (), (override));
 
-  MOCK_METHOD(void, Close, (), (override));
+  MOCK_METHOD(awaitable<Error>, Close, (), (override));
 
   MOCK_METHOD(awaitable<ErrorOr<std::unique_ptr<Transport>>>,
               Accept,

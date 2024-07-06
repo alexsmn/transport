@@ -5,6 +5,7 @@
 
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/dispatch.hpp>
+#include <boost/asio/use_awaitable.hpp>
 
 namespace net {
 
@@ -14,7 +15,7 @@ namespace net {
 // The core is destroyed when the deferred transport is destroyed. It only uses
 // weak pointers to itself internally.
 struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
-  Core(std::unique_ptr<Transport> underlying_transport)
+  explicit Core(std::unique_ptr<Transport> underlying_transport)
       : executor_{underlying_transport->GetExecutor()},
         underlying_transport_{std::move(underlying_transport)} {
     assert(underlying_transport_);
@@ -23,7 +24,7 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
   ~Core();
 
   [[nodiscard]] awaitable<Error> Open();
-  void Close();
+  [[nodiscard]] awaitable<Error> Close();
 
   void OnClosed(Error error);
 
@@ -85,19 +86,23 @@ void DeferredTransport::Core::OnClosed(Error error) {
   }
 }
 
-void DeferredTransport::Close() {
-  boost::asio::dispatch(core_->executor_, std::bind_front(&Core::Close, core_));
+awaitable<Error> DeferredTransport::Close() {
+  co_return co_await core_->Close();
 }
 
-void DeferredTransport::Core::Close() {
+awaitable<Error> DeferredTransport::Core::Close() {
+  co_await boost::asio::post(executor_, boost::asio::use_awaitable);
+
   auto additional_close_handler =
       std::exchange(additional_close_handler_, nullptr);
 
-  underlying_transport_->Close();
+  auto result = co_await underlying_transport_->Close();
 
   if (additional_close_handler) {
-    additional_close_handler(OK);
+    additional_close_handler(result);
   }
+
+  co_return result;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>> DeferredTransport::Accept() {

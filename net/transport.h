@@ -77,8 +77,7 @@ class Transport : public Connector,
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
   Accept() = 0;
 
-  // TODO: Should be a coroutine.
-  virtual void Close() = 0;
+  [[nodiscard]] virtual awaitable<Error> Close() = 0;
 };
 
 }  // namespace net

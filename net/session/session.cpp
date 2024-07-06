@@ -40,10 +40,9 @@ Session::Session(const boost::asio::any_io_executor& executor)
 }
 
 Session::~Session() {
-  Close();
+  Cleanup();
 
-  for (SessionMap::iterator i = accepted_sessions_.begin();
-       i != accepted_sessions_.end();) {
+  for (auto i = accepted_sessions_.begin(); i != accepted_sessions_.end();) {
     Session& session = *(i++)->second;
     session.OnClosed(ERR_CONNECTION_CLOSED);
   }
@@ -55,14 +54,13 @@ Session::~Session() {
 
   for (int i = 0; i < std::size(send_queues_); ++i) {
     MessageQueue& send_queue = send_queues_[i];
-    for (MessageQueue::iterator i = send_queue.begin(); i != send_queue.end();
-         ++i)
+    for (auto i = send_queue.begin(); i != send_queue.end(); ++i) {
       delete[] i->data;
+    }
     send_queue.clear();
   }
 
-  for (SendingMessageQueue::iterator i = sending_messages_.begin();
-       i != sending_messages_.end(); ++i) {
+  for (auto i = sending_messages_.begin(); i != sending_messages_.end(); ++i) {
     delete[] i->data;
   }
   sending_messages_.clear();
@@ -77,7 +75,7 @@ Session::~Session() {
   }
 }
 
-void Session::Close() {
+void Session::Cleanup() {
   if (state_ == OPENED && parent_session_) {
     assert(parent_session_->accepted_sessions_.find(id_) !=
            parent_session_->accepted_sessions_.end());
@@ -85,20 +83,27 @@ void Session::Close() {
 
     parent_session_->accepted_sessions_.erase(id_);
   }
-
-  state_ = CLOSED;
-  CloseTransport();
 }
 
-void Session::CloseTransport() {
+awaitable<Error> Session::Close() {
+  Cleanup();
+
+  state_ = CLOSED;
+  co_await CloseTransport();
+  co_return OK;
+}
+
+awaitable<void> Session::CloseTransport() {
   if (state_ != CLOSED && transport_.get() && transport_->IsActive() &&
-      transport_->IsConnected())
+      transport_->IsConnected()) {
     SendClose();
+  }
 
   connecting_ = false;
 
-  if (transport_.get())
-    transport_->Close();
+  if (transport_) {
+    co_await transport_->Close();
+  }
 
   // WARNING: |context_| may become null inside |SendClose()| above.
   cancelation_ = nullptr;
@@ -109,7 +114,7 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
     return;
 
   // TODO: Reset sent messages.
-  CloseTransport();
+  boost::asio::co_spawn(executor_, CloseTransport(), boost::asio::detached);
 
   if (transport && !transport->IsMessageOriented()) {
     transport = std::make_unique<MessageReaderTransport>(
@@ -203,7 +208,7 @@ void Session::OnClosed(Error error) {
   logger_->WriteF(LogSeverity::Warning, "Session fatal error %s",
                   ErrorToString(error).c_str());
 
-  Close();
+  Cleanup();
 
   if (accepted_) {
     delete this;

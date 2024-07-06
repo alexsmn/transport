@@ -45,12 +45,14 @@ class any_transport {
     co_return co_await transport_->Open();
   }
 
-  void close() {
+  [[nodiscard]] awaitable<Error> close() {
     assert(transport_);
 
-    if (transport_) {
-      transport_->Close();
+    if (!transport_) {
+      co_return ERR_INVALID_HANDLE;
     }
+
+    co_return co_await transport_->Close();
   }
 
   [[nodiscard]] awaitable<ErrorOr<any_transport>> accept() {

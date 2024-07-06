@@ -14,7 +14,7 @@ class InprocessTransportHost::Client final : public Transport {
         executor_{executor},
         channel_name_{std::move(channel_name)} {}
 
-  ~Client() { Close(); }
+  ~Client();
 
   virtual bool IsMessageOriented() const override { return true; }
 
@@ -29,8 +29,7 @@ class InprocessTransportHost::Client final : public Transport {
   }
 
   [[nodiscard]] virtual awaitable<Error> Open() override;
-
-  virtual void Close() override;
+  [[nodiscard]] virtual awaitable<Error> Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
   Accept() {
@@ -78,7 +77,11 @@ class InprocessTransportHost::Server final : public Transport {
         executor_{executor},
         channel_name_{std::move(channel_name)} {}
 
-  ~Server() { Close(); }
+  ~Server() {
+    if (opened_) {
+      host_.listeners_.erase(channel_name_);
+    }
+  }
 
   virtual bool IsMessageOriented() const override { return true; }
 
@@ -104,11 +107,13 @@ class InprocessTransportHost::Server final : public Transport {
     co_return OK;
   }
 
-  virtual void Close() override {
-    if (opened_) {
-      host_.listeners_.erase(channel_name_);
-      opened_ = false;
+  [[nodiscard]] virtual awaitable<Error> Close() override {
+    if (!opened_) {
+      co_return ERR_CONNECTION_CLOSED;
     }
+    host_.listeners_.erase(channel_name_);
+    opened_ = false;
+    co_return OK;
   }
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
@@ -166,15 +171,16 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     }
 
     opened_ = true;
-
     co_return OK;
   }
 
-  virtual void Close() override {
-    if (opened_) {
-      opened_ = false;
-      client_.OnServerClosed();
+  [[nodiscard]] virtual awaitable<Error> Close() override {
+    if (!opened_) {
+      co_return ERR_CONNECTION_CLOSED;
     }
+    opened_ = false;
+    client_.OnServerClosed();
+    co_return OK;
   }
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
@@ -217,6 +223,12 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
 // InprocessTransportHost::Client
 
+InprocessTransportHost::Client::~Client() {
+  if (accepted_client_) {
+    accepted_client_->OnClientClosed();
+  }
+}
+
 awaitable<Error> InprocessTransportHost::Client::Open() {
   if (accepted_client_) {
     co_return ERR_ADDRESS_IN_USE;
@@ -232,12 +244,14 @@ awaitable<Error> InprocessTransportHost::Client::Open() {
   co_return OK;
 }
 
-void InprocessTransportHost::Client::Close() {
+awaitable<Error> InprocessTransportHost::Client::Close() {
   if (accepted_client_) {
     auto* accepted_client = accepted_client_;
     accepted_client_ = nullptr;
     accepted_client->OnClientClosed();
   }
+
+  co_return OK;
 }
 
 awaitable<ErrorOr<size_t>> InprocessTransportHost::Client::Write(

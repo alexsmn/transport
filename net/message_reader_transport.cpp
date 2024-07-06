@@ -23,7 +23,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
         logger_{std::move(logger)} {}
 
   [[nodiscard]] awaitable<Error> Open();
-  void Close();
+  [[nodiscard]] awaitable<Error> Close();
 
   [[nodiscard]] awaitable<ErrorOr<size_t>> ReadMessage(std::span<char> buffer);
 
@@ -73,11 +73,11 @@ bool MessageReaderTransport::IsActive() const {
 }
 
 awaitable<Error> MessageReaderTransport::Open() {
-  co_return co_await core_->Open();
+  return core_->Open();
 }
 
-void MessageReaderTransport::Close() {
-  boost::asio::dispatch(core_->executor_, std::bind_front(&Core::Close, core_));
+awaitable<Error> MessageReaderTransport::Close() {
+  return core_->Close();
 }
 
 bool MessageReaderTransport::IsMessageOriented() const {
@@ -93,20 +93,19 @@ bool MessageReaderTransport::IsMessageOriented() const {
   cancelation_ = std::make_shared<bool>(false);
   opened_ = true;
 
-  auto ref = shared_from_this();
-
-  co_return co_await child_transport_->Open();
+  return child_transport_->Open();
 }
 
-void MessageReaderTransport::Core::Close() {
+awaitable<Error> MessageReaderTransport::Core::Close() {
   if (!opened_) {
-    return;
+    co_return ERR_CONNECTION_CLOSED;
   }
 
   opened_ = false;
   cancelation_ = nullptr;
   message_reader_->Reset();
-  child_transport_->Close();
+
+  co_return co_await child_transport_->Close();
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
@@ -124,7 +123,7 @@ MessageReaderTransport::Accept() {
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Read(std::span<char> data) {
-  co_return co_await core_->ReadMessage(data);
+  return core_->ReadMessage(data);
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(

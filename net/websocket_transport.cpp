@@ -18,7 +18,7 @@ class WebSocketTransport::ConnectionCore
   Executor executor() { return ws.get_executor(); }
 
   [[nodiscard]] awaitable<Error> Open();
-  void Close();
+  [[nodiscard]] awaitable<Error> Close();
 
   [[nodiscard]] awaitable<ErrorOr<size_t>> Write(std::span<const char> data);
 
@@ -66,9 +66,10 @@ awaitable<void> WebSocketTransport::ConnectionCore::StartReading() {
   }
 }
 
-void WebSocketTransport::ConnectionCore::Close() {
-  boost::beast::error_code ec;
-  ws.close(boost::beast::websocket::close_code::normal, ec);
+awaitable<Error> WebSocketTransport::ConnectionCore::Close() {
+  co_await ws.async_close(boost::beast::websocket::close_code::normal,
+                          boost::asio::as_tuple(boost::asio::use_awaitable));
+  co_return OK;
 }
 
 awaitable<ErrorOr<size_t>> WebSocketTransport::ConnectionCore::Write(
@@ -111,7 +112,7 @@ class WebSocketTransport::Connection : public Transport {
 
   // Transport
   [[nodiscard]] virtual awaitable<Error> Open() override;
-  virtual void Close() override;
+  [[nodiscard]] virtual awaitable<Error> Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -136,8 +137,11 @@ class WebSocketTransport::Connection : public Transport {
 };
 
 WebSocketTransport::Connection::~Connection() {
-  if (opened_)
-    core_->Close();
+  if (opened_) {
+    boost::asio::co_spawn(
+        core_->executor(), [core = core_] { return core->Close(); },
+        boost::asio::detached);
+  }
 }
 
 awaitable<Error> WebSocketTransport::Connection::Open() {
@@ -148,9 +152,10 @@ awaitable<Error> WebSocketTransport::Connection::Open() {
   return core_->Open();
 }
 
-void WebSocketTransport::Connection::Close() {
+awaitable<Error> WebSocketTransport::Connection::Close() {
+  NET_CO_RETURN_IF_ERROR(co_await core_->Close());
   opened_ = false;
-  core_->Close();
+  co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
@@ -177,7 +182,7 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
   Executor executor() const { return executor_; }
 
   [[nodiscard]] awaitable<Error> Open();
-  void Close();
+  [[nodiscard]] awaitable<Error> Close();
 
   [[nodiscard]] awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept();
 
@@ -237,11 +242,13 @@ awaitable<Error> WebSocketTransport::Core::Open() {
   co_return OK;
 }
 
-void WebSocketTransport::Core::Close() {}
+awaitable<Error> WebSocketTransport::Core::Close() {
+  co_return OK;
+}
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
 WebSocketTransport::Core::Accept() {
-  // TODO: Implement this.
+  // TODO: Implement.
   co_return ERR_ACCESS_DENIED;
 }
 
@@ -302,8 +309,11 @@ WebSocketTransport::WebSocketTransport(const Executor& executor,
     : core_{std::make_shared<Core>(executor, std::move(host), port)} {}
 
 WebSocketTransport::~WebSocketTransport() {
-  if (core_)
-    core_->Close();
+  if (core_) {
+    boost::asio::co_spawn(
+        core_->executor(), [core = core_] { return core->Close(); },
+        boost::asio::detached);
+  }
 }
 
 awaitable<Error> WebSocketTransport::Open() {
@@ -311,9 +321,10 @@ awaitable<Error> WebSocketTransport::Open() {
   return core_->Open();
 }
 
-void WebSocketTransport::Close() {
-  core_->Close();
-  core_ = nullptr;
+awaitable<Error> WebSocketTransport::Close() {
+  auto core = std::exchange(core_, nullptr);
+  co_await core->Close();
+  co_return OK;
 }
 
 Executor WebSocketTransport::GetExecutor() const {

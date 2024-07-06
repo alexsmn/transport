@@ -75,7 +75,7 @@ class Session final : public Transport {
 
   // Transport
   [[nodiscard]] virtual awaitable<Error> Open() override;
-  virtual void Close() override;
+  [[nodiscard]] virtual awaitable<Error> Close() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -122,9 +122,11 @@ class Session final : public Transport {
 
   using SessionMap = std::map<SessionID, Session*, SessionIDLess>;
 
-  [[nodiscard]] awaitable<void> OpenTransport();
   [[nodiscard]] awaitable<Error> Connect();
-  void CloseTransport();
+
+  [[nodiscard]] awaitable<void> OpenTransport();
+  [[nodiscard]] awaitable<void> CloseTransport();
+  void Cleanup();
 
   void PostMessage(const void* data, size_t len, bool seq, int priority);
   bool IsSendPossible() const;

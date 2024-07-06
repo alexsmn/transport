@@ -179,9 +179,7 @@ TEST_F(MessageTransportTest, CompositeMessage_CloseInTheMiddle) {
 
         EXPECT_EQ(co_await ReadMessage(), message1);
         EXPECT_EQ(co_await ReadMessage(), message2);
-
-        message_transport_->Close();
-
+        EXPECT_EQ(co_await message_transport_->Close(), OK);
         EXPECT_EQ(co_await ReadMessage(), ERR_CONNECTION_CLOSED);
       },
       boost::asio::detached);
