@@ -1,150 +1,65 @@
 # Transport
+Asynchronous transport library based on coroutines.
 
-Asynchronous transport library based on Boost.Asio with a promise-based API.
+The library provides a higher-level abstraction above [Boost.Asio](https://www.boost.org/doc/libs/1_85_0/doc/html/boost_asio.html).
 
-The library provides a unified abstraction over various [Boost.Asio](https://www.boost.org/doc/libs/1_85_0/doc/html/boost_asio.html) I/O objects:
-
-* TCP socket
-* UDP socket
-* WebSocket
-* Serial port
-* Named pipe (Windows)
-* In-process transport (for testing)
-
-Transports are created from string descriptions via a factory.
-
-## Transport String Format
-
-Semicolon-delimited parameters: `Protocol;Direction;Param=Value;...`
-
-Examples:
-- `TCP;Active;Host=localhost;Port=1234` - TCP client
-- `TCP;Passive;Port=1234` - TCP server
-- `UDP;Active;Host=localhost;Port=5000` - UDP client
-- `SERIAL;Name=COM1;BaudRate=9600` - Serial port
-- `WS;Active;Host=localhost;Port=8080` - WebSocket client
-
-## Example: Echo Server
+Echo server example:
 
 ```c++
-#include "net/transport_factory_impl.h"
-#include "net/transport_string.h"
+ErrorOr<awaitable<void>> RunServer(boost::asio::io_context& io_context) {
+  TransportFactoryImpl transport_factory{io_context};
+  NET_ASSIGN_OR_CO_ERROR(auto server,
+    transport_factory.CreateTransport(TransportString{“TCP;Passive;Port=1234”}));
+  NET_CO_RETURN_IF_ERROR(co_await server.open());
+  for (;;) {
+    NET_ASSIGN_OR_CO_RETURN(auto accepted_transport,
+                            co_await server.accept());
+    boost::asio::co_spawn(io_context.get_executor(),
+                          RunEcho(std::move(accepted_transport)),
+                          boost::asio::detached);
+  }
+}
 
-void RunServer(boost::asio::io_context& io_context) {
-  net::TransportFactoryImpl factory{io_context};
-  auto executor = io_context.get_executor();
+awaitable<Error> RunEcho(any_transport transport) {
+  std::vector<char> buffer;
 
-  auto server = factory.CreateTransport(
-      net::TransportString{"TCP;Passive;Port=1234"}, executor);
-
-  server->Open({
-      .on_accept = [&](std::unique_ptr<net::Transport> client) {
-        auto tr = std::shared_ptr<net::Transport>{client.release()};
-        tr->Open({
-            .on_close = [tr](net::Error) mutable { tr.reset(); },
-            .on_data = [tr]() {
-              std::array<char, 1024> buffer;
-              int bytes_read = tr->Read(buffer);
-              if (bytes_read > 0) {
-                tr->Write(std::span{buffer}.subspan(0, bytes_read));
-              }
-            }
-        });
-      }
-  });
-
-  io_context.run();
+  for (;;) {
+    buffer.resize(64);
+    NET_ASSIGN_OR_CO_RETURN(auto bytes_read, co_await transport.read(buffer));
+    if (bytes_read == 0) {
+      // Graceful close.
+      co_return OK;
+    }
+    buffer.resize(*bytes_read);
+    NET_ASSIGN_OR_CO_RETURN(auto bytes_written, co_await transport.write(buffer));
+    if (bytes_written != bytes_read) {
+      co_return ERR_FAILED;
+    }
+  }
 }
 ```
 
-## Example: Client
+Client example:
 
 ```c++
-void RunClient(boost::asio::io_context& io_context) {
-  net::TransportFactoryImpl factory{io_context};
-  auto executor = io_context.get_executor();
+ErrorOr<awaitable<void>> RunClient(boost::asio::io_context& io_context) {
+  TransportFactoryImpl transport_factory{io_context};
+  NET_ASSIGN_OR_CO_ERROR(auto client,
+    transport_factory.CreateTransport(TransportString{“TCP;Active;Port=1234”}));
 
-  auto client = factory.CreateTransport(
-      net::TransportString{"TCP;Active;Host=localhost;Port=1234"}, executor);
+  const char message[] = {1, 2, 3};
+  NET_ASSIGN_OR_CO_ERROR(auto result, co_await client.write(message));
 
-  client->Open({
-      .on_open = [&]() {
-        const char message[] = "Hello";
-        client->Write(message);
-      },
-      .on_close = [](net::Error error) {
-        // Handle disconnection
-      },
-      .on_data = [&]() {
-        std::array<char, 1024> buffer;
-        int bytes_read = client->Read(buffer);
-        // Process received data
-      }
-  });
+  std::vector<char> buffer(64);
+  NET_ASSIGN_OR_CO_ERROR(auto bytes_read, co_await client.read(buffer));
+  if (bytes_read == 0) {
+    co_return ERR_CONNECTION_CLOSED;
+  }
+  buffer.resize(bytes_read);
+  if (!std::ranges::equal(buffer, message)) {
+    co_return ERR_FAILED;
+  }
 
-  io_context.run();
+  co_return OK;
 }
-```
-
-## API Overview
-
-### Transport Interface
-
-- `promise<void> Open(Handlers)` - Open with event callbacks
-- `void Close()` - Close the transport
-- `int Read(std::span<char>)` - Read available data (returns bytes read or error)
-- `promise<size_t> Write(std::span<const char>)` - Write data asynchronously
-
-### Event Handlers
-
-```c++
-struct Handlers {
-  std::function<void()> on_open;
-  std::function<void(Error)> on_close;
-  std::function<void()> on_data;                          // For streaming transports
-  std::function<void(std::span<const char>)> on_message;  // For message-oriented transports
-  std::function<void(std::unique_ptr<Transport>)> on_accept;  // For passive transports
-};
-```
-
-## Prerequisites
-
-- **C++20** compiler (MSVC 2022+, GCC 11+, Clang 14+)
-- **CMake** 3.25+
-- **Ninja** (recommended) or Visual Studio
-
-### Dependencies
-
-Dependencies are managed via `vcpkg.json` manifest and installed automatically during CMake configure.
-
-External dependency fetched via CMake:
-
-- [promise.hpp](https://github.com/alexsmn/promise.hpp) - Promise-based async
-
-## Building
-
-### Windows
-
-Run from **Developer Command Prompt for VS 2022**, or set up the environment first:
-
-```batch
-"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
-```
-
-Set `VCPKG_ROOT` to your vcpkg installation (e.g., `d:\vcpkg`):
-
-```batch
-set VCPKG_ROOT=d:\vcpkg
-
-cmake --preset ninja
-cmake --build --preset release
-ctest --preset release
-```
-
-### Linux
-
-```bash
-cmake --preset ninja
-cmake --build --preset release
-ctest --preset release
 ```
