@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(net)
+project(transport)
 
-add_subdirectory(net)
+add_subdirectory(transport)
