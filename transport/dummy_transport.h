@@ -8,7 +8,7 @@ class DummyTransport : public Transport {
  public:
   // Transport
   virtual awaitable<Error> Open() override;
-  virtual void Close() override;
+  virtual awaitable<Error> Close() override;
   virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
@@ -29,9 +29,11 @@ inline awaitable<Error> DummyTransport::Open() {
   co_return OK;
 }
 
-inline void DummyTransport::Close() {
+inline awaitable<Error> DummyTransport::Close() {
   opened_ = false;
   connected_ = false;
+
+  co_return OK;
 }
 
 inline awaitable<ErrorOr<std::unique_ptr<Transport>>> DummyTransport::Accept() {
