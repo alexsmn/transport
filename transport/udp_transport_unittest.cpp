@@ -67,16 +67,16 @@ std::unique_ptr<Transport> AsioUdpTransportTest::OpenTransport(bool active) {
 
   EXPECT_CALL(*socket, Open());
 
-  boost::asio::co_spawn(transport->GetExecutor(), transport->Open(),
+  boost::asio::co_spawn(transport->get_executor(), transport->open(),
                         boost::asio::detached);
 
-  EXPECT_FALSE(transport->IsActive());
-  EXPECT_FALSE(transport->IsConnected());
+  EXPECT_FALSE(transport->active());
+  EXPECT_FALSE(transport->connected());
 
   const UdpSocket::Endpoint endpoint;
   open_handler(endpoint);
 
-  EXPECT_TRUE(transport->IsConnected());
+  EXPECT_TRUE(transport->connected());
 
   return transport;
 }
@@ -92,7 +92,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportImmediatelyDestroyed) {
   ReceiveMessage();
 
   CoTest([&]() -> awaitable<void> {
-    auto accepted_transport = co_await transport->Accept();
+    auto accepted_transport = co_await transport->accept();
     EXPECT_TRUE(accepted_transport.ok());
   });
 
@@ -104,11 +104,11 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
   ReceiveMessage();
 
   CoTest([&]() -> awaitable<void> {
-    auto accepted_transport = co_await transport->Accept();
+    auto accepted_transport = co_await transport->accept();
     EXPECT_TRUE(accepted_transport.ok());
 
     std::array<char, 1024> buffer;
-    auto received_message = co_await (*accepted_transport)->Read(buffer);
+    auto received_message = co_await (*accepted_transport)->read(buffer);
     // TODO: Compare the message with the expected one.
     EXPECT_TRUE(received_message.ok());
   });
@@ -121,10 +121,10 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
   ReceiveMessage();
 
   CoTest([&]() -> awaitable<void> {
-    auto accepted_transport = co_await transport->Accept();
+    auto accepted_transport = co_await transport->accept();
     EXPECT_TRUE(accepted_transport.ok());
-    EXPECT_EQ(co_await (*accepted_transport)->Close(), OK);
-    EXPECT_FALSE((*accepted_transport)->IsConnected());
+    EXPECT_EQ(co_await (*accepted_transport)->close(), OK);
+    EXPECT_FALSE((*accepted_transport)->connected());
   });
 
   EXPECT_CALL(*socket, Close());

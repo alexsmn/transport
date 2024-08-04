@@ -26,7 +26,7 @@ inline ErrorOr<any_transport> InprocessTransportFactory::CreateTransport(
     std::shared_ptr<const Logger> logger) {
   auto channel_name = transport_string.GetParamStr(TransportString::kParamName);
 
-  return transport_string.IsActive()
+  return transport_string.active()
              ? inprocess_transport_host_.CreateClient(executor, channel_name)
              : inprocess_transport_host_.CreateServer(executor, channel_name);
 }

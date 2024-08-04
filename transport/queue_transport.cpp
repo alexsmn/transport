@@ -16,7 +16,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-[[nodiscard]] awaitable<Error> QueueTransport::Open() {
+[[nodiscard]] awaitable<Error> QueueTransport::open() {
   if (active_) {
     assert(peer_);
     peer_->OnAccept(*this);
@@ -29,23 +29,23 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   co_return OK;
 }
 
-awaitable<Error> QueueTransport::Close() {
+awaitable<Error> QueueTransport::close() {
   connected_ = false;
   timer_.Stop();
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> QueueTransport::Accept() {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> QueueTransport::accept() {
   assert(false);
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> QueueTransport::Read(std::span<char> data) {
+awaitable<ErrorOr<size_t>> QueueTransport::read(std::span<char> data) {
   assert(false);
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> QueueTransport::Write(std::span<const char> data) {
+awaitable<ErrorOr<size_t>> QueueTransport::write(std::span<const char> data) {
   if (data.empty()) {
     co_return ERR_INVALID_ARGUMENT;
   }
@@ -72,7 +72,7 @@ void QueueTransport::Exec() {
   assert(!message.empty());
 }
 
-std::string QueueTransport::GetName() const {
+std::string QueueTransport::name() const {
   return "Queue";
 }
 

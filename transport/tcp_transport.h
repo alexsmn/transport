@@ -24,13 +24,13 @@ class TcpTransport final : public AsioTransport {
   int GetLocalPort() const;
 
   // Transport overrides
-  [[nodiscard]] virtual awaitable<Error> Open() override;
+  [[nodiscard]] virtual awaitable<Error> open() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override;
 
-  virtual std::string GetName() const override;
-  virtual bool IsActive() const override { return type_ == Type::ACTIVE; }
+  virtual std::string name() const override;
+  virtual bool active() const override { return type_ == Type::ACTIVE; }
 
  private:
   class ActiveCore;

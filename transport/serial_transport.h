@@ -23,11 +23,11 @@ class SerialTransport final : public AsioTransport {
                   const Options& options);
 
   // Transport overrides
-  [[nodiscard]] virtual awaitable<Error> Open() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<Error> open() override;
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override;
-  virtual std::string GetName() const override;
-  virtual bool IsActive() const override { return true; }
+  virtual std::string name() const override;
+  virtual bool active() const override { return true; }
 
  private:
   class SerialPortCore;

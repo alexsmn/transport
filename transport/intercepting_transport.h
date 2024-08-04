@@ -13,13 +13,13 @@ class InterceptingTransport : public DelegatingTransport {
         underlying_transport_{std::move(underlying_transport)},
         interceptor_{interceptor} {}
 
-  virtual awaitable<ErrorOr<size_t>> Write(
+  virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override {
     if (auto intercepted = interceptor_.InterceptWrite(data)) {
       co_return std::move(*intercepted);
     }
 
-    co_return co_await DelegatingTransport::Write(data);
+    co_return co_await DelegatingTransport::write(data);
   }
 
  private:

@@ -10,7 +10,7 @@ namespace transport {
 
 void WriteQueue::BlindWrite(std::span<const char> data) {
   boost::asio::co_spawn(
-      transport_.GetExecutor(),
+      transport_.get_executor(),
       [this, data = std::vector<char>{data.begin(), data.end()},
        cancelation = std::weak_ptr{cancelation_}]() -> awaitable<void> {
         if (cancelation.expired()) {
@@ -22,7 +22,7 @@ void WriteQueue::BlindWrite(std::span<const char> data) {
 }
 
 awaitable<ErrorOr<size_t>> WriteQueue::Write(std::span<const char> data) {
-  auto current_write = std::make_shared<Channel>(transport_.GetExecutor(),
+  auto current_write = std::make_shared<Channel>(transport_.get_executor(),
                                                  /*max_buffer_size =*/1);
 
   auto cancelation = std::weak_ptr{cancelation_};
@@ -35,7 +35,7 @@ awaitable<ErrorOr<size_t>> WriteQueue::Write(std::span<const char> data) {
     co_return ERR_ABORTED;
   }
 
-  auto write_result = co_await transport_.Write(data);
+  auto write_result = co_await transport_.write(data);
 
   co_await current_write->async_send(boost::system::error_code{},
                                      boost::asio::use_awaitable);

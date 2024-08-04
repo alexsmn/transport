@@ -19,7 +19,7 @@ class Connector {
  public:
   virtual ~Connector() = default;
 
-  [[nodiscard]] virtual awaitable<Error> Open() = 0;
+  [[nodiscard]] virtual awaitable<Error> open() = 0;
 };
 
 class Sender {
@@ -28,7 +28,7 @@ class Sender {
 
   // Caller must retain the buffer until the operation completes.
   // Returns amount of bytes written or an error.
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> buffer) = 0;
 };
 
@@ -38,7 +38,7 @@ class Reader {
 
   // For streaming transports. Caller must retain the buffer until the operation
   // completes. Returns zero when transport is closed.
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> buffer) = 0;
 };
 
@@ -46,16 +46,16 @@ class TransportMetadata {
  public:
   virtual ~TransportMetadata() = default;
 
-  [[nodiscard]] virtual std::string GetName() const = 0;
+  [[nodiscard]] virtual std::string name() const = 0;
 
   // Transport supports messages by itself without using of MessageReader.
   // If returns false, Read has to be implemented.
-  [[nodiscard]] virtual bool IsMessageOriented() const = 0;
+  [[nodiscard]] virtual bool message_oriented() const = 0;
 
-  [[nodiscard]] virtual bool IsConnected() const = 0;
+  [[nodiscard]] virtual bool connected() const = 0;
 
   // Active means the transport is a client (not a server) transport.
-  [[nodiscard]] virtual bool IsActive() const = 0;
+  [[nodiscard]] virtual bool active() const = 0;
 };
 
 // TODO: Make non-virtual.
@@ -72,12 +72,12 @@ class Transport : public Connector,
   Transport(const Transport&) = delete;
   Transport& operator=(const Transport&) = delete;
 
-  [[nodiscard]] virtual Executor GetExecutor() const = 0;
+  [[nodiscard]] virtual Executor get_executor() const = 0;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
-  Accept() = 0;
+  accept() = 0;
 
-  [[nodiscard]] virtual awaitable<Error> Close() = 0;
+  [[nodiscard]] virtual awaitable<Error> close() = 0;
 };
 
 }  // namespace transport

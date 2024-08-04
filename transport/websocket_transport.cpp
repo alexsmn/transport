@@ -111,25 +111,25 @@ class WebSocketTransport::Connection : public Transport {
   ~Connection();
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> Open() override;
-  [[nodiscard]] virtual awaitable<Error> Close() override;
+  [[nodiscard]] virtual awaitable<Error> open() override;
+  [[nodiscard]] virtual awaitable<Error> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override {
     co_return ERR_NOT_IMPLEMENTED;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
 
-  virtual std::string GetName() const override { return "WebSocket"; }
-  virtual bool IsMessageOriented() const override { return true; }
-  virtual bool IsConnected() const override { return true; }
-  virtual bool IsActive() const override { return false; }
-  virtual Executor GetExecutor() const override;
+  virtual std::string name() const override { return "WebSocket"; }
+  virtual bool message_oriented() const override { return true; }
+  virtual bool connected() const override { return true; }
+  virtual bool active() const override { return false; }
+  virtual Executor get_executor() const override;
 
  private:
   const std::shared_ptr<ConnectionCore> core_;
@@ -144,7 +144,7 @@ WebSocketTransport::Connection::~Connection() {
   }
 }
 
-awaitable<Error> WebSocketTransport::Connection::Open() {
+awaitable<Error> WebSocketTransport::Connection::open() {
   assert(!opened_);
 
   opened_ = true;
@@ -152,24 +152,24 @@ awaitable<Error> WebSocketTransport::Connection::Open() {
   return core_->Open();
 }
 
-awaitable<Error> WebSocketTransport::Connection::Close() {
+awaitable<Error> WebSocketTransport::Connection::close() {
   NET_CO_RETURN_IF_ERROR(co_await core_->Close());
   opened_ = false;
   co_return OK;
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
-WebSocketTransport::Connection::Accept() {
+WebSocketTransport::Connection::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> WebSocketTransport::Connection::Write(
+awaitable<ErrorOr<size_t>> WebSocketTransport::Connection::write(
     std::span<const char> data) {
   assert(opened_);
   return core_->Write(data);
 }
 
-Executor WebSocketTransport::Connection::GetExecutor() const {
+Executor WebSocketTransport::Connection::get_executor() const {
   return core_->executor();
 }
 
@@ -316,22 +316,22 @@ WebSocketTransport::~WebSocketTransport() {
   }
 }
 
-awaitable<Error> WebSocketTransport::Open() {
+awaitable<Error> WebSocketTransport::open() {
   assert(core_);
   return core_->Open();
 }
 
-awaitable<Error> WebSocketTransport::Close() {
+awaitable<Error> WebSocketTransport::close() {
   auto core = std::exchange(core_, nullptr);
   co_await core->Close();
   co_return OK;
 }
 
-Executor WebSocketTransport::GetExecutor() const {
+Executor WebSocketTransport::get_executor() const {
   return core_->executor();
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> WebSocketTransport::Accept() {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> WebSocketTransport::accept() {
   co_return co_await core_->Accept();
 }
 

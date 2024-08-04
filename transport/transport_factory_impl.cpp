@@ -95,7 +95,7 @@ ErrorOr<any_transport> TransportFactoryImpl::CreateTransport(
                  transport_string.ToString().c_str());
 
   auto protocol = transport_string.GetProtocol();
-  bool active = transport_string.IsActive();
+  bool active = transport_string.active();
 
   if (protocol == TransportString::PROTOCOL_COUNT)
     protocol = TransportString::TCP;

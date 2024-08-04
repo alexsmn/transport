@@ -32,7 +32,7 @@ inline awaitable<Error> ReadMessage(Transport& transport,
                                     size_t max_size,
                                     std::vector<char>& buffer) {
   buffer.resize(max_size);
-  NET_ASSIGN_OR_CO_RETURN(auto bytes_read, co_await transport.Read(buffer));
+  NET_ASSIGN_OR_CO_RETURN(auto bytes_read, co_await transport.read(buffer));
   buffer.resize(bytes_read);
   co_return OK;
 }
