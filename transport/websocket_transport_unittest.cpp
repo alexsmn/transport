@@ -39,7 +39,7 @@ TEST_F(WebSocketTransportTest, Test) {
         // any IP address.
         WebSocketTransport server{io_context.get_executor(), "0.0.0.0", port};
 
-        co_await server.Open();
+        co_await server.open();
 
         io_context.stop();
       },

@@ -8,28 +8,28 @@ class StubTransport : public Transport {
  public:
   explicit StubTransport(const Executor& executor) : executor_{executor} {}
 
-  virtual awaitable<Error> Open() override { co_return OK; }
+  virtual awaitable<Error> open() override { co_return OK; }
 
-  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() {
+  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept() {
     co_return ERR_NOT_IMPLEMENTED;
   }
 
-  virtual awaitable<Error> Close() override { co_return OK; }
+  virtual awaitable<Error> close() override { co_return OK; }
 
-  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> buffer) override {
+  virtual awaitable<ErrorOr<size_t>> read(std::span<char> buffer) override {
     co_return 0;
   }
 
-  virtual awaitable<ErrorOr<size_t>> Write(
+  virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> buffer) override {
     co_return buffer.size();
   }
 
-  virtual std::string GetName() const override { return "StubTransport"; }
-  virtual bool IsMessageOriented() const override { return true; }
-  virtual bool IsConnected() const override { return false; }
-  virtual bool IsActive() const override { return true; }
-  virtual Executor GetExecutor() const override { return executor_; }
+  virtual std::string name() const override { return "StubTransport"; }
+  virtual bool message_oriented() const override { return true; }
+  virtual bool connected() const override { return false; }
+  virtual bool active() const override { return true; }
+  virtual Executor get_executor() const override { return executor_; }
 
  private:
   Executor executor_;

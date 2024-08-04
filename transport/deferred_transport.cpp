@@ -16,7 +16,7 @@ namespace transport {
 // weak pointers to itself internally.
 struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
   explicit Core(std::unique_ptr<Transport> underlying_transport)
-      : executor_{underlying_transport->GetExecutor()},
+      : executor_{underlying_transport->get_executor()},
         underlying_transport_{std::move(underlying_transport)} {
     assert(underlying_transport_);
   }
@@ -55,17 +55,17 @@ void DeferredTransport::set_additional_close_handler(CloseHandler handler) {
                         });
 }
 
-bool DeferredTransport::IsConnected() const {
-  return core_->underlying_transport_->IsConnected();
+bool DeferredTransport::connected() const {
+  return core_->underlying_transport_->connected();
 }
 
-awaitable<Error> DeferredTransport::Open() {
+awaitable<Error> DeferredTransport::open() {
   return core_->Open();
 }
 
 awaitable<Error> DeferredTransport::Core::Open() {
   auto weak_ref = weak_from_this();
-  auto open_result = co_await underlying_transport_->Open();
+  auto open_result = co_await underlying_transport_->open();
 
   if (weak_ref.expired()) {
     co_return ERR_ABORTED;
@@ -86,7 +86,7 @@ void DeferredTransport::Core::OnClosed(Error error) {
   }
 }
 
-awaitable<Error> DeferredTransport::Close() {
+awaitable<Error> DeferredTransport::close() {
   co_return co_await core_->Close();
 }
 
@@ -96,7 +96,7 @@ awaitable<Error> DeferredTransport::Core::Close() {
   auto additional_close_handler =
       std::exchange(additional_close_handler_, nullptr);
 
-  auto result = co_await underlying_transport_->Close();
+  auto result = co_await underlying_transport_->close();
 
   if (additional_close_handler) {
     additional_close_handler(result);
@@ -105,13 +105,13 @@ awaitable<Error> DeferredTransport::Core::Close() {
   co_return result;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> DeferredTransport::Accept() {
-  co_return co_await core_->underlying_transport_->Accept();
+awaitable<ErrorOr<std::unique_ptr<Transport>>> DeferredTransport::accept() {
+  co_return co_await core_->underlying_transport_->accept();
 }
 
-awaitable<ErrorOr<size_t>> DeferredTransport::Read(std::span<char> data) {
+awaitable<ErrorOr<size_t>> DeferredTransport::read(std::span<char> data) {
   NET_ASSIGN_OR_CO_RETURN(auto bytes_transferred,
-                          co_await core_->underlying_transport_->Read(data));
+                          co_await core_->underlying_transport_->read(data));
 
   if (bytes_transferred == 0) {
     core_->OnClosed(OK);
@@ -120,25 +120,25 @@ awaitable<ErrorOr<size_t>> DeferredTransport::Read(std::span<char> data) {
   co_return bytes_transferred;
 }
 
-awaitable<ErrorOr<size_t>> DeferredTransport::Write(
+awaitable<ErrorOr<size_t>> DeferredTransport::write(
     std::span<const char> data) {
-  co_return co_await core_->underlying_transport_->Write(data);
+  co_return co_await core_->underlying_transport_->write(data);
 }
 
-std::string DeferredTransport::GetName() const {
-  return core_->underlying_transport_->GetName();
+std::string DeferredTransport::name() const {
+  return core_->underlying_transport_->name();
 }
 
-bool DeferredTransport::IsMessageOriented() const {
-  return core_->underlying_transport_->IsMessageOriented();
+bool DeferredTransport::message_oriented() const {
+  return core_->underlying_transport_->message_oriented();
 }
 
-bool DeferredTransport::IsActive() const {
-  return core_->underlying_transport_->IsActive();
+bool DeferredTransport::active() const {
+  return core_->underlying_transport_->active();
 }
 
-Executor DeferredTransport::GetExecutor() const {
-  return core_->underlying_transport_->GetExecutor();
+Executor DeferredTransport::get_executor() const {
+  return core_->underlying_transport_->get_executor();
 }
 
 }  // namespace transport

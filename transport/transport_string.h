@@ -28,7 +28,7 @@ class TransportString {
   bool HasParam(std::string_view name) const;
   std::string_view GetParamStr(std::string_view name) const;
   int GetParamInt(std::string_view name) const;
-  bool IsActive() const { return !HasParam(kParamPassive); }
+  bool active() const { return !HasParam(kParamPassive); }
   Protocol GetProtocol() const;
 
   TransportString& SetParam(std::string_view name);

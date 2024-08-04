@@ -28,8 +28,8 @@ class AsioUdpTransport::UdpActiveCore final
                 std::string service);
 
   // Core
-  virtual Executor GetExecutor() override { return executor_; }
-  virtual bool IsConnected() const override { return connected_; }
+  virtual Executor get_executor() override { return executor_; }
+  virtual bool connected() const override { return connected_; }
 
   [[nodiscard]] virtual awaitable<Error> Open() override;
   [[nodiscard]] virtual awaitable<Error> Close() override;
@@ -159,8 +159,8 @@ class AsioUdpTransport::UdpAcceptedCore final
   ~UdpAcceptedCore();
 
   // Core
-  virtual Executor GetExecutor() override { return executor_; }
-  virtual bool IsConnected() const override { return connected_; }
+  virtual Executor get_executor() override { return executor_; }
+  virtual bool connected() const override { return connected_; }
   virtual awaitable<Error> Open() override;
   virtual awaitable<Error> Close() override;
   virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
@@ -204,8 +204,8 @@ class AsioUdpTransport::UdpPassiveCore final
   ~UdpPassiveCore();
 
   // Core
-  virtual Executor GetExecutor() override { return executor_; }
-  virtual bool IsConnected() const override { return connected_; }
+  virtual Executor get_executor() override { return executor_; }
+  virtual bool connected() const override { return connected_; }
   virtual awaitable<Error> Open() override;
   virtual awaitable<Error> Close() override;
   virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
@@ -535,15 +535,15 @@ AsioUdpTransport::AsioUdpTransport(std::shared_ptr<Core> core)
   core_ = std::move(core);
 }
 
-awaitable<Error> AsioUdpTransport::Open() {
+awaitable<Error> AsioUdpTransport::open() {
   return core_->Open();
 }
 
-std::string AsioUdpTransport::GetName() const {
+std::string AsioUdpTransport::name() const {
   return "UDP";
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> AsioUdpTransport::Accept() {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> AsioUdpTransport::accept() {
   return core_->Accept();
 }
 

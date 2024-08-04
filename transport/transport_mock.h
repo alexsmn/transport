@@ -12,16 +12,16 @@ class TransportMock : public Transport {
   TransportMock() {
     using namespace testing;
 
-    ON_CALL(*this, Open()).WillByDefault(CoReturn(ERR_FAILED));
-    ON_CALL(*this, Close()).WillByDefault(CoReturn(ERR_FAILED));
+    ON_CALL(*this, open()).WillByDefault(CoReturn(ERR_FAILED));
+    ON_CALL(*this, close()).WillByDefault(CoReturn(ERR_FAILED));
 
-    ON_CALL(*this, Read(/*buffer=*/_))
+    ON_CALL(*this, read(/*buffer=*/_))
         .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
 
-    ON_CALL(*this, Write(/*buffer=*/_))
+    ON_CALL(*this, write(/*buffer=*/_))
         .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
 
-    ON_CALL(*this, GetExecutor())
+    ON_CALL(*this, get_executor())
         .WillByDefault(Return(boost::asio::system_executor{}));
   }
 
@@ -29,30 +29,30 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(void, Destroy, ());
 
-  MOCK_METHOD(awaitable<Error>, Open, (), (override));
+  MOCK_METHOD(awaitable<Error>, open, (), (override));
 
-  MOCK_METHOD(awaitable<Error>, Close, (), (override));
+  MOCK_METHOD(awaitable<Error>, close, (), (override));
 
   MOCK_METHOD(awaitable<ErrorOr<std::unique_ptr<Transport>>>,
-              Accept,
+              accept,
               (),
               (override));
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
-              Read,
+              read,
               (std::span<char> buffer),
               (override));
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
-              Write,
+              write,
               (std::span<const char> buffer),
               (override));
 
-  MOCK_METHOD(std::string, GetName, (), (const override));
-  MOCK_METHOD(bool, IsMessageOriented, (), (const override));
-  MOCK_METHOD(bool, IsConnected, (), (const override));
-  MOCK_METHOD(bool, IsActive, (), (const override));
-  MOCK_METHOD(Executor, GetExecutor, (), (const override));
+  MOCK_METHOD(std::string, name, (), (const override));
+  MOCK_METHOD(bool, message_oriented, (), (const override));
+  MOCK_METHOD(bool, connected, (), (const override));
+  MOCK_METHOD(bool, active, (), (const override));
+  MOCK_METHOD(Executor, get_executor, (), (const override));
 };
 
 }  // namespace transport

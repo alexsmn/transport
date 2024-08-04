@@ -23,7 +23,7 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-awaitable<Error> PipeTransport::Open() {
+awaitable<Error> PipeTransport::open() {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
   HANDLE handle;
@@ -57,7 +57,7 @@ awaitable<Error> PipeTransport::Open() {
   co_return OK;
 }
 
-awaitable<Error> PipeTransport::Close() {
+awaitable<Error> PipeTransport::close() {
   if (handle_ == INVALID_HANDLE_VALUE) {
     co_return ERR_INVALID_HANDLE;
   }
@@ -68,11 +68,11 @@ awaitable<Error> PipeTransport::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> PipeTransport::Accept() {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> PipeTransport::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> PipeTransport::Read(std::span<char> data) {
+awaitable<ErrorOr<size_t>> PipeTransport::read(std::span<char> data) {
   OVERLAPPED overlapped = {0};
   DWORD bytes_read;
   if (!ReadFile(handle_, data.data(), data.size(), &bytes_read, &overlapped)) {
@@ -82,7 +82,7 @@ awaitable<ErrorOr<size_t>> PipeTransport::Read(std::span<char> data) {
   co_return bytes_read;
 }
 
-awaitable<ErrorOr<size_t>> PipeTransport::Write(std::span<const char> data) {
+awaitable<ErrorOr<size_t>> PipeTransport::write(std::span<const char> data) {
   DWORD bytes_written = 0;
   if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
     co_return ERR_FAILED;
@@ -91,7 +91,7 @@ awaitable<ErrorOr<size_t>> PipeTransport::Write(std::span<const char> data) {
   co_return bytes_written;
 }
 
-std::string PipeTransport::GetName() const {
+std::string PipeTransport::name() const {
   return "PIPE " + boost::locale::conv::utf_to_utf<char>(name_);
 }
 

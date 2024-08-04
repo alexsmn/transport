@@ -18,24 +18,16 @@ class DeferredTransport final : public Transport {
   void set_additional_close_handler(CloseHandler handler);
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> Open() override;
-
-  virtual awaitable<Error> Close() override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
-      override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
-      std::span<char> data) override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
-      std::span<const char> data) override;
-
-  virtual std::string GetName() const override;
-  virtual bool IsMessageOriented() const override;
-  virtual bool IsConnected() const override;
-  virtual bool IsActive() const override;
-  virtual Executor GetExecutor() const override;
+  virtual awaitable<Error> open() override;
+  virtual awaitable<Error> close() override;
+  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept() override;
+  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
+  virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual std::string name() const override;
+  virtual bool message_oriented() const override;
+  virtual bool connected() const override;
+  virtual bool active() const override;
+  virtual Executor get_executor() const override;
 
  private:
   struct Core;

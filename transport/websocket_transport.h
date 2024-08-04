@@ -9,27 +9,27 @@ class WebSocketTransport final : public Transport {
   WebSocketTransport(const Executor& executor, std::string host, int port);
   ~WebSocketTransport();
 
-  [[nodiscard]] virtual awaitable<Error> Open() override;
-  [[nodiscard]] virtual awaitable<Error> Close() override;
+  [[nodiscard]] virtual awaitable<Error> open() override;
+  [[nodiscard]] virtual awaitable<Error> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override {
     co_return ERR_NOT_IMPLEMENTED;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override {
     co_return data.size();
   }
 
-  virtual std::string GetName() const override { return "WebSocket"; }
-  virtual bool IsMessageOriented() const override { return true; }
-  virtual bool IsConnected() const override { return false; }
-  virtual bool IsActive() const override { return false; }
-  virtual Executor GetExecutor() const override;
+  virtual std::string name() const override { return "WebSocket"; }
+  virtual bool message_oriented() const override { return true; }
+  virtual bool connected() const override { return false; }
+  virtual bool active() const override { return false; }
+  virtual Executor get_executor() const override;
 
  private:
   class Core;

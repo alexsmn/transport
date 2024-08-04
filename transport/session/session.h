@@ -74,28 +74,28 @@ class Session final : public Transport {
   std::unique_ptr<Transport> DetachTransport();
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> Open() override;
-  [[nodiscard]] virtual awaitable<Error> Close() override;
+  [[nodiscard]] virtual awaitable<Error> open() override;
+  [[nodiscard]] virtual awaitable<Error> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
 
-  [[nodiscard]] virtual std::string GetName() const override;
-  [[nodiscard]] virtual bool IsMessageOriented() const override { return true; }
+  [[nodiscard]] virtual std::string name() const override;
+  [[nodiscard]] virtual bool message_oriented() const override { return true; }
 
-  [[nodiscard]] virtual bool IsConnected() const override {
-    return transport_ && transport_->IsConnected();
+  [[nodiscard]] virtual bool connected() const override {
+    return transport_ && transport_->connected();
   }
 
-  [[nodiscard]] virtual bool IsActive() const override { return true; }
+  [[nodiscard]] virtual bool active() const override { return true; }
 
-  [[nodiscard]] virtual Executor GetExecutor() const override {
+  [[nodiscard]] virtual Executor get_executor() const override {
     return executor_;
   }
 

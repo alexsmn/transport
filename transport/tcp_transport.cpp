@@ -153,8 +153,8 @@ class TcpTransport::PassiveCore final
   // Core
   virtual awaitable<Error> Open() override;
   virtual awaitable<Error> Close() override;
-  virtual Executor GetExecutor() override { return acceptor_.get_executor(); }
-  virtual bool IsConnected() const override { return connected_; }
+  virtual Executor get_executor() override { return acceptor_.get_executor(); }
+  virtual bool connected() const override { return connected_; }
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -374,11 +374,11 @@ TcpTransport::~TcpTransport() {
   // The base class closes the core on destruction.
 }
 
-awaitable<Error> TcpTransport::Open() {
+awaitable<Error> TcpTransport::open() {
   co_return co_await core_->Open();
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> TcpTransport::Accept() {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> TcpTransport::accept() {
   co_return co_await core_->Accept();
 }
 
@@ -388,7 +388,7 @@ int TcpTransport::GetLocalPort() const {
              : 0;
 }
 
-std::string TcpTransport::GetName() const {
+std::string TcpTransport::name() const {
   switch (type_) {
     case Type::ACTIVE:
       return "TCP Active";

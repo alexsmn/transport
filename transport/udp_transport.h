@@ -19,14 +19,14 @@ class AsioUdpTransport final : public AsioTransport {
   explicit AsioUdpTransport(std::shared_ptr<Core> core);
 
   // Transport overrides
-  [[nodiscard]] virtual awaitable<Error> Open() override;
+  [[nodiscard]] virtual awaitable<Error> open() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override;
 
-  virtual std::string GetName() const override;
-  virtual bool IsActive() const override { return active_; }
-  virtual bool IsMessageOriented() const override { return true; }
+  virtual std::string name() const override;
+  virtual bool active() const override { return active_; }
+  virtual bool message_oriented() const override { return true; }
 
  private:
   class UdpActiveCore;

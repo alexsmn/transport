@@ -9,47 +9,47 @@ class DelegatingTransport : public Transport {
  public:
   explicit DelegatingTransport(Transport& delegate) : delegate_{delegate} {}
 
-  [[nodiscard]] virtual awaitable<Error> Open() override {
-    return delegate_.Open();
+  [[nodiscard]] virtual awaitable<Error> open() override {
+    return delegate_.open();
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override {
-    return delegate_.Accept();
+    return delegate_.accept();
   }
 
-  [[nodiscard]] awaitable<transport::Error> Close() override {
-    return delegate_.Close();
+  [[nodiscard]] awaitable<transport::Error> close() override {
+    return delegate_.close();
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override {
-    return delegate_.Read(data);
+    return delegate_.read(data);
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override {
-    return delegate_.Write(data);
+    return delegate_.write(data);
   }
 
-  [[nodiscard]] virtual std::string GetName() const override {
-    return delegate_.GetName();
+  [[nodiscard]] virtual std::string name() const override {
+    return delegate_.name();
   }
 
-  [[nodiscard]] virtual bool IsMessageOriented() const override {
-    return delegate_.IsMessageOriented();
+  [[nodiscard]] virtual bool message_oriented() const override {
+    return delegate_.message_oriented();
   }
 
-  [[nodiscard]] virtual bool IsConnected() const override {
-    return delegate_.IsConnected();
+  [[nodiscard]] virtual bool connected() const override {
+    return delegate_.connected();
   }
 
-  [[nodiscard]] virtual bool IsActive() const override {
-    return delegate_.IsActive();
+  [[nodiscard]] virtual bool active() const override {
+    return delegate_.active();
   }
 
-  [[nodiscard]] virtual Executor GetExecutor() const override {
-    return delegate_.GetExecutor();
+  [[nodiscard]] virtual Executor get_executor() const override {
+    return delegate_.get_executor();
   }
 
  protected:

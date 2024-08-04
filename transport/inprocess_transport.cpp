@@ -16,35 +16,35 @@ class InprocessTransportHost::Client final : public Transport {
 
   ~Client();
 
-  virtual bool IsMessageOriented() const override { return true; }
+  virtual bool message_oriented() const override { return true; }
 
-  virtual bool IsConnected() const override {
+  virtual bool connected() const override {
     return accepted_client_ != nullptr;
   }
 
-  virtual bool IsActive() const override { return true; }
+  virtual bool active() const override { return true; }
 
-  virtual std::string GetName() const override {
+  virtual std::string name() const override {
     return std::format("client:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<Error> Open() override;
-  [[nodiscard]] virtual awaitable<Error> Close() override;
+  [[nodiscard]] virtual awaitable<Error> open() override;
+  [[nodiscard]] virtual awaitable<Error> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
-  Accept() {
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
+      override {
     co_return ERR_ACCESS_DENIED;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override {
     co_return ERR_ACCESS_DENIED;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
 
-  virtual Executor GetExecutor() const override { return executor_; }
+  virtual Executor get_executor() const override { return executor_; }
 
   void Receive(std::span<const char> data) {
     // Must be opened.
@@ -83,17 +83,17 @@ class InprocessTransportHost::Server final : public Transport {
     }
   }
 
-  virtual bool IsMessageOriented() const override { return true; }
+  virtual bool message_oriented() const override { return true; }
 
-  virtual bool IsConnected() const override { return opened_; }
+  virtual bool connected() const override { return opened_; }
 
-  virtual bool IsActive() const override { return false; }
+  virtual bool active() const override { return false; }
 
-  virtual std::string GetName() const override {
+  virtual std::string name() const override {
     return std::format("server:{}", channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<Error> Open() override {
+  [[nodiscard]] virtual awaitable<Error> open() override {
     if (opened_) {
       co_return ERR_ADDRESS_IN_USE;
     }
@@ -107,7 +107,7 @@ class InprocessTransportHost::Server final : public Transport {
     co_return OK;
   }
 
-  [[nodiscard]] virtual awaitable<Error> Close() override {
+  [[nodiscard]] virtual awaitable<Error> close() override {
     if (!opened_) {
       co_return ERR_CONNECTION_CLOSED;
     }
@@ -116,19 +116,19 @@ class InprocessTransportHost::Server final : public Transport {
     co_return OK;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override {
     // TODO: Implement.
     co_return ERR_ACCESS_DENIED;
   }
 
-  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override {
+  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override {
     co_return ERR_ACCESS_DENIED;
   }
 
-  virtual Executor GetExecutor() const override { return executor_; }
+  virtual Executor get_executor() const override { return executor_; }
 
-  virtual awaitable<ErrorOr<size_t>> Write(
+  virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override {
     co_return ERR_ACCESS_DENIED;
   }
@@ -155,17 +155,17 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
 
   ~AcceptedClient() { std::erase(server_.accepted_clients_, this); }
 
-  virtual bool IsMessageOriented() const override { return true; }
+  virtual bool message_oriented() const override { return true; }
 
-  virtual bool IsConnected() const override { return opened_; }
+  virtual bool connected() const override { return opened_; }
 
-  virtual bool IsActive() const override { return false; }
+  virtual bool active() const override { return false; }
 
-  virtual std::string GetName() const override {
+  virtual std::string name() const override {
     return std::format("server:{}", server_.channel_name_);
   }
 
-  [[nodiscard]] virtual awaitable<Error> Open() override {
+  [[nodiscard]] virtual awaitable<Error> open() override {
     if (opened_) {
       co_return ERR_ADDRESS_IN_USE;
     }
@@ -174,7 +174,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     co_return OK;
   }
 
-  [[nodiscard]] virtual awaitable<Error> Close() override {
+  [[nodiscard]] virtual awaitable<Error> close() override {
     if (!opened_) {
       co_return ERR_CONNECTION_CLOSED;
     }
@@ -183,22 +183,22 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     co_return OK;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
+  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
       override {
     co_return ERR_ACCESS_DENIED;
   }
 
-  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override {
+  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override {
     co_return ERR_ACCESS_DENIED;
   }
 
-  virtual awaitable<ErrorOr<size_t>> Write(
+  virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override {
     client_.Receive(data);
     co_return data.size();
   }
 
-  virtual Executor GetExecutor() const override { return server_.executor_; }
+  virtual Executor get_executor() const override { return server_.executor_; }
 
   void OnClientClosed() {
     // WARNING: Client might have not called `Open` yet.
@@ -229,7 +229,7 @@ InprocessTransportHost::Client::~Client() {
   }
 }
 
-awaitable<Error> InprocessTransportHost::Client::Open() {
+awaitable<Error> InprocessTransportHost::Client::open() {
   if (accepted_client_) {
     co_return ERR_ADDRESS_IN_USE;
   }
@@ -244,7 +244,7 @@ awaitable<Error> InprocessTransportHost::Client::Open() {
   co_return OK;
 }
 
-awaitable<Error> InprocessTransportHost::Client::Close() {
+awaitable<Error> InprocessTransportHost::Client::close() {
   if (accepted_client_) {
     auto* accepted_client = accepted_client_;
     accepted_client_ = nullptr;
@@ -254,7 +254,7 @@ awaitable<Error> InprocessTransportHost::Client::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<size_t>> InprocessTransportHost::Client::Write(
+awaitable<ErrorOr<size_t>> InprocessTransportHost::Client::write(
     std::span<const char> data) {
   if (!accepted_client_) {
     co_return ERR_CONNECTION_CLOSED;

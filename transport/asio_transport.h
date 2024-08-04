@@ -21,17 +21,17 @@ class AsioTransport : public Transport {
  public:
   ~AsioTransport();
 
-  [[nodiscard]] virtual awaitable<Error> Close() override;
+  [[nodiscard]] virtual awaitable<Error> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
 
-  virtual bool IsMessageOriented() const override;
-  virtual bool IsConnected() const override;
-  virtual Executor GetExecutor() const override;
+  virtual bool message_oriented() const override;
+  virtual bool connected() const override;
+  virtual Executor get_executor() const override;
 
  protected:
   class Core;
@@ -48,8 +48,8 @@ class AsioTransport::Core {
 
   [[nodiscard]] virtual awaitable<Error> Open() = 0;
   [[nodiscard]] virtual awaitable<Error> Close() = 0;
-  [[nodiscard]] virtual Executor GetExecutor() = 0;
-  [[nodiscard]] virtual bool IsConnected() const = 0;
+  [[nodiscard]] virtual Executor get_executor() = 0;
+  [[nodiscard]] virtual bool connected() const = 0;
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
   Accept() = 0;
@@ -69,8 +69,8 @@ class AsioTransport::IoCore : public Core,
  public:
   // Core
   [[nodiscard]] virtual awaitable<Error> Close() override;
-  virtual Executor GetExecutor() override { return io_object_.get_executor(); }
-  virtual bool IsConnected() const override { return connected_; }
+  virtual Executor get_executor() override { return io_object_.get_executor(); }
+  virtual bool connected() const override { return connected_; }
 
   [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
       override;
@@ -201,33 +201,33 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
 
 inline AsioTransport::~AsioTransport() {
   boost::asio::co_spawn(
-      core_->GetExecutor(), [core = core_] { return core->Close(); },
+      core_->get_executor(), [core = core_] { return core->Close(); },
       boost::asio::detached);
 }
 
-inline awaitable<Error> AsioTransport::Close() {
+inline awaitable<Error> AsioTransport::close() {
   return core_->Close();
 }
 
-inline awaitable<ErrorOr<size_t>> AsioTransport::Read(std::span<char> data) {
+inline awaitable<ErrorOr<size_t>> AsioTransport::read(std::span<char> data) {
   co_return co_await core_->Read(data);
 }
 
-inline awaitable<ErrorOr<size_t>> AsioTransport::Write(
+inline awaitable<ErrorOr<size_t>> AsioTransport::write(
     std::span<const char> data) {
   co_return co_await core_->Write(data);
 }
 
-inline bool AsioTransport::IsMessageOriented() const {
+inline bool AsioTransport::message_oriented() const {
   return false;
 }
 
-inline bool AsioTransport::IsConnected() const {
-  return core_->IsConnected();
+inline bool AsioTransport::connected() const {
+  return core_->connected();
 }
 
-inline Executor AsioTransport::GetExecutor() const {
-  return core_->GetExecutor();
+inline Executor AsioTransport::get_executor() const {
+  return core_->get_executor();
 }
 
 }  // namespace transport

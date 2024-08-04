@@ -7,66 +7,66 @@ namespace transport {
 class DummyTransport : public Transport {
  public:
   // Transport
-  virtual awaitable<Error> Open() override;
-  virtual awaitable<Error> Close() override;
-  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
-  virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
-  virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
-  virtual std::string GetName() const override;
-  virtual bool IsMessageOriented() const override;
-  virtual bool IsConnected() const override;
-  virtual bool IsActive() const override;
-  virtual Executor GetExecutor() const override;
+  virtual awaitable<Error> open() override;
+  virtual awaitable<Error> close() override;
+  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept() override;
+  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
+  virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual std::string name() const override;
+  virtual bool message_oriented() const override;
+  virtual bool connected() const override;
+  virtual bool active() const override;
+  virtual Executor get_executor() const override;
 
  private:
   bool opened_ = false;
   bool connected_ = false;
 };
 
-inline awaitable<Error> DummyTransport::Open() {
+inline awaitable<Error> DummyTransport::open() {
   opened_ = true;
 
   co_return OK;
 }
 
-inline awaitable<Error> DummyTransport::Close() {
+inline awaitable<Error> DummyTransport::close() {
   opened_ = false;
   connected_ = false;
 
   co_return OK;
 }
 
-inline awaitable<ErrorOr<std::unique_ptr<Transport>>> DummyTransport::Accept() {
+inline awaitable<ErrorOr<std::unique_ptr<Transport>>> DummyTransport::accept() {
   co_return ERR_NOT_IMPLEMENTED;
 }
 
-inline awaitable<ErrorOr<size_t>> DummyTransport::Read(std::span<char> data) {
+inline awaitable<ErrorOr<size_t>> DummyTransport::read(std::span<char> data) {
   std::ranges::fill(data, 0);
   co_return static_cast<int>(data.size());
 }
 
-inline awaitable<ErrorOr<size_t>> DummyTransport::Write(
+inline awaitable<ErrorOr<size_t>> DummyTransport::write(
     std::span<const char> data) {
   co_return data.size();
 }
 
-inline std::string DummyTransport::GetName() const {
+inline std::string DummyTransport::name() const {
   return "DummyTransport";
 }
 
-inline bool DummyTransport::IsMessageOriented() const {
+inline bool DummyTransport::message_oriented() const {
   return true;
 }
 
-inline bool DummyTransport::IsConnected() const {
+inline bool DummyTransport::connected() const {
   return connected_;
 }
 
-inline bool DummyTransport::IsActive() const {
+inline bool DummyTransport::active() const {
   return true;
 }
 
-inline Executor DummyTransport::GetExecutor() const {
+inline Executor DummyTransport::get_executor() const {
   return boost::asio::system_executor{};
 }
 

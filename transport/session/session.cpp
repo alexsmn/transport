@@ -85,7 +85,7 @@ void Session::Cleanup() {
   }
 }
 
-awaitable<Error> Session::Close() {
+awaitable<Error> Session::close() {
   Cleanup();
 
   state_ = CLOSED;
@@ -94,15 +94,15 @@ awaitable<Error> Session::Close() {
 }
 
 awaitable<void> Session::CloseTransport() {
-  if (state_ != CLOSED && transport_.get() && transport_->IsActive() &&
-      transport_->IsConnected()) {
+  if (state_ != CLOSED && transport_.get() && transport_->active() &&
+      transport_->connected()) {
     SendClose();
   }
 
   connecting_ = false;
 
   if (transport_) {
-    co_await transport_->Close();
+    co_await transport_->close();
   }
 
   // WARNING: |context_| may become null inside |SendClose()| above.
@@ -116,7 +116,7 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
   // TODO: Reset sent messages.
   boost::asio::co_spawn(executor_, CloseTransport(), boost::asio::detached);
 
-  if (transport && !transport->IsMessageOriented()) {
+  if (transport && !transport->message_oriented()) {
     transport = std::make_unique<MessageReaderTransport>(
         std::move(transport), std::make_unique<SessionMessageReader>(),
         logger_);
@@ -131,7 +131,7 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
 }
 
 awaitable<void> Session::OpenTransport() {
-  auto open_result = co_await transport_->Open();
+  auto open_result = co_await transport_->open();
 
   if (open_result != OK) {
     OnTransportClosed(open_result);
@@ -238,7 +238,7 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-awaitable<Error> Session::Open() {
+awaitable<Error> Session::open() {
   assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
@@ -250,16 +250,16 @@ awaitable<Error> Session::Open() {
   return Connect();
 }
 
-awaitable<ErrorOr<size_t>> Session::Read(std::span<char> data) {
+awaitable<ErrorOr<size_t>> Session::read(std::span<char> data) {
   co_return ERR_NOT_IMPLEMENTED;
 }
 
-awaitable<ErrorOr<size_t>> Session::Write(std::span<const char> data) {
+awaitable<ErrorOr<size_t>> Session::write(std::span<const char> data) {
   Send(data.data(), data.size());
   co_return data.size();
 }
 
-std::string Session::GetName() const {
+std::string Session::name() const {
   return "Session";
 }
 
@@ -268,13 +268,13 @@ awaitable<Error> Session::Connect() {
   assert(!cancelation_);
 
   logger_->WriteF(LogSeverity::Normal, "Connecting to %s",
-                  transport_->GetName().c_str());
+                  transport_->name().c_str());
 
   connect_start_ticks_ = Clock::now();
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  auto open_result = co_await transport_->Open();
+  auto open_result = co_await transport_->open();
 
   if (open_result != OK) {
     OnTransportClosed(open_result);
@@ -287,7 +287,7 @@ awaitable<Error> Session::Connect() {
 }
 
 void Session::SendQueuedMessage() {
-  if (!transport_.get() || !transport_->IsConnected())
+  if (!transport_.get() || !transport_->connected())
     return;
 
   if (!cancelation_)
@@ -391,11 +391,11 @@ void Session::OnTransportOpened() {
   assert(transport());
 
   logger_->WriteF(LogSeverity::Normal, "Transport opened. Name is %s",
-                  transport()->GetName().c_str());
+                  transport()->name().c_str());
 
   connecting_ = false;
 
-  if (!transport()->IsActive()) {
+  if (!transport()->active()) {
     return;
   }
 
@@ -421,14 +421,14 @@ void Session::SendPossible() {
 void Session::OnTimer() {
   assert(transport_.get());
 
-  if (!transport_->IsConnected() && !connecting_ && state_ == OPENED &&
+  if (!transport_->connected() && !connecting_ && state_ == OPENED &&
       !accepted_ &&
       Clock::now() - connect_start_ticks_ >= reconnection_period_) {
     boost::asio::co_spawn(executor_, Connect(), boost::asio::detached);
     return;
   }
 
-  if (!transport_->IsConnected())
+  if (!transport_->connected())
     return;
 
   // Acknowledge received messages.
@@ -571,7 +571,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
 
 void Session::SendInternal(const void* data, size_t size) {
   assert(transport());
-  assert(transport()->IsConnected());
+  assert(transport()->connected());
 
   num_bytes_sent_ += size;
   num_messages_sent_++;
@@ -583,7 +583,7 @@ void Session::SendInternal(const void* data, size_t size) {
                                             static_cast<const char*>(data) +
                                                 size}]() -> awaitable<void> {
         // TODO: Handle write result.
-        auto _ = co_await transport()->Write(write_data);
+        auto _ = co_await transport()->write(write_data);
       },
       boost::asio::detached);
 }
@@ -622,7 +622,7 @@ void Session::SendClose() {
   // such case.
 
   assert(transport_.get());
-  assert(transport_->IsConnected());
+  assert(transport_->connected());
 
   ByteBuffer<> msg;
   msg.WriteWord(1);
@@ -633,7 +633,7 @@ void Session::SendClose() {
 
 void Session::SendDataMessage(const SendingMessage& message) {
   assert(transport());
-  assert(transport()->IsConnected());
+  assert(transport()->connected());
 
   assert(message.size > 0);
 

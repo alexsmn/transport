@@ -17,7 +17,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   Core(std::unique_ptr<Transport> child_transport,
        std::unique_ptr<MessageReader> message_reader,
        std::shared_ptr<const Logger> logger)
-      : executor_{child_transport->GetExecutor()},
+      : executor_{child_transport->get_executor()},
         child_transport_{std::move(child_transport)},
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
@@ -53,7 +53,7 @@ MessageReaderTransport::MessageReaderTransport(
                                    std::move(logger))} {
   assert(core_->child_transport_);
   // Passive transport can be connected.
-  // assert(!child_transport_->IsConnected());
+  // assert(!child_transport_->connected());
 }
 
 MessageReaderTransport::~MessageReaderTransport() {
@@ -64,36 +64,36 @@ MessageReader& MessageReaderTransport::message_reader() {
   return *core_->message_reader_;
 }
 
-bool MessageReaderTransport::IsConnected() const {
-  return core_->child_transport_->IsConnected();
+bool MessageReaderTransport::connected() const {
+  return core_->child_transport_->connected();
 }
 
-bool MessageReaderTransport::IsActive() const {
-  return core_->child_transport_->IsActive();
+bool MessageReaderTransport::active() const {
+  return core_->child_transport_->active();
 }
 
-awaitable<Error> MessageReaderTransport::Open() {
+awaitable<Error> MessageReaderTransport::open() {
   return core_->Open();
 }
 
-awaitable<Error> MessageReaderTransport::Close() {
+awaitable<Error> MessageReaderTransport::close() {
   return core_->Close();
 }
 
-bool MessageReaderTransport::IsMessageOriented() const {
+bool MessageReaderTransport::message_oriented() const {
   return true;
 }
 
 [[nodiscard]] awaitable<Error> MessageReaderTransport::Core::Open() {
   // Passive transport can be connected.
-  // assert(!child_transport_->IsConnected());
+  // assert(!child_transport_->connected());
   assert(!cancelation_);
   assert(!opened_);
 
   cancelation_ = std::make_shared<bool>(false);
   opened_ = true;
 
-  return child_transport_->Open();
+  return child_transport_->open();
 }
 
 awaitable<Error> MessageReaderTransport::Core::Close() {
@@ -105,16 +105,16 @@ awaitable<Error> MessageReaderTransport::Core::Close() {
   cancelation_ = nullptr;
   message_reader_->Reset();
 
-  co_return co_await child_transport_->Close();
+  co_return co_await child_transport_->close();
 }
 
 awaitable<ErrorOr<std::unique_ptr<Transport>>>
-MessageReaderTransport::Accept() {
+MessageReaderTransport::accept() {
   auto core = core_;
 
   // TODO: Bind message reader to the accepted transport.
   NET_ASSIGN_OR_CO_RETURN(auto accepted_child_transport,
-                          co_await core->child_transport_->Accept());
+                          co_await core->child_transport_->accept());
 
   co_return std::make_unique<MessageReaderTransport>(
       std::move(accepted_child_transport),
@@ -122,7 +122,7 @@ MessageReaderTransport::Accept() {
       core->logger_);
 }
 
-awaitable<ErrorOr<size_t>> MessageReaderTransport::Read(std::span<char> data) {
+awaitable<ErrorOr<size_t>> MessageReaderTransport::read(std::span<char> data) {
   return core_->ReadMessage(data);
 }
 
@@ -160,7 +160,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     }
 
     // Don't allow composite message to contain partial messages.
-    if (!message_reader_->IsEmpty() && child_transport_->IsMessageOriented()) {
+    if (!message_reader_->IsEmpty() && child_transport_->message_oriented()) {
       // TODO: Print message.
       logger_->Write(LogSeverity::Warning,
                      "Composite message contains a partial message");
@@ -168,7 +168,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     }
 
     auto bytes_read =
-        co_await child_transport_->Read(message_reader_->Prepare());
+        co_await child_transport_->read(message_reader_->Prepare());
 
     if (cancelation.expired()) {
       co_return ERR_ABORTED;
@@ -183,7 +183,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
   }
 }
 
-awaitable<ErrorOr<size_t>> MessageReaderTransport::Write(
+awaitable<ErrorOr<size_t>> MessageReaderTransport::write(
     std::span<const char> data) {
   co_return co_await core_->WriteMessage(std::move(data));
 }
@@ -194,15 +194,15 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::WriteMessage(
     co_return ERR_INVALID_HANDLE;
   }
 
-  co_return co_await child_transport_->Write(std::move(data));
+  co_return co_await child_transport_->write(std::move(data));
 }
 
-std::string MessageReaderTransport::GetName() const {
-  return "MSG:" + core_->child_transport_->GetName();
+std::string MessageReaderTransport::name() const {
+  return "MSG:" + core_->child_transport_->name();
 }
 
-Executor MessageReaderTransport::GetExecutor() const {
-  return core_->child_transport_->GetExecutor();
+Executor MessageReaderTransport::get_executor() const {
+  return core_->child_transport_->get_executor();
 }
 
 }  // namespace transport

@@ -19,19 +19,23 @@ class any_transport {
   explicit operator bool() const { return transport_ != nullptr; }
 
   [[nodiscard]] Executor get_executor() const {
-    return transport_ ? transport_->GetExecutor() : Executor{};
+    return transport_ ? transport_->get_executor() : Executor{};
   }
 
   [[nodiscard]] std::string name() const {
-    return transport_ ? transport_->GetName() : std::string{};
+    return transport_ ? transport_->name() : std::string{};
   }
 
   [[nodiscard]] bool message_oriented() const {
-    return transport_ && transport_->IsMessageOriented();
+    return transport_ && transport_->message_oriented();
   }
 
   [[nodiscard]] bool active() const {
-    return transport_ && transport_->IsActive();
+    return transport_ && transport_->active();
+  }
+
+  [[nodiscard]] bool connected() const {
+    return transport_ && transport_->connected();
   }
 
   [[nodiscard]] Transport* get_impl() { return transport_.get(); }
@@ -42,7 +46,7 @@ class any_transport {
       co_return ERR_INVALID_HANDLE;
     }
 
-    co_return co_await transport_->Open();
+    co_return co_await transport_->open();
   }
 
   [[nodiscard]] awaitable<Error> close() {
@@ -52,7 +56,7 @@ class any_transport {
       co_return ERR_INVALID_HANDLE;
     }
 
-    co_return co_await transport_->Close();
+    co_return co_await transport_->close();
   }
 
   [[nodiscard]] awaitable<ErrorOr<any_transport>> accept() {
@@ -60,7 +64,7 @@ class any_transport {
       co_return ERR_INVALID_HANDLE;
     }
 
-    NET_ASSIGN_OR_CO_RETURN(auto transport, co_await transport_->Accept());
+    NET_ASSIGN_OR_CO_RETURN(auto transport, co_await transport_->accept());
 
     co_return any_transport{std::move(transport)};
   }
@@ -70,7 +74,7 @@ class any_transport {
       co_return ERR_INVALID_HANDLE;
     }
 
-    co_return co_await transport_->Read(data);
+    co_return co_await transport_->read(data);
   }
 
   [[nodiscard]] awaitable<ErrorOr<size_t>> write(
@@ -79,7 +83,7 @@ class any_transport {
       co_return ERR_INVALID_HANDLE;
     }
 
-    co_return co_await transport_->Write(data);
+    co_return co_await transport_->write(data);
   }
 
  private:

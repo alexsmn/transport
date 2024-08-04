@@ -93,18 +93,18 @@ SerialTransport::SerialTransport(const Executor& executor,
       device_{std::move(device)},
       options_{options} {}
 
-awaitable<Error> SerialTransport::Open() {
+awaitable<Error> SerialTransport::open() {
   core_ =
       std::make_shared<SerialPortCore>(executor_, logger_, device_, options_);
 
   return core_->Open();
 }
 
-std::string SerialTransport::GetName() const {
+std::string SerialTransport::name() const {
   return device_;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> SerialTransport::Accept() {
+awaitable<ErrorOr<std::unique_ptr<Transport>>> SerialTransport::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 
