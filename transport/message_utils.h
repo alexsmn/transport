@@ -2,7 +2,6 @@
 
 #include "transport/any_transport.h"
 #include "transport/bytemsg.h"
-#include "transport/transport.h"
 
 #include <stdexcept>
 #include <string>
@@ -28,24 +27,13 @@ inline unsigned short SwapBytesInWord(unsigned short value) {
 }
 
 // Empty result buffer means connection is closed.
-inline awaitable<Error> ReadMessage(Transport& transport,
+inline awaitable<Error> ReadMessage(any_transport& transport,
                                     size_t max_size,
                                     std::vector<char>& buffer) {
   buffer.resize(max_size);
   NET_ASSIGN_OR_CO_RETURN(auto bytes_read, co_await transport.read(buffer));
   buffer.resize(bytes_read);
   co_return OK;
-}
-
-inline awaitable<Error> ReadMessage(any_transport& transport,
-                                    size_t max_size,
-                                    std::vector<char>& buffer) {
-  auto* impl = transport.get_impl();
-  if (!impl) {
-    co_return ERR_INVALID_HANDLE;
-  }
-
-  co_return co_await ReadMessage(*impl, max_size, buffer);
 }
 
 }  // namespace transport

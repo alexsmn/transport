@@ -1,5 +1,6 @@
 #include "transport/message_reader_transport.h"
 
+#include "transport/any_transport.h"
 #include "transport/auto_reset.h"
 #include "transport/error.h"
 #include "transport/logger.h"
@@ -14,10 +15,10 @@ namespace transport {
 // MessageReaderTransport::Core
 
 struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
-  Core(std::unique_ptr<Transport> child_transport,
+  Core(any_transport child_transport,
        std::unique_ptr<MessageReader> message_reader,
        std::shared_ptr<const Logger> logger)
-      : executor_{child_transport->get_executor()},
+      : executor_{child_transport.get_executor()},
         child_transport_{std::move(child_transport)},
         message_reader_{std::move(message_reader)},
         logger_{std::move(logger)} {}
@@ -31,7 +32,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
       std::span<const char> data);
 
   Executor executor_;
-  std::unique_ptr<Transport> child_transport_;
+  any_transport child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
   const std::shared_ptr<const Logger> logger_;
 
@@ -45,7 +46,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
 // MessageReaderTransport
 
 MessageReaderTransport::MessageReaderTransport(
-    std::unique_ptr<Transport> child_transport,
+    any_transport child_transport,
     std::unique_ptr<MessageReader> message_reader,
     std::shared_ptr<const Logger> logger)
     : core_{std::make_shared<Core>(std::move(child_transport),
@@ -53,7 +54,7 @@ MessageReaderTransport::MessageReaderTransport(
                                    std::move(logger))} {
   assert(core_->child_transport_);
   // Passive transport can be connected.
-  // assert(!child_transport_->connected());
+  // assert(!child_transport_.connected());
 }
 
 MessageReaderTransport::~MessageReaderTransport() {
@@ -65,11 +66,11 @@ MessageReader& MessageReaderTransport::message_reader() {
 }
 
 bool MessageReaderTransport::connected() const {
-  return core_->child_transport_->connected();
+  return core_->child_transport_.connected();
 }
 
 bool MessageReaderTransport::active() const {
-  return core_->child_transport_->active();
+  return core_->child_transport_.active();
 }
 
 awaitable<Error> MessageReaderTransport::open() {
@@ -86,14 +87,14 @@ bool MessageReaderTransport::message_oriented() const {
 
 [[nodiscard]] awaitable<Error> MessageReaderTransport::Core::Open() {
   // Passive transport can be connected.
-  // assert(!child_transport_->connected());
+  // assert(!child_transport_.connected());
   assert(!cancelation_);
   assert(!opened_);
 
   cancelation_ = std::make_shared<bool>(false);
   opened_ = true;
 
-  return child_transport_->open();
+  return child_transport_.open();
 }
 
 awaitable<Error> MessageReaderTransport::Core::Close() {
@@ -105,21 +106,20 @@ awaitable<Error> MessageReaderTransport::Core::Close() {
   cancelation_ = nullptr;
   message_reader_->Reset();
 
-  co_return co_await child_transport_->close();
+  co_return co_await child_transport_.close();
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>>
-MessageReaderTransport::accept() {
+awaitable<ErrorOr<any_transport>> MessageReaderTransport::accept() {
   auto core = core_;
 
   // TODO: Bind message reader to the accepted transport.
   NET_ASSIGN_OR_CO_RETURN(auto accepted_child_transport,
-                          co_await core->child_transport_->accept());
+                          co_await core->child_transport_.accept());
 
-  co_return std::make_unique<MessageReaderTransport>(
+  co_return any_transport{std::make_unique<MessageReaderTransport>(
       std::move(accepted_child_transport),
       std::unique_ptr<MessageReader>{core->message_reader_->Clone()},
-      core->logger_);
+      core->logger_)};
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::read(std::span<char> data) {
@@ -160,7 +160,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     }
 
     // Don't allow composite message to contain partial messages.
-    if (!message_reader_->IsEmpty() && child_transport_->message_oriented()) {
+    if (!message_reader_->IsEmpty() && child_transport_.message_oriented()) {
       // TODO: Print message.
       logger_->Write(LogSeverity::Warning,
                      "Composite message contains a partial message");
@@ -168,7 +168,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     }
 
     auto bytes_read =
-        co_await child_transport_->read(message_reader_->Prepare());
+        co_await child_transport_.read(message_reader_->Prepare());
 
     if (cancelation.expired()) {
       co_return ERR_ABORTED;
@@ -194,15 +194,15 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::WriteMessage(
     co_return ERR_INVALID_HANDLE;
   }
 
-  co_return co_await child_transport_->write(std::move(data));
+  co_return co_await child_transport_.write(std::move(data));
 }
 
 std::string MessageReaderTransport::name() const {
-  return "MSG:" + core_->child_transport_->name();
+  return "MSG:" + core_->child_transport_.name();
 }
 
 Executor MessageReaderTransport::get_executor() const {
-  return core_->child_transport_->get_executor();
+  return core_->child_transport_.get_executor();
 }
 
 }  // namespace transport

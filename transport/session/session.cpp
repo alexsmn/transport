@@ -94,32 +94,28 @@ awaitable<Error> Session::close() {
 }
 
 awaitable<void> Session::CloseTransport() {
-  if (state_ != CLOSED && transport_.get() && transport_->active() &&
-      transport_->connected()) {
+  if (state_ != CLOSED && transport_.active() && transport_.connected()) {
     SendClose();
   }
 
   connecting_ = false;
 
   if (transport_) {
-    co_await transport_->close();
+    co_await transport_.close();
   }
 
   // WARNING: |context_| may become null inside |SendClose()| above.
   cancelation_ = nullptr;
 }
 
-void Session::SetTransport(std::unique_ptr<Transport> transport) {
-  if (transport_ == transport)
-    return;
-
+void Session::SetTransport(any_transport transport) {
   // TODO: Reset sent messages.
   boost::asio::co_spawn(executor_, CloseTransport(), boost::asio::detached);
 
-  if (transport && !transport->message_oriented()) {
-    transport = std::make_unique<MessageReaderTransport>(
+  if (transport && !transport.message_oriented()) {
+    transport = any_transport{std::make_unique<MessageReaderTransport>(
         std::move(transport), std::make_unique<SessionMessageReader>(),
-        logger_);
+        logger_)};
   }
 
   transport_ = std::move(transport);
@@ -131,7 +127,7 @@ void Session::SetTransport(std::unique_ptr<Transport> transport) {
 }
 
 awaitable<void> Session::OpenTransport() {
-  auto open_result = co_await transport_->open();
+  auto open_result = co_await transport_.open();
 
   if (open_result != OK) {
     OnTransportClosed(open_result);
@@ -141,18 +137,18 @@ awaitable<void> Session::OpenTransport() {
   OnTransportOpened();
 }
 
-std::unique_ptr<Transport> Session::DetachTransport() {
+any_transport Session::DetachTransport() {
   /*std::unique_ptr<Transport> transport(std::move(transport_));
   if (transport)
-    transport->set_delegate(NULL);
+    transport->set_delegate(nullptr);
 
   context_->Destroy();
-  context_ = NULL;
+  context_ = nullptr;
 
   return transport;*/
 
   assert(false);
-  return nullptr;
+  return {};
 }
 
 void Session::PostMessage(const void* data,
@@ -239,7 +235,6 @@ void Session::OnTransportError(Error error) {
 }
 
 awaitable<Error> Session::open() {
-  assert(transport_.get());
   assert(state_ == CLOSED);
   assert(!cancelation_);
 
@@ -264,17 +259,16 @@ std::string Session::name() const {
 }
 
 awaitable<Error> Session::Connect() {
-  assert(transport_.get());
   assert(!cancelation_);
 
   logger_->WriteF(LogSeverity::Normal, "Connecting to %s",
-                  transport_->name().c_str());
+                  transport_.name().c_str());
 
   connect_start_ticks_ = Clock::now();
   connecting_ = true;
   cancelation_ = std::make_shared<bool>(false);
 
-  auto open_result = co_await transport_->open();
+  auto open_result = co_await transport_.open();
 
   if (open_result != OK) {
     OnTransportClosed(open_result);
@@ -287,7 +281,7 @@ awaitable<Error> Session::Connect() {
 }
 
 void Session::SendQueuedMessage() {
-  if (!transport_.get() || !transport_->connected())
+  if (!transport_.connected())
     return;
 
   if (!cancelation_)
@@ -307,7 +301,7 @@ void Session::SendQueuedMessage() {
 
   // send
   while (!cancelation.expired() && IsSendPossible()) {
-    MessageQueue* send_queue = NULL;
+    MessageQueue* send_queue = nullptr;
     for (int i = 0; i < std::size(send_queues_); ++i) {
       if (!send_queues_[i].empty()) {
         send_queue = &send_queues_[i];
@@ -388,14 +382,13 @@ void Session::ProcessSessionMessage(uint16_t id,
 
 void Session::OnTransportOpened() {
   assert(connecting_);
-  assert(transport());
 
   logger_->WriteF(LogSeverity::Normal, "Transport opened. Name is %s",
-                  transport()->name().c_str());
+                  transport_.name().c_str());
 
   connecting_ = false;
 
-  if (!transport()->active()) {
+  if (!transport_.active()) {
     return;
   }
 
@@ -419,16 +412,14 @@ void Session::SendPossible() {
 }
 
 void Session::OnTimer() {
-  assert(transport_.get());
-
-  if (!transport_->connected() && !connecting_ && state_ == OPENED &&
+  if (!transport_.connected() && !connecting_ && state_ == OPENED &&
       !accepted_ &&
       Clock::now() - connect_start_ticks_ >= reconnection_period_) {
     boost::asio::co_spawn(executor_, Connect(), boost::asio::detached);
     return;
   }
 
-  if (!transport_->connected())
+  if (!transport_.connected())
     return;
 
   // Acknowledge received messages.
@@ -570,8 +561,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
 }
 
 void Session::SendInternal(const void* data, size_t size) {
-  assert(transport());
-  assert(transport()->connected());
+  assert(transport_.connected());
 
   num_bytes_sent_ += size;
   num_messages_sent_++;
@@ -583,7 +573,7 @@ void Session::SendInternal(const void* data, size_t size) {
                                             static_cast<const char*>(data) +
                                                 size}]() -> awaitable<void> {
         // TODO: Handle write result.
-        auto _ = co_await transport()->write(write_data);
+        auto _ = co_await transport_.write(write_data);
       },
       boost::asio::detached);
 }
@@ -599,7 +589,7 @@ void Session::SendAck(uint16_t recv_id) {
 void Session::SendCreate(const CreateSessionInfo& create_info) {
   ByteBuffer<> msg;
   uint16_t& size = *(uint16_t*)msg.ptr();
-  msg.Write(NULL, 2);
+  msg.Write(nullptr, 2);
   msg.WriteByte(NETS_CREATE);
   WriteMessageString(msg, create_info.name);
   WriteMessageString(msg, create_info.password);
@@ -621,8 +611,7 @@ void Session::SendClose() {
   // at that moment, but we doesn't know about it. We mustn't handle errors in
   // such case.
 
-  assert(transport_.get());
-  assert(transport_->connected());
+  assert(transport_.connected());
 
   ByteBuffer<> msg;
   msg.WriteWord(1);
@@ -632,8 +621,7 @@ void Session::SendClose() {
 }
 
 void Session::SendDataMessage(const SendingMessage& message) {
-  assert(transport());
-  assert(transport()->connected());
+  assert(transport_.connected());
 
   assert(message.size > 0);
 
@@ -648,7 +636,7 @@ void Session::SendDataMessage(const SendingMessage& message) {
   SendInternal(msg.data, msg.size);
 }
 
-void Session::OnAccepted(std::unique_ptr<Transport> transport) {
+void Session::OnAccepted(any_transport transport) {
   SetTransport(std::move(transport));
 }
 
@@ -706,8 +694,7 @@ void Session::OnRestore(const SessionID& session_id) {
   logger_->Write(LogSeverity::Normal, "Restore Session request");
 
   // process request
-  Session* new_session = NULL;
-  Transport* transport = this->transport();
+  Session* new_session = nullptr;
   SessionInfo session_info;
   memset(&session_info, 0, sizeof(session_info));
   Error error = OK;
@@ -731,7 +718,6 @@ void Session::OnRestore(const SessionID& session_id) {
 
       new_session = &existing_session;
       session_info = existing_session.session_info();
-      transport = existing_session.transport();
 
       delete this;
     }

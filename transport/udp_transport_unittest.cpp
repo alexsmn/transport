@@ -1,5 +1,6 @@
 #include "transport/udp_transport.h"
 
+#include "transport/any_transport.h"
 #include "transport/logger.h"
 #include "transport/test/coroutine_util.h"
 #include "transport/udp_socket.h"
@@ -108,7 +109,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
     EXPECT_TRUE(accepted_transport.ok());
 
     std::array<char, 1024> buffer;
-    auto received_message = co_await (*accepted_transport)->read(buffer);
+    auto received_message = co_await accepted_transport->read(buffer);
     // TODO: Compare the message with the expected one.
     EXPECT_TRUE(received_message.ok());
   });
@@ -123,8 +124,8 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
   CoTest([&]() -> awaitable<void> {
     auto accepted_transport = co_await transport->accept();
     EXPECT_TRUE(accepted_transport.ok());
-    EXPECT_EQ(co_await (*accepted_transport)->close(), OK);
-    EXPECT_FALSE((*accepted_transport)->connected());
+    EXPECT_EQ(co_await accepted_transport->close(), OK);
+    EXPECT_FALSE(accepted_transport->connected());
   });
 
   EXPECT_CALL(*socket, Close());

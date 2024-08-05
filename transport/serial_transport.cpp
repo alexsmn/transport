@@ -104,7 +104,7 @@ std::string SerialTransport::name() const {
   return device_;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> SerialTransport::accept() {
+awaitable<ErrorOr<any_transport>> SerialTransport::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 

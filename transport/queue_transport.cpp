@@ -35,7 +35,7 @@ awaitable<Error> QueueTransport::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> QueueTransport::accept() {
+awaitable<ErrorOr<any_transport>> QueueTransport::accept() {
   assert(false);
   co_return ERR_FAILED;
 }

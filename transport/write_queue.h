@@ -1,6 +1,5 @@
 #pragma once
 
-#include "transport/any_transport.h"
 #include "transport/awaitable.h"
 #include "transport/error_or.h"
 
@@ -10,23 +9,18 @@
 
 namespace transport {
 
-class Transport;
+class any_transport;
 
 class WriteQueue {
  public:
-  explicit WriteQueue(any_transport& transport)
-      : transport_{*transport.get_impl()} {}
-
-  explicit WriteQueue(Transport& transport) : transport_{transport} {}
-
-  ~WriteQueue() {}
+  explicit WriteQueue(any_transport& transport) : transport_{transport} {}
 
   void BlindWrite(std::span<const char> data);
 
   awaitable<ErrorOr<size_t>> Write(std::span<const char> data);
 
  private:
-  Transport& transport_;
+  any_transport& transport_;
 
   using Channel =
       boost::asio::experimental::channel<void(boost::system::error_code)>;

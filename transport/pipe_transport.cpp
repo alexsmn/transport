@@ -68,7 +68,7 @@ awaitable<Error> PipeTransport::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> PipeTransport::accept() {
+awaitable<ErrorOr<any_transport>> PipeTransport::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 

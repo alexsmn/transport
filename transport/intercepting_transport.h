@@ -7,9 +7,9 @@ namespace transport {
 
 class InterceptingTransport : public DelegatingTransport {
  public:
-  InterceptingTransport(std::unique_ptr<Transport> underlying_transport,
+  InterceptingTransport(any_transport underlying_transport,
                         TransportInterceptor& interceptor)
-      : DelegatingTransport{*underlying_transport},
+      : DelegatingTransport{underlying_transport_},
         underlying_transport_{std::move(underlying_transport)},
         interceptor_{interceptor} {}
 
@@ -23,7 +23,7 @@ class InterceptingTransport : public DelegatingTransport {
   }
 
  private:
-  std::unique_ptr<Transport> underlying_transport_;
+  any_transport underlying_transport_;
   TransportInterceptor& interceptor_;
 };
 

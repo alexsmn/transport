@@ -6,8 +6,6 @@
 
 namespace transport {
 
-class Transport;
-
 class TransportString {
  public:
   enum Protocol {
