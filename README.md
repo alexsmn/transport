@@ -13,7 +13,7 @@ It introduces a factory for constructing a transport object from a string descri
 Echo server example:
 
 ```c++
-ErrorOr<awaitable<void>> RunServer(boost::asio::io_context& io_context) {
+awaitable<Error> RunServer(boost::asio::io_context& io_context) {
   TransportFactoryImpl transport_factory{io_context};
 
   NET_ASSIGN_OR_CO_ERROR(auto server,
@@ -51,7 +51,7 @@ awaitable<Error> RunEcho(any_transport transport) {
 Client example:
 
 ```c++
-ErrorOr<awaitable<void>> RunClient(boost::asio::io_context& io_context) {
+awaitable<Error> RunClient(boost::asio::io_context& io_context) {
   TransportFactoryImpl transport_factory{io_context};
   NET_ASSIGN_OR_CO_ERROR(auto client,
     transport_factory.CreateTransport(TransportString{“TCP;Active;Port=1234”}));
