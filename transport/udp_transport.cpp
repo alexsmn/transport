@@ -1,5 +1,6 @@
 #include "transport/udp_transport.h"
 
+#include "transport/any_transport.h"
 #include "transport/logger.h"
 #include "transport/udp_socket_impl.h"
 
@@ -34,8 +35,7 @@ class AsioUdpTransport::UdpActiveCore final
   [[nodiscard]] virtual awaitable<Error> Open() override;
   [[nodiscard]] virtual awaitable<Error> Close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
-      override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> Accept() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override;
@@ -90,8 +90,7 @@ awaitable<Error> AsioUdpTransport::UdpActiveCore::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>>
-AsioUdpTransport::UdpActiveCore::Accept() {
+awaitable<ErrorOr<any_transport>> AsioUdpTransport::UdpActiveCore::Accept() {
   co_return ERR_INVALID_ARGUMENT;
 }
 
@@ -163,7 +162,7 @@ class AsioUdpTransport::UdpAcceptedCore final
   virtual bool connected() const override { return connected_; }
   virtual awaitable<Error> Open() override;
   virtual awaitable<Error> Close() override;
-  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
+  virtual awaitable<ErrorOr<any_transport>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
 
@@ -208,7 +207,7 @@ class AsioUdpTransport::UdpPassiveCore final
   virtual bool connected() const override { return connected_; }
   virtual awaitable<Error> Open() override;
   virtual awaitable<Error> Close() override;
-  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept() override;
+  virtual awaitable<ErrorOr<any_transport>> Accept() override;
   virtual awaitable<ErrorOr<size_t>> Read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> Write(std::span<const char> data) override;
 
@@ -290,8 +289,7 @@ awaitable<Error> AsioUdpTransport::UdpPassiveCore::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>>
-AsioUdpTransport::UdpPassiveCore::Accept() {
+awaitable<ErrorOr<any_transport>> AsioUdpTransport::UdpPassiveCore::Accept() {
   auto ref = shared_from_this();
 
   auto [ec, accepted_transport] = co_await accept_channel_.async_receive(
@@ -301,7 +299,8 @@ AsioUdpTransport::UdpPassiveCore::Accept() {
     co_return ec;
   }
 
-  co_return std::make_unique<AsioUdpTransport>(accepted_transport);
+  co_return any_transport{
+      std::make_unique<AsioUdpTransport>(accepted_transport)};
 }
 
 awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::Read(
@@ -455,8 +454,7 @@ awaitable<Error> AsioUdpTransport::UdpAcceptedCore::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>>
-AsioUdpTransport::UdpAcceptedCore::Accept() {
+awaitable<ErrorOr<any_transport>> AsioUdpTransport::UdpAcceptedCore::Accept() {
   co_return ERR_FAILED;
 }
 
@@ -543,8 +541,10 @@ std::string AsioUdpTransport::name() const {
   return "UDP";
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> AsioUdpTransport::accept() {
-  return core_->Accept();
+awaitable<ErrorOr<any_transport>> AsioUdpTransport::accept() {
+  NET_ASSIGN_OR_CO_RETURN(auto accepted_transport, co_await core_->Accept());
+
+  co_return any_transport{std::move(accepted_transport)};
 }
 
 }  // namespace transport

@@ -29,7 +29,7 @@ class InterceptingTransportFactory : public TransportFactory {
     }
 
     return any_transport{std::make_unique<InterceptingTransport>(
-        transport.release_impl(), *interceptor_)};
+        std::move(transport), *interceptor_)};
   }
 
  private:

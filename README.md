@@ -1,7 +1,14 @@
 # Transport
 Asynchronous transport library based on coroutines.
 
-The library provides a higher-level abstraction above [Boost.Asio](https://www.boost.org/doc/libs/1_85_0/doc/html/boost_asio.html).
+The library provides a higher-level abstraction above various [Boost.Asio](https://www.boost.org/doc/libs/1_85_0/doc/html/boost_asio.html) objects, such as:
+
+* TCP and UDP socket
+* WebSocket
+* Serial port
+* Named pipe
+
+It introduces a factory for constructing a transport object from a string description.
 
 Echo server example:
 

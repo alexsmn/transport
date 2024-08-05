@@ -30,13 +30,8 @@ class TransportMock : public Transport {
   MOCK_METHOD(void, Destroy, ());
 
   MOCK_METHOD(awaitable<Error>, open, (), (override));
-
   MOCK_METHOD(awaitable<Error>, close, (), (override));
-
-  MOCK_METHOD(awaitable<ErrorOr<std::unique_ptr<Transport>>>,
-              accept,
-              (),
-              (override));
+  MOCK_METHOD(awaitable<ErrorOr<any_transport>>, accept, (), (override));
 
   MOCK_METHOD(awaitable<ErrorOr<size_t>>,
               read,

@@ -1,5 +1,7 @@
 #include "transport/inprocess_transport.h"
 
+#include "transport/transport.h"
+
 #include <format>
 #include <queue>
 
@@ -31,8 +33,7 @@ class InprocessTransportHost::Client final : public Transport {
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<Error> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override {
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override {
     co_return ERR_ACCESS_DENIED;
   }
 
@@ -116,8 +117,7 @@ class InprocessTransportHost::Server final : public Transport {
     co_return OK;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override {
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override {
     // TODO: Implement.
     co_return ERR_ACCESS_DENIED;
   }
@@ -183,8 +183,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     co_return OK;
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override {
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override {
     co_return ERR_ACCESS_DENIED;
   }
 

@@ -32,7 +32,7 @@ class Session final : public Transport {
 
   // Assign new session transport. If there is another one, delete it.
   // Session must be closed.
-  void SetTransport(std::unique_ptr<Transport> transport);
+  void SetTransport(any_transport transport);
 
   void set_session_info(const SessionInfo& session_info) {
     session_info_ = session_info;
@@ -42,7 +42,6 @@ class Session final : public Transport {
   }
 
   bool is_opened() const { return state_ == OPENED; }
-  Transport* transport() const { return transport_.get(); }
 
   void set_create_info(const CreateSessionInfo& create_info) {
     create_info_ = create_info;
@@ -71,14 +70,12 @@ class Session final : public Transport {
   void Send(const void* data, size_t len, int priority = 0);
 
   // Get transport and reset current session state.
-  std::unique_ptr<Transport> DetachTransport();
+  any_transport DetachTransport();
 
   // Transport
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<Error> close() override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override;
@@ -90,7 +87,7 @@ class Session final : public Transport {
   [[nodiscard]] virtual bool message_oriented() const override { return true; }
 
   [[nodiscard]] virtual bool connected() const override {
-    return transport_ && transport_->connected();
+    return transport_.connected();
   }
 
   [[nodiscard]] virtual bool active() const override { return true; }
@@ -123,7 +120,6 @@ class Session final : public Transport {
   using SessionMap = std::map<SessionID, Session*, SessionIDLess>;
 
   [[nodiscard]] awaitable<Error> Connect();
-
   [[nodiscard]] awaitable<void> OpenTransport();
   [[nodiscard]] awaitable<void> CloseTransport();
   void Cleanup();
@@ -141,7 +137,7 @@ class Session final : public Transport {
   // Transport was broken and restored without problems.
   void OnSessionRestored();
 
-  void OnAccepted(std::unique_ptr<Transport> transport);
+  void OnAccepted(any_transport transport);
 
   // Send data message. Takes current |recv_id_| as acknowledge number.
   void SendDataMessage(const SendingMessage& message);
@@ -189,7 +185,7 @@ class Session final : public Transport {
 
   // |transport_| exists during whole Session life-time from the moment of
   // |Open()|. It's not reset when underlaying transport disconnects.
-  std::unique_ptr<Transport> transport_;
+  any_transport transport_;
 
   // Id of next message to send.
   uint16_t send_id_ = 0;

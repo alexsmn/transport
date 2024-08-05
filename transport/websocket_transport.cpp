@@ -113,9 +113,7 @@ class WebSocketTransport::Connection : public Transport {
   // Transport
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<Error> close() override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override {
@@ -158,8 +156,7 @@ awaitable<Error> WebSocketTransport::Connection::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>>
-WebSocketTransport::Connection::accept() {
+awaitable<ErrorOr<any_transport>> WebSocketTransport::Connection::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 
@@ -184,7 +181,7 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
   [[nodiscard]] awaitable<Error> Open();
   [[nodiscard]] awaitable<Error> Close();
 
-  [[nodiscard]] awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept();
+  [[nodiscard]] awaitable<ErrorOr<any_transport>> Accept();
 
   [[nodiscard]] awaitable<void> StartAccepting();
 
@@ -246,8 +243,7 @@ awaitable<Error> WebSocketTransport::Core::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>>
-WebSocketTransport::Core::Accept() {
+awaitable<ErrorOr<any_transport>> WebSocketTransport::Core::Accept() {
   // TODO: Implement.
   co_return ERR_ACCESS_DENIED;
 }
@@ -331,7 +327,7 @@ Executor WebSocketTransport::get_executor() const {
   return core_->executor();
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> WebSocketTransport::accept() {
+awaitable<ErrorOr<any_transport>> WebSocketTransport::accept() {
   co_return co_await core_->Accept();
 }
 

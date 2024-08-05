@@ -303,8 +303,7 @@ any_transport TransportTest::CreateTransport(
   }
 
   return any_transport{std::make_unique<MessageReaderTransport>(
-      transport->release_impl(), std::make_unique<TestMessageReader>(),
-      logger)};
+      std::move(*transport), std::make_unique<TestMessageReader>(), logger)};
 }
 
 TransportTest::Server TransportTest::MakeServer() {

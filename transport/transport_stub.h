@@ -10,7 +10,7 @@ class StubTransport : public Transport {
 
   virtual awaitable<Error> open() override { co_return OK; }
 
-  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept() {
+  virtual awaitable<ErrorOr<any_transport>> accept() {
     co_return ERR_NOT_IMPLEMENTED;
   }
 

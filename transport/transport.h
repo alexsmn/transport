@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transport/any_transport.h"
 #include "transport/awaitable.h"
 #include "transport/error.h"
 #include "transport/error_or.h"
@@ -12,8 +13,6 @@
 #include <string>
 
 namespace transport {
-
-class Transport;
 
 class Connector {
  public:
@@ -74,8 +73,7 @@ class Transport : public Connector,
 
   [[nodiscard]] virtual Executor get_executor() const = 0;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>>
-  accept() = 0;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() = 0;
 
   [[nodiscard]] virtual awaitable<Error> close() = 0;
 };

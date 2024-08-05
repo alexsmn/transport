@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transport/any_transport.h"
 #include "transport/executor.h"
 #include "transport/transport.h"
 
@@ -18,7 +19,7 @@ class MessageReader;
 // transport messages.
 class MessageReaderTransport final : public Transport {
  public:
-  MessageReaderTransport(std::unique_ptr<Transport> child_transport,
+  MessageReaderTransport(any_transport child_transport,
                          std::unique_ptr<MessageReader> message_reader,
                          std::shared_ptr<const Logger> logger);
   virtual ~MessageReaderTransport();
@@ -29,8 +30,7 @@ class MessageReaderTransport final : public Transport {
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<Error> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override;

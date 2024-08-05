@@ -156,8 +156,7 @@ class TcpTransport::PassiveCore final
   virtual Executor get_executor() override { return acceptor_.get_executor(); }
   virtual bool connected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> Accept()
-      override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> Accept() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
       std::span<char> data) override;
@@ -290,8 +289,7 @@ awaitable<Error> TcpTransport::PassiveCore::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>>
-TcpTransport::PassiveCore::Accept() {
+awaitable<ErrorOr<any_transport>> TcpTransport::PassiveCore::Accept() {
   auto ref = shared_from_this();
 
   // TODO: Use different executor.
@@ -317,7 +315,8 @@ TcpTransport::PassiveCore::Accept() {
 
   logger_->Write(LogSeverity::Normal, "Connection accepted");
 
-  co_return std::make_unique<TcpTransport>(logger_, std::move(peer));
+  co_return any_transport{
+      std::make_unique<TcpTransport>(logger_, std::move(peer))};
 }
 
 awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::Read(
@@ -378,7 +377,7 @@ awaitable<Error> TcpTransport::open() {
   co_return co_await core_->Open();
 }
 
-awaitable<ErrorOr<std::unique_ptr<Transport>>> TcpTransport::accept() {
+awaitable<ErrorOr<any_transport>> TcpTransport::accept() {
   co_return co_await core_->Accept();
 }
 

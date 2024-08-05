@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transport/any_transport.h"
 #include "transport/executor.h"
 #include "transport/transport.h"
 
@@ -10,7 +11,7 @@ namespace transport {
 // Thread-safe.
 class DeferredTransport final : public Transport {
  public:
-  explicit DeferredTransport(std::unique_ptr<Transport> underlying_transport);
+  explicit DeferredTransport(any_transport underlying_transport);
   ~DeferredTransport();
 
   // Refactor so it's not needed. Or document.
@@ -20,7 +21,7 @@ class DeferredTransport final : public Transport {
   // Transport
   virtual awaitable<Error> open() override;
   virtual awaitable<Error> close() override;
-  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept() override;
+  virtual awaitable<ErrorOr<any_transport>> accept() override;
   virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
   virtual std::string name() const override;

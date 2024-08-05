@@ -7,14 +7,13 @@ namespace transport {
 // Intentionally non-final.
 class DelegatingTransport : public Transport {
  public:
-  explicit DelegatingTransport(Transport& delegate) : delegate_{delegate} {}
+  explicit DelegatingTransport(any_transport& delegate) : delegate_{delegate} {}
 
   [[nodiscard]] virtual awaitable<Error> open() override {
     return delegate_.open();
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override {
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override {
     return delegate_.accept();
   }
 
@@ -53,7 +52,7 @@ class DelegatingTransport : public Transport {
   }
 
  protected:
-  Transport& delegate_;
+  any_transport& delegate_;
 };
 
 }  // namespace transport

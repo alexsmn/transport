@@ -11,9 +11,7 @@ class WebSocketTransport final : public Transport {
 
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<Error> close() override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept()
-      override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override {

@@ -9,7 +9,7 @@ class DummyTransport : public Transport {
   // Transport
   virtual awaitable<Error> open() override;
   virtual awaitable<Error> close() override;
-  virtual awaitable<ErrorOr<std::unique_ptr<Transport>>> accept() override;
+  virtual awaitable<ErrorOr<any_transport>> accept() override;
   virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
   virtual std::string name() const override;
@@ -36,7 +36,7 @@ inline awaitable<Error> DummyTransport::close() {
   co_return OK;
 }
 
-inline awaitable<ErrorOr<std::unique_ptr<Transport>>> DummyTransport::accept() {
+inline awaitable<ErrorOr<any_transport>> DummyTransport::accept() {
   co_return ERR_NOT_IMPLEMENTED;
 }
 
