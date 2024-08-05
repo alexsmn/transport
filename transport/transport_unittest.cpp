@@ -1,5 +1,6 @@
 #include "transport/transport.h"
 #include "transport/message_reader_transport.h"
+#include "transport/message_utils.h"
 #include "transport/test/debug_logger.h"
 #include "transport/test/test_message_reader.h"
 #include "transport/transport_factory_impl.h"
@@ -191,20 +192,14 @@ awaitable<Error> TransportTest::Client::ExchangeMessage(
     co_return result;
   }
 
-  std::vector<char> buffer(64);
-  auto bytes_read = co_await transport_.read(buffer);
-  if (!bytes_read.ok()) {
-    logger_->Write(LogSeverity::Error, "Failed to read echoed message");
-    co_return bytes_read.error();
-  }
+  std::vector<char> buffer;
+  NET_CO_RETURN_IF_ERROR(co_await ReadMessage(transport_, 64, buffer));
 
-  if (bytes_read == 0) {
+  if (buffer.empty()) {
     logger_->Write(LogSeverity::Error,
                    "Connection closed gracefully while expecting echo");
     co_return ERR_CONNECTION_CLOSED;
   }
-
-  buffer.resize(*bytes_read);
 
   if (!std::ranges::equal(buffer, kMessage)) {
     logger_->Write(LogSeverity::Error,
