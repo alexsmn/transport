@@ -12,8 +12,7 @@ namespace transport {
 class MessageReceiver {
  public:
   MessageReceiver(any_transport& transport, size_t max_message_size)
-      : transport_{*transport.get_impl()},
-        max_message_size_{max_message_size} {}
+      : transport_{transport}, max_message_size_{max_message_size} {}
 
   MessageReceiver(Transport& transport, size_t max_message_size)
       : transport_{transport}, max_message_size_{max_message_size} {}
@@ -39,7 +38,7 @@ class MessageReceiver {
   }
 
  private:
-  Transport& transport_;
+  any_transport& transport_;
   size_t max_message_size_;
 
   std::vector<char> buffer_;
