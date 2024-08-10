@@ -123,9 +123,12 @@ ErrorOr<any_transport> TransportFactoryImpl::CreateTransport(
       return ERR_INVALID_ARGUMENT;
     }
 
-    return any_transport{std::make_unique<UdpTransport>(
-        executor, std::move(log), udp_socket_factory_, std::string{host},
-        std::to_string(port), active)};
+    return active ? any_transport{std::make_unique<ActiveUdpTransport>(
+                        executor, log, udp_socket_factory_, std::string{host},
+                        std::to_string(port))}
+                  : any_transport{std::make_unique<PassiveUdpTransport>(
+                        executor, log, udp_socket_factory_, std::string{host},
+                        std::to_string(port))};
 
   } else if (protocol == TransportString::SERIAL) {
     // SERIAL;Name=COM2

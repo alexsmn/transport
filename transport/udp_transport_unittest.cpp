@@ -40,7 +40,7 @@ class UdpTransportTest : public Test {
   virtual void SetUp() override;
   virtual void TearDown() override;
 
-  [[nodiscard]] std::unique_ptr<Transport> OpenTransport(bool active);
+  [[nodiscard]] any_transport OpenTransport(bool active);
   void ReceiveMessage();
 
   Executor executor_ = boost::asio::system_executor{};
@@ -59,25 +59,28 @@ void UdpTransportTest::SetUp() {}
 
 void UdpTransportTest::TearDown() {}
 
-std::unique_ptr<Transport> UdpTransportTest::OpenTransport(bool active) {
-  auto transport = std::make_unique<UdpTransport>(executor_, log_source{},
-                                                  udp_socket_factory,
-                                                  /*host=*/std::string{},
-                                                  /*service=*/std::string{},
-                                                  /*active=*/active);
+any_transport UdpTransportTest::OpenTransport(bool active) {
+  auto transport = active ? any_transport{std::make_unique<ActiveUdpTransport>(
+                                executor_, log_source{}, udp_socket_factory,
+                                /*host=*/std::string{},
+                                /*service=*/std::string{})}
+                          : any_transport{std::make_unique<PassiveUdpTransport>(
+                                executor_, log_source{}, udp_socket_factory,
+                                /*host=*/std::string{},
+                                /*service=*/std::string{})};
 
   EXPECT_CALL(*socket, Open());
 
-  boost::asio::co_spawn(transport->get_executor(), transport->open(),
+  boost::asio::co_spawn(transport.get_executor(), transport.open(),
                         boost::asio::detached);
 
-  EXPECT_FALSE(transport->active());
-  EXPECT_FALSE(transport->connected());
+  EXPECT_FALSE(transport.active());
+  EXPECT_FALSE(transport.connected());
 
   const UdpSocket::Endpoint endpoint;
   open_handler(endpoint);
 
-  EXPECT_TRUE(transport->connected());
+  EXPECT_TRUE(transport.connected());
 
   return transport;
 }
@@ -93,7 +96,7 @@ TEST_F(UdpTransportTest, UdpServer_AcceptedTransportImmediatelyDestroyed) {
   ReceiveMessage();
 
   CoTest([&]() -> awaitable<void> {
-    auto accepted_transport = co_await transport->accept();
+    auto accepted_transport = co_await transport.accept();
     EXPECT_TRUE(accepted_transport.ok());
   });
 
@@ -105,7 +108,7 @@ TEST_F(UdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
   ReceiveMessage();
 
   CoTest([&]() -> awaitable<void> {
-    auto accepted_transport = co_await transport->accept();
+    auto accepted_transport = co_await transport.accept();
     EXPECT_TRUE(accepted_transport.ok());
 
     std::array<char, 1024> buffer;
@@ -122,7 +125,7 @@ TEST_F(UdpTransportTest, UdpServer_AcceptedTransportClosed) {
   ReceiveMessage();
 
   CoTest([&]() -> awaitable<void> {
-    auto accepted_transport = co_await transport->accept();
+    auto accepted_transport = co_await transport.accept();
     EXPECT_TRUE(accepted_transport.ok());
     EXPECT_EQ(co_await accepted_transport->close(), OK);
     EXPECT_FALSE(accepted_transport->connected());

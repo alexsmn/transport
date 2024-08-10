@@ -1,25 +1,25 @@
 #pragma once
 
-#include "transport/asio_transport.h"
+#include "transport/log.h"
+#include "transport/transport.h"
 #include "transport/udp_socket_factory.h"
 
 namespace transport {
 
-class Logger;
+class AcceptedUdpTransport;
 
-class UdpTransport final : public Transport {
+class ActiveUdpTransport final : public Transport {
  public:
-  UdpTransport(const Executor& executor,
-               const log_source& log,
-               UdpSocketFactory udp_socket_factory,
-               std::string host,
-               std::string service,
-               bool active);
+  ActiveUdpTransport(const Executor& executor,
+                     const log_source& log,
+                     UdpSocketFactory udp_socket_factory,
+                     std::string host,
+                     std::string service);
 
-  ~UdpTransport();
+  ~ActiveUdpTransport();
 
   [[nodiscard]] virtual std::string name() const override;
-  [[nodiscard]] virtual bool active() const override { return active_; }
+  [[nodiscard]] virtual bool active() const override { return true; }
   [[nodiscard]] virtual bool connected() const override;
   [[nodiscard]] virtual bool message_oriented() const override { return true; }
   [[nodiscard]] virtual Executor get_executor() override;
@@ -35,15 +35,43 @@ class UdpTransport final : public Transport {
       std::span<const char> data) override;
 
  private:
-  class Core;
   class UdpActiveCore;
+
+  std::shared_ptr<UdpActiveCore> core_;
+};
+
+class PassiveUdpTransport final : public Transport {
+ public:
+  PassiveUdpTransport(const Executor& executor,
+                      const log_source& log,
+                      UdpSocketFactory udp_socket_factory,
+                      std::string host,
+                      std::string service);
+
+  ~PassiveUdpTransport();
+
+  [[nodiscard]] virtual std::string name() const override;
+  [[nodiscard]] virtual bool active() const override { return false; }
+  [[nodiscard]] virtual bool connected() const override;
+  [[nodiscard]] virtual bool message_oriented() const override { return true; }
+  [[nodiscard]] virtual Executor get_executor() override;
+
+  [[nodiscard]] virtual awaitable<Error> open() override;
+  [[nodiscard]] virtual awaitable<Error> close() override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+      std::span<char> data) override;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+      std::span<const char> data) override;
+
+ private:
   class UdpPassiveCore;
-  class UdpAcceptedCore;
 
-  explicit UdpTransport(std::shared_ptr<Core> core);
+  std::shared_ptr<UdpPassiveCore> core_;
 
-  bool active_ = false;
-  std::shared_ptr<Core> core_;
+  friend class AcceptedUdpTransport;
 };
 
 }  // namespace transport
