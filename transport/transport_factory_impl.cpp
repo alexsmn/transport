@@ -107,9 +107,11 @@ ErrorOr<any_transport> TransportFactoryImpl::CreateTransport(
       return ERR_INVALID_ARGUMENT;
     }
 
-    return any_transport{std::make_unique<TcpTransport>(
-        executor, std::move(log), std::string{host}, std::to_string(port),
-        active)};
+    return active
+               ? any_transport{std::make_unique<ActiveTcpTransport>(
+                     executor, log, std::string{host}, std::to_string(port))}
+               : any_transport{std::make_unique<PassiveTcpTransport>(
+                     executor, log, std::string{host}, std::to_string(port))};
 
   } else if (protocol == TransportString::UDP) {
     // UDP;Passive;Host=0.0.0.0;Port=3000
