@@ -1,7 +1,7 @@
 #include "transport/udp_transport.h"
 
 #include "transport/any_transport.h"
-#include "transport/logger.h"
+#include "transport/log.h"
 #include "transport/udp_socket_impl.h"
 
 #include <boost/asio/experimental/as_tuple.hpp>
@@ -152,7 +152,7 @@ class AsioUdpTransport::UdpAcceptedCore final
       public std::enable_shared_from_this<UdpAcceptedCore> {
  public:
   UdpAcceptedCore(const Executor& executor,
-                  std::shared_ptr<const Logger> logger,
+                  const log_source& log,
                   std::shared_ptr<UdpPassiveCore> passive_core,
                   UdpSocket::Endpoint endpoint);
   ~UdpAcceptedCore();
@@ -173,10 +173,10 @@ class AsioUdpTransport::UdpAcceptedCore final
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::Error& error);
 
-  const Executor executor_;
-  const std::shared_ptr<const Logger> logger_;
+  Executor executor_;
+  log_source log_;
   std::shared_ptr<UdpPassiveCore> passive_core_;
-  const UdpSocket::Endpoint endpoint_;
+  UdpSocket::Endpoint endpoint_;
 
   bool connected_ = true;
 
@@ -196,7 +196,7 @@ class AsioUdpTransport::UdpPassiveCore final
       public std::enable_shared_from_this<UdpPassiveCore> {
  public:
   UdpPassiveCore(const Executor& executor,
-                 std::shared_ptr<const Logger> logger,
+                 const log_source& log,
                  UdpSocketFactory udp_socket_factory,
                  std::string host,
                  std::string service);
@@ -227,7 +227,7 @@ class AsioUdpTransport::UdpPassiveCore final
   void CloseAllAcceptedTransports(Error error);
 
   const Executor executor_;
-  const std::shared_ptr<const Logger> logger_;
+  const log_source log_;
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
   const std::string service_;
@@ -251,12 +251,12 @@ class AsioUdpTransport::UdpPassiveCore final
 
 AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
     const Executor& executor,
-    std::shared_ptr<const Logger> logger,
+    const log_source& log,
     UdpSocketFactory udp_socket_factory,
     std::string host,
     std::string service)
     : executor_{executor},
-      logger_{std::make_shared<ProxyLogger>(std::move(logger))},
+      log_{log},
       udp_socket_factory_{std::move(udp_socket_factory)},
       host_{std::move(host)},
       service_{std::move(service)} {}
@@ -266,7 +266,7 @@ AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
 }
 
 awaitable<Error> AsioUdpTransport::UdpPassiveCore::Open() {
-  logger_->WriteF(LogSeverity::Normal, "Open");
+  log_.writef(LogSeverity::Normal, "Open");
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
 
@@ -278,7 +278,7 @@ awaitable<Error> AsioUdpTransport::UdpPassiveCore::Close() {
 
   co_await boost::asio::dispatch(executor_, boost::asio::use_awaitable);
 
-  logger_->Write(LogSeverity::Normal, "Close");
+  log_.write(LogSeverity::Normal, "Close");
 
   connected_ = false;
 
@@ -323,7 +323,7 @@ awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::InternalWrite(
 void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
     const UdpSocket::Endpoint& endpoint) {
   boost::asio::dispatch(executor_, [this, endpoint, ref = shared_from_this()] {
-    logger_->WriteF(
+    log_.writef(
         LogSeverity::Normal,
         "Remove transport from endpoint %s. There are %d accepted transports",
         ToString(endpoint).c_str(),
@@ -344,14 +344,14 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
     return;
   }
 
-  logger_->WriteF(
+  log_.writef(
       LogSeverity::Normal,
       "Accept new transport from endpoint %s. There are %d accepted transports",
       ToString(endpoint).c_str(),
       static_cast<int>(accepted_transports_.size()));
 
   auto accepted_core = std::make_shared<UdpAcceptedCore>(
-      executor_, logger_, shared_from_this(), endpoint);
+      executor_, log_, shared_from_this(), endpoint);
 
   accepted_transports_.insert_or_assign(endpoint, accepted_core);
 
@@ -359,7 +359,7 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
       accept_channel_.try_send(boost::system::error_code{}, accepted_core);
 
   if (!posted) {
-    logger_->Write(LogSeverity::Error, "Accept queue is full");
+    log_.write(LogSeverity::Error, "Accept queue is full");
     return;
   }
 
@@ -367,9 +367,9 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
 }
 
 void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
-  logger_->WriteF(LogSeverity::Normal, "Close %d accepted transports - %s",
-                  static_cast<int>(accepted_transports_.size()),
-                  ErrorToString(error).c_str());
+  log_.writef(LogSeverity::Normal, "Close %d accepted transports - %s",
+              static_cast<int>(accepted_transports_.size()),
+              ErrorToString(error).c_str());
 
   std::vector<std::shared_ptr<UdpAcceptedCore>> accepted_transports;
   accepted_transports.reserve(accepted_transports_.size());
@@ -383,15 +383,15 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
-  logger_->WriteF(LogSeverity::Normal, "Opened with endpoint %s",
-                  ToString(endpoint).c_str());
+  log_.writef(LogSeverity::Normal, "Opened with endpoint %s",
+              ToString(endpoint).c_str());
 
   connected_ = true;
 }
 
 void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
-  logger_->WriteF(LogSeverity::Normal, "Closed - %s", error.message().c_str());
+  log_.writef(LogSeverity::Normal, "Closed - %s", error.message().c_str());
 
   connected_ = false;
   CloseAllAcceptedTransports(error);
@@ -423,11 +423,11 @@ UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
 
 AsioUdpTransport::UdpAcceptedCore::UdpAcceptedCore(
     const Executor& executor,
-    std::shared_ptr<const Logger> logger,
+    const log_source& log,
     std::shared_ptr<UdpPassiveCore> passive_core,
     UdpSocket::Endpoint endpoint)
     : executor_{executor},
-      logger_{std::move(logger)},
+      log_{log},
       passive_core_{std::move(passive_core)},
       endpoint_{std::move(endpoint)} {
   assert(passive_core_);
@@ -491,7 +491,7 @@ void AsioUdpTransport::UdpAcceptedCore::OnSocketMessage(
                                                    std::move(datagram));
 
   if (!posted) {
-    logger_->Write(LogSeverity::Error, "Received message queue is full");
+    log_.write(LogSeverity::Error, "Received message queue is full");
     return;
   }
 }
@@ -511,7 +511,7 @@ void AsioUdpTransport::UdpAcceptedCore::OnSocketClosed(
 // AsioUdpTransport
 
 AsioUdpTransport::AsioUdpTransport(const Executor& executor,
-                                   std::shared_ptr<const Logger> logger,
+                                   const log_source& log,
                                    UdpSocketFactory udp_socket_factory,
                                    std::string host,
                                    std::string service,
@@ -523,8 +523,8 @@ AsioUdpTransport::AsioUdpTransport(const Executor& executor,
                                         std::move(host), std::move(service));
   } else {
     core_ = std::make_shared<UdpPassiveCore>(
-        executor, std::move(logger), std::move(udp_socket_factory),
-        std::move(host), std::move(service));
+        executor, log, std::move(udp_socket_factory), std::move(host),
+        std::move(service));
   }
 }
 

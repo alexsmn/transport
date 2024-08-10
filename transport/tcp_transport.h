@@ -9,15 +9,14 @@ namespace transport {
 class TcpTransport final : public AsioTransport {
  public:
   TcpTransport(const Executor& executor,
-               std::shared_ptr<const Logger> logger,
+               const log_source& log,
                std::string host,
                std::string service,
                bool active);
 
   // A constructor for a socket accepted by a passive TCP transport.
   // Uses the executor of the socket.
-  TcpTransport(std::shared_ptr<const Logger> logger,
-               boost::asio::ip::tcp::socket socket);
+  TcpTransport(boost::asio::ip::tcp::socket socket, const log_source& log);
 
   ~TcpTransport();
 

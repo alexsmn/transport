@@ -2,7 +2,7 @@
 
 #include "transport/auto_reset.h"
 #include "transport/executor.h"
-#include "transport/logger.h"
+#include "transport/log.h"
 #include "transport/transport.h"
 
 #include <boost/asio/buffer.hpp>
@@ -80,14 +80,14 @@ class AsioTransport::IoCore : public Core,
       std::span<const char> data) override;
 
  protected:
-  IoCore(const Executor& executor, std::shared_ptr<const Logger> logger);
+  IoCore(const Executor& executor, const log_source& log);
 
   void ProcessError(Error error);
 
   // Must be called under `io_object_.get_executor()`.
   virtual void Cleanup() = 0;
 
-  const std::shared_ptr<const Logger> logger_;
+  log_source log_;
 
   IoObject io_object_;
 
@@ -100,10 +100,9 @@ class AsioTransport::IoCore : public Core,
 };
 
 template <class IoObject>
-inline AsioTransport::IoCore<IoObject>::IoCore(
-    const Executor& executor,
-    std::shared_ptr<const Logger> logger)
-    : logger_{std::move(logger)}, io_object_{executor} {}
+inline AsioTransport::IoCore<IoObject>::IoCore(const Executor& executor,
+                                               const log_source& log)
+    : log_{std::move(log)}, io_object_{executor} {}
 
 template <class IoObject>
 inline awaitable<Error> AsioTransport::IoCore<IoObject>::Close() {
@@ -116,7 +115,7 @@ inline awaitable<Error> AsioTransport::IoCore<IoObject>::Close() {
     co_return ERR_CONNECTION_CLOSED;
   }
 
-  logger_->WriteF(LogSeverity::Normal, "Close");
+  log_.writef(LogSeverity::Normal, "Close");
   closed_ = true;
   Cleanup();
 
@@ -184,10 +183,10 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
   assert(!closed_);
 
   if (error != OK) {
-    logger_->WriteF(LogSeverity::Warning, "Error: %s",
-                    ErrorToShortString(error).c_str());
+    log_.writef(LogSeverity::Warning, "Error: %s",
+                ErrorToShortString(error).c_str());
   } else {
-    logger_->WriteF(LogSeverity::Normal, "Graceful close");
+    log_.writef(LogSeverity::Normal, "Graceful close");
   }
 
   closed_ = true;

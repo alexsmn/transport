@@ -12,7 +12,7 @@ class MockTransportFactory : public TransportFactory {
               CreateTransport,
               (const TransportString& transport_string,
                const Executor& executor,
-               std::shared_ptr<const Logger> logger));
+               const log_source& log));
 };
 
 }  // namespace transport

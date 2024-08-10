@@ -18,7 +18,7 @@ class SerialTransport final : public AsioTransport {
   };
 
   SerialTransport(const Executor& executor,
-                  std::shared_ptr<const Logger> logger,
+                  const log_source& log,
                   std::string device,
                   const Options& options);
 
@@ -30,12 +30,6 @@ class SerialTransport final : public AsioTransport {
 
  private:
   class SerialPortCore;
-
-  Executor executor_;
-  const std::shared_ptr<const Logger> logger_;
-
-  const std::string device_;
-  const Options options_;
 };
 
 }  // namespace transport
