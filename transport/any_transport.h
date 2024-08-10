@@ -22,7 +22,7 @@ class any_transport {
 
   explicit operator bool() const { return transport_ != nullptr; }
 
-  [[nodiscard]] Executor get_executor() const;
+  [[nodiscard]] Executor get_executor();
   [[nodiscard]] std::string name() const;
   [[nodiscard]] bool message_oriented() const;
   [[nodiscard]] bool active() const;

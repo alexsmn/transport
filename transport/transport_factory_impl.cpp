@@ -123,7 +123,7 @@ ErrorOr<any_transport> TransportFactoryImpl::CreateTransport(
       return ERR_INVALID_ARGUMENT;
     }
 
-    return any_transport{std::make_unique<AsioUdpTransport>(
+    return any_transport{std::make_unique<UdpTransport>(
         executor, std::move(log), udp_socket_factory_, std::string{host},
         std::to_string(port), active)};
 

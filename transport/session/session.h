@@ -91,7 +91,7 @@ class Session final : public Transport {
 
   [[nodiscard]] virtual bool active() const override { return true; }
 
-  [[nodiscard]] virtual Executor get_executor() const override {
+  [[nodiscard]] virtual Executor get_executor() override {
     return executor_;
   }
 

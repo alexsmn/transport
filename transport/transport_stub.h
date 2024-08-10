@@ -29,7 +29,7 @@ class StubTransport : public Transport {
   virtual bool message_oriented() const override { return true; }
   virtual bool connected() const override { return false; }
   virtual bool active() const override { return true; }
-  virtual Executor get_executor() const override { return executor_; }
+  virtual Executor get_executor() override { return executor_; }
 
  private:
   Executor executor_;

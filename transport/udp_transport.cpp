@@ -17,9 +17,29 @@ std::string ToString(const transport::UdpSocket::Endpoint& endpoint) {
 
 namespace transport {
 
-// AsioUdpTransport::UdpActiveCore
+// AsioTransport::Core
 
-class AsioUdpTransport::UdpActiveCore final
+class UdpTransport::Core {
+ public:
+  virtual ~Core() = default;
+
+  [[nodiscard]] virtual awaitable<Error> open() = 0;
+  [[nodiscard]] virtual awaitable<Error> close() = 0;
+  [[nodiscard]] virtual Executor get_executor() = 0;
+  [[nodiscard]] virtual bool connected() const = 0;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() = 0;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+      std::span<char> data) = 0;
+
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+      std::span<const char> data) = 0;
+};
+
+// UdpTransport::UdpActiveCore
+
+class UdpTransport::UdpActiveCore final
     : public Core,
       public std::enable_shared_from_this<UdpActiveCore> {
  public:
@@ -61,23 +81,22 @@ class AsioUdpTransport::UdpActiveCore final
   UdpSocket::Endpoint peer_endpoint_;
 };
 
-AsioUdpTransport::UdpActiveCore::UdpActiveCore(
-    const Executor& executor,
-    UdpSocketFactory udp_socket_factory,
-    std::string host,
-    std::string service)
+UdpTransport::UdpActiveCore::UdpActiveCore(const Executor& executor,
+                                           UdpSocketFactory udp_socket_factory,
+                                           std::string host,
+                                           std::string service)
     : executor_{executor},
       udp_socket_factory_{std::move(udp_socket_factory)},
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-awaitable<Error> AsioUdpTransport::UdpActiveCore::open() {
+awaitable<Error> UdpTransport::UdpActiveCore::open() {
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
 
   return socket_->Open();
 }
 
-awaitable<Error> AsioUdpTransport::UdpActiveCore::close() {
+awaitable<Error> UdpTransport::UdpActiveCore::close() {
   auto ref = shared_from_this();
 
   co_await boost::asio::dispatch(executor_, boost::asio::use_awaitable);
@@ -89,27 +108,27 @@ awaitable<Error> AsioUdpTransport::UdpActiveCore::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> AsioUdpTransport::UdpActiveCore::accept() {
+awaitable<ErrorOr<any_transport>> UdpTransport::UdpActiveCore::accept() {
   co_return ERR_INVALID_ARGUMENT;
 }
 
-awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpActiveCore::read(
+awaitable<ErrorOr<size_t>> UdpTransport::UdpActiveCore::read(
     std::span<char> data) {
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpActiveCore::write(
+awaitable<ErrorOr<size_t>> UdpTransport::UdpActiveCore::write(
     std::span<const char> data) {
   return socket_->SendTo(peer_endpoint_, data);
 }
 
-void AsioUdpTransport::UdpActiveCore::OnSocketOpened(
+void UdpTransport::UdpActiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
   peer_endpoint_ = endpoint;
   connected_ = true;
 }
 
-void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
+void UdpTransport::UdpActiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
   /*if (handlers_.on_message) {
@@ -117,12 +136,12 @@ void AsioUdpTransport::UdpActiveCore::OnSocketMessage(
   }*/
 }
 
-void AsioUdpTransport::UdpActiveCore::OnSocketClosed(
+void UdpTransport::UdpActiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
   connected_ = false;
 }
 
-UdpSocketContext AsioUdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
+UdpSocketContext UdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
   return {
       executor_,
       host_,
@@ -144,9 +163,9 @@ UdpSocketContext AsioUdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
   };
 }
 
-// AsioUdpTransport::UdpAcceptedCore
+// UdpTransport::UdpAcceptedCore
 
-class AsioUdpTransport::UdpAcceptedCore final
+class UdpTransport::UdpAcceptedCore final
     : public Core,
       public std::enable_shared_from_this<UdpAcceptedCore> {
  public:
@@ -188,9 +207,9 @@ class AsioUdpTransport::UdpAcceptedCore final
   friend class UdpPassiveCore;
 };
 
-// AsioUdpTransport::UdpPassiveCore
+// UdpTransport::UdpPassiveCore
 
-class AsioUdpTransport::UdpPassiveCore final
+class UdpTransport::UdpPassiveCore final
     : public Core,
       public std::enable_shared_from_this<UdpPassiveCore> {
  public:
@@ -246,9 +265,9 @@ class AsioUdpTransport::UdpPassiveCore final
   friend class UdpAcceptedCore;
 };
 
-// AsioUdpTransport::UdpPassiveCore
+// UdpTransport::UdpPassiveCore
 
-AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
+UdpTransport::UdpPassiveCore::UdpPassiveCore(
     const Executor& executor,
     const log_source& log,
     UdpSocketFactory udp_socket_factory,
@@ -260,11 +279,11 @@ AsioUdpTransport::UdpPassiveCore::UdpPassiveCore(
       host_{std::move(host)},
       service_{std::move(service)} {}
 
-AsioUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
+UdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
 }
 
-awaitable<Error> AsioUdpTransport::UdpPassiveCore::open() {
+awaitable<Error> UdpTransport::UdpPassiveCore::open() {
   log_.writef(LogSeverity::Normal, "Open");
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
@@ -272,7 +291,7 @@ awaitable<Error> AsioUdpTransport::UdpPassiveCore::open() {
   return socket_->Open();
 }
 
-awaitable<Error> AsioUdpTransport::UdpPassiveCore::close() {
+awaitable<Error> UdpTransport::UdpPassiveCore::close() {
   auto ref = shared_from_this();
 
   co_await boost::asio::dispatch(executor_, boost::asio::use_awaitable);
@@ -288,38 +307,38 @@ awaitable<Error> AsioUdpTransport::UdpPassiveCore::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> AsioUdpTransport::UdpPassiveCore::accept() {
+awaitable<ErrorOr<any_transport>> UdpTransport::UdpPassiveCore::accept() {
   auto ref = shared_from_this();
 
-  auto [ec, accepted_transport] = co_await accept_channel_.async_receive(
+  auto [ec, accepted_core] = co_await accept_channel_.async_receive(
       boost::asio::experimental::as_tuple(boost::asio::use_awaitable));
 
   if (ec) {
     co_return ec;
   }
 
-  co_return any_transport{
-      std::make_unique<AsioUdpTransport>(accepted_transport)};
+  co_return any_transport{std::unique_ptr<UdpTransport>(
+      new UdpTransport{std::move(accepted_core)})};
 }
 
-awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::read(
+awaitable<ErrorOr<size_t>> UdpTransport::UdpPassiveCore::read(
     std::span<char> data) {
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::write(
+awaitable<ErrorOr<size_t>> UdpTransport::UdpPassiveCore::write(
     std::span<const char> data) {
   assert(false);
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpPassiveCore::InternalWrite(
+awaitable<ErrorOr<size_t>> UdpTransport::UdpPassiveCore::InternalWrite(
     UdpSocket::Endpoint endpoint,
     std::span<const char> datagram) {
   return socket_->SendTo(std::move(endpoint), datagram);
 }
 
-void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
+void UdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
     const UdpSocket::Endpoint& endpoint) {
   boost::asio::dispatch(executor_, [this, endpoint, ref = shared_from_this()] {
     log_.writef(
@@ -334,7 +353,7 @@ void AsioUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
   });
 }
 
-void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
+void UdpTransport::UdpPassiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
   if (auto i = accepted_transports_.find(endpoint);
@@ -365,7 +384,7 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketMessage(
   accepted_core->OnSocketMessage(endpoint, std::move(datagram));
 }
 
-void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
+void UdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
   log_.writef(LogSeverity::Normal, "Close %d accepted transports - %s",
               static_cast<int>(accepted_transports_.size()),
               ErrorToString(error).c_str());
@@ -380,7 +399,7 @@ void AsioUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(Error error) {
   }
 }
 
-void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
+void UdpTransport::UdpPassiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
   log_.writef(LogSeverity::Normal, "Opened with endpoint %s",
               ToString(endpoint).c_str());
@@ -388,7 +407,7 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketOpened(
   connected_ = true;
 }
 
-void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
+void UdpTransport::UdpPassiveCore::OnSocketClosed(
     const UdpSocket::Error& error) {
   log_.writef(LogSeverity::Normal, "Closed - %s", error.message().c_str());
 
@@ -396,7 +415,7 @@ void AsioUdpTransport::UdpPassiveCore::OnSocketClosed(
   CloseAllAcceptedTransports(error);
 }
 
-UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
+UdpSocketContext UdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
   return {
       executor_,
       host_,
@@ -418,9 +437,9 @@ UdpSocketContext AsioUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
   };
 }
 
-// AsioUdpTransport::UdpAcceptedCore
+// UdpTransport::UdpAcceptedCore
 
-AsioUdpTransport::UdpAcceptedCore::UdpAcceptedCore(
+UdpTransport::UdpAcceptedCore::UdpAcceptedCore(
     const Executor& executor,
     const log_source& log,
     std::shared_ptr<UdpPassiveCore> passive_core,
@@ -432,17 +451,17 @@ AsioUdpTransport::UdpAcceptedCore::UdpAcceptedCore(
   assert(passive_core_);
 }
 
-AsioUdpTransport::UdpAcceptedCore::~UdpAcceptedCore() {
+UdpTransport::UdpAcceptedCore::~UdpAcceptedCore() {
   if (passive_core_) {
     passive_core_->RemoveAcceptedTransport(endpoint_);
   }
 }
 
-awaitable<Error> AsioUdpTransport::UdpAcceptedCore::open() {
+awaitable<Error> UdpTransport::UdpAcceptedCore::open() {
   co_return ERR_ADDRESS_IN_USE;
 }
 
-awaitable<Error> AsioUdpTransport::UdpAcceptedCore::close() {
+awaitable<Error> UdpTransport::UdpAcceptedCore::close() {
   if (passive_core_) {
     passive_core_->RemoveAcceptedTransport(endpoint_);
     passive_core_ = nullptr;
@@ -453,11 +472,11 @@ awaitable<Error> AsioUdpTransport::UdpAcceptedCore::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> AsioUdpTransport::UdpAcceptedCore::accept() {
+awaitable<ErrorOr<any_transport>> UdpTransport::UdpAcceptedCore::accept() {
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpAcceptedCore::read(
+awaitable<ErrorOr<size_t>> UdpTransport::UdpAcceptedCore::read(
     std::span<char> data) {
   auto [ec, message] = co_await received_message_channel_.async_receive(
       boost::asio::experimental::as_tuple(boost::asio::use_awaitable));
@@ -474,7 +493,7 @@ awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpAcceptedCore::read(
   co_return message.size();
 }
 
-awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpAcceptedCore::write(
+awaitable<ErrorOr<size_t>> UdpTransport::UdpAcceptedCore::write(
     std::span<const char> data) {
   if (!passive_core_ || !connected_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -483,7 +502,7 @@ awaitable<ErrorOr<size_t>> AsioUdpTransport::UdpAcceptedCore::write(
   co_return co_await passive_core_->InternalWrite(endpoint_, data);
 }
 
-void AsioUdpTransport::UdpAcceptedCore::OnSocketMessage(
+void UdpTransport::UdpAcceptedCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
   bool posted = received_message_channel_.try_send(boost::system::error_code{},
@@ -495,7 +514,7 @@ void AsioUdpTransport::UdpAcceptedCore::OnSocketMessage(
   }
 }
 
-void AsioUdpTransport::UdpAcceptedCore::OnSocketClosed(
+void UdpTransport::UdpAcceptedCore::OnSocketClosed(
     const UdpSocket::Error& error) {
   assert(passive_core_);
 
@@ -507,14 +526,14 @@ void AsioUdpTransport::UdpAcceptedCore::OnSocketClosed(
   connected_ = false;
 }
 
-// AsioUdpTransport
+// UdpTransport
 
-AsioUdpTransport::AsioUdpTransport(const Executor& executor,
-                                   const log_source& log,
-                                   UdpSocketFactory udp_socket_factory,
-                                   std::string host,
-                                   std::string service,
-                                   bool active)
+UdpTransport::UdpTransport(const Executor& executor,
+                           const log_source& log,
+                           UdpSocketFactory udp_socket_factory,
+                           std::string host,
+                           std::string service,
+                           bool active)
     : active_{active} {
   if (active_) {
     core_ =
@@ -527,21 +546,45 @@ AsioUdpTransport::AsioUdpTransport(const Executor& executor,
   }
 }
 
-AsioUdpTransport::AsioUdpTransport(std::shared_ptr<Core> core)
-    : active_{false} {
-  core_ = std::move(core);
+UdpTransport::UdpTransport(std::shared_ptr<Core> core)
+    : active_{false}, core_{std::move(core)} {}
+
+UdpTransport::~UdpTransport() {
+  boost::asio::co_spawn(
+      core_->get_executor(), [core = core_] { return core->close(); },
+      boost::asio::detached);
 }
 
-awaitable<Error> AsioUdpTransport::open() {
+Executor UdpTransport::get_executor() {
+  return core_->get_executor();
+}
+
+bool UdpTransport::connected() const {
+  return core_->connected();
+}
+
+awaitable<Error> UdpTransport::open() {
   return core_->open();
 }
 
-std::string AsioUdpTransport::name() const {
+awaitable<Error> UdpTransport::close() {
+  return core_->close();
+}
+
+std::string UdpTransport::name() const {
   return "UDP";
 }
 
-awaitable<ErrorOr<any_transport>> AsioUdpTransport::accept() {
+awaitable<ErrorOr<any_transport>> UdpTransport::accept() {
   return core_->accept();
+}
+
+awaitable<ErrorOr<size_t>> UdpTransport::read(std::span<char> data) {
+  return core_->read(data);
+}
+
+awaitable<ErrorOr<size_t>> UdpTransport::write(std::span<const char> data) {
+  return core_->write(data);
 }
 
 }  // namespace transport

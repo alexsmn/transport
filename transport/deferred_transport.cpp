@@ -136,7 +136,7 @@ bool DeferredTransport::active() const {
   return core_->underlying_transport_.active();
 }
 
-Executor DeferredTransport::get_executor() const {
+Executor DeferredTransport::get_executor() {
   return core_->underlying_transport_.get_executor();
 }
 

@@ -28,7 +28,7 @@ class DeferredTransport final : public Transport {
   virtual bool message_oriented() const override;
   virtual bool connected() const override;
   virtual bool active() const override;
-  virtual Executor get_executor() const override;
+  virtual Executor get_executor() override;
 
  private:
   struct Core;

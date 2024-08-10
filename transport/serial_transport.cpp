@@ -24,37 +24,15 @@ inline bool SetOption(boost::asio::serial_port& serial_port,
 
 }  // namespace
 
-class SerialTransport::SerialPortCore final
-    : public AsioTransport::IoCore<boost::asio::serial_port> {
- public:
-  SerialPortCore(const Executor& executor,
-                 const log_source& log,
-                 std::string device,
-                 const Options& options);
-
-  const std::string& device() const { return device_; }
-
-  // Core
-  virtual awaitable<Error> open() override;
-
- protected:
-  virtual void Cleanup() override;
-
-  const std::string device_;
-  const Options options_;
-};
-
-SerialTransport::SerialPortCore::SerialPortCore(const Executor& executor,
-                                                const log_source& log,
-                                                std::string device,
-                                                const Options& options)
-    : IoCore{executor, std::move(log)},
+SerialTransport::SerialTransport(const Executor& executor,
+                                 const log_source& log,
+                                 std::string device,
+                                 const Options& options)
+    : AsioTransport{executor, std::move(log)},
       device_{std::move(device)},
       options_{options} {}
 
-awaitable<Error> SerialTransport::SerialPortCore::open() {
-  auto ref = std::static_pointer_cast<SerialPortCore>(shared_from_this());
-
+awaitable<Error> SerialTransport::open() {
   boost::system::error_code ec;
   io_object_.open(device_, ec);
   if (ec) {
@@ -75,7 +53,7 @@ awaitable<Error> SerialTransport::SerialPortCore::open() {
   co_return OK;
 }
 
-void SerialTransport::SerialPortCore::Cleanup() {
+void SerialTransport::Cleanup() {
   assert(closed_);
 
   connected_ = false;
@@ -85,24 +63,8 @@ void SerialTransport::SerialPortCore::Cleanup() {
   io_object_.close(ec);
 }
 
-SerialTransport::SerialTransport(const Executor& executor,
-                                 const log_source& log,
-                                 std::string device,
-                                 const Options& options) {
-  core_ = std::make_shared<SerialPortCore>(executor, log, device, options);
-}
-
-awaitable<Error> SerialTransport::open() {
-  if (!core_) {
-    co_return ERR_INVALID_HANDLE;
-  }
-
-  co_return co_await core_->open();
-}
-
 std::string SerialTransport::name() const {
-  return core_ ? std::static_pointer_cast<SerialPortCore>(core_)->device()
-               : std::string{};
+  return device_;
 }
 
 awaitable<ErrorOr<any_transport>> SerialTransport::accept() {
