@@ -46,17 +46,17 @@ class AsioTransport::Core {
  public:
   virtual ~Core() {}
 
-  [[nodiscard]] virtual awaitable<Error> Open() = 0;
-  [[nodiscard]] virtual awaitable<Error> Close() = 0;
+  [[nodiscard]] virtual awaitable<Error> open() = 0;
+  [[nodiscard]] virtual awaitable<Error> close() = 0;
   [[nodiscard]] virtual Executor get_executor() = 0;
   [[nodiscard]] virtual bool connected() const = 0;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> Accept() = 0;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() = 0;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) = 0;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) = 0;
 };
 
@@ -67,16 +67,16 @@ class AsioTransport::IoCore : public Core,
                               public std::enable_shared_from_this<Core> {
  public:
   // Core
-  [[nodiscard]] virtual awaitable<Error> Close() override;
+  [[nodiscard]] virtual awaitable<Error> close() override;
   virtual Executor get_executor() override { return io_object_.get_executor(); }
   virtual bool connected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> Accept() override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
 
  protected:
@@ -105,11 +105,11 @@ inline AsioTransport::IoCore<IoObject>::IoCore(const Executor& executor,
     : log_{std::move(log)}, io_object_{executor} {}
 
 template <class IoObject>
-inline awaitable<Error> AsioTransport::IoCore<IoObject>::Close() {
+inline awaitable<Error> AsioTransport::IoCore<IoObject>::close() {
   auto ref = shared_from_this();
 
-  co_await boost::asio::post(io_object_.get_executor(),
-                             boost::asio::use_awaitable);
+  co_await boost::asio::dispatch(io_object_.get_executor(),
+                                 boost::asio::use_awaitable);
 
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -124,12 +124,12 @@ inline awaitable<Error> AsioTransport::IoCore<IoObject>::Close() {
 
 template <class IoObject>
 inline awaitable<ErrorOr<any_transport>>
-AsioTransport::IoCore<IoObject>::Accept() {
+AsioTransport::IoCore<IoObject>::accept() {
   co_return ERR_INVALID_ARGUMENT;
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Read(
+inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::read(
     std::span<char> data) {
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -150,7 +150,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Read(
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::Write(
+inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::write(
     std::span<const char> data) {
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -198,21 +198,21 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
 
 inline AsioTransport::~AsioTransport() {
   boost::asio::co_spawn(
-      core_->get_executor(), [core = core_] { return core->Close(); },
+      core_->get_executor(), [core = core_] { return core->close(); },
       boost::asio::detached);
 }
 
 inline awaitable<Error> AsioTransport::close() {
-  return core_->Close();
+  return core_->close();
 }
 
 inline awaitable<ErrorOr<size_t>> AsioTransport::read(std::span<char> data) {
-  co_return co_await core_->Read(data);
+  co_return co_await core_->read(data);
 }
 
 inline awaitable<ErrorOr<size_t>> AsioTransport::write(
     std::span<const char> data) {
-  co_return co_await core_->Write(data);
+  co_return co_await core_->write(data);
 }
 
 inline bool AsioTransport::message_oriented() const {

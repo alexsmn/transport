@@ -23,7 +23,7 @@ class TcpTransport::ActiveCore final
   ActiveCore(Socket socket, const log_source& log);
 
   // Core
-  virtual awaitable<Error> Open() override;
+  virtual awaitable<Error> open() override;
 
  private:
   using Resolver = boost::asio::ip::tcp::resolver;
@@ -55,7 +55,7 @@ TcpTransport::ActiveCore::ActiveCore(Socket socket, const log_source& log)
   connected_ = true;
 }
 
-awaitable<Error> TcpTransport::ActiveCore::Open() {
+awaitable<Error> TcpTransport::ActiveCore::open() {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   if (connected_) {
@@ -149,17 +149,17 @@ class TcpTransport::PassiveCore final
   int GetLocalPort() const;
 
   // Core
-  virtual awaitable<Error> Open() override;
-  virtual awaitable<Error> Close() override;
+  virtual awaitable<Error> open() override;
+  virtual awaitable<Error> close() override;
   virtual Executor get_executor() override { return acceptor_.get_executor(); }
   virtual bool connected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> Accept() override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Read(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> Write(
+  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
 
  private:
@@ -196,7 +196,7 @@ int TcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-awaitable<Error> TcpTransport::PassiveCore::Open() {
+awaitable<Error> TcpTransport::PassiveCore::open() {
   auto ref = shared_from_this();
 
   log_.writef(LogSeverity::Normal, "Open");
@@ -268,7 +268,7 @@ boost::system::error_code TcpTransport::PassiveCore::Bind(
   return ec;
 }
 
-awaitable<Error> TcpTransport::PassiveCore::Close() {
+awaitable<Error> TcpTransport::PassiveCore::close() {
   auto ref = shared_from_this();
 
   co_await boost::asio::dispatch(acceptor_.get_executor(),
@@ -287,7 +287,7 @@ awaitable<Error> TcpTransport::PassiveCore::Close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> TcpTransport::PassiveCore::Accept() {
+awaitable<ErrorOr<any_transport>> TcpTransport::PassiveCore::accept() {
   auto ref = shared_from_this();
 
   // TODO: Use different executor.
@@ -317,12 +317,12 @@ awaitable<ErrorOr<any_transport>> TcpTransport::PassiveCore::Accept() {
       std::make_unique<TcpTransport>(std::move(peer), log_)};
 }
 
-awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::Read(
+awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::read(
     std::span<char> data) {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::Write(
+awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::write(
     std::span<const char> data) {
   co_return ERR_ACCESS_DENIED;
 }
@@ -372,11 +372,11 @@ TcpTransport::~TcpTransport() {
 }
 
 awaitable<Error> TcpTransport::open() {
-  co_return co_await core_->Open();
+  co_return co_await core_->open();
 }
 
 awaitable<ErrorOr<any_transport>> TcpTransport::accept() {
-  co_return co_await core_->Accept();
+  co_return co_await core_->accept();
 }
 
 int TcpTransport::GetLocalPort() const {

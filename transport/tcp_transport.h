@@ -20,14 +20,15 @@ class TcpTransport final : public AsioTransport {
 
   ~TcpTransport();
 
-  int GetLocalPort() const;
+  [[nodiscard]] int GetLocalPort() const;
 
-  // Transport overrides
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
-  virtual std::string name() const override;
-  virtual bool active() const override { return type_ == Type::ACTIVE; }
+  [[nodiscard]] virtual std::string name() const override;
+  [[nodiscard]] virtual bool active() const override {
+    return type_ == Type::ACTIVE;
+  }
 
  private:
   class ActiveCore;

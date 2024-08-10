@@ -35,7 +35,7 @@ class SerialTransport::SerialPortCore final
   const std::string& device() const { return device_; }
 
   // Core
-  virtual awaitable<Error> Open() override;
+  virtual awaitable<Error> open() override;
 
  protected:
   virtual void Cleanup() override;
@@ -52,7 +52,7 @@ SerialTransport::SerialPortCore::SerialPortCore(const Executor& executor,
       device_{std::move(device)},
       options_{options} {}
 
-awaitable<Error> SerialTransport::SerialPortCore::Open() {
+awaitable<Error> SerialTransport::SerialPortCore::open() {
   auto ref = std::static_pointer_cast<SerialPortCore>(shared_from_this());
 
   boost::system::error_code ec;
@@ -97,7 +97,7 @@ awaitable<Error> SerialTransport::open() {
     co_return ERR_INVALID_HANDLE;
   }
 
-  co_return co_await core_->Open();
+  co_return co_await core_->open();
 }
 
 std::string SerialTransport::name() const {
