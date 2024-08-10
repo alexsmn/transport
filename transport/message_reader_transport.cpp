@@ -3,7 +3,6 @@
 #include "transport/any_transport.h"
 #include "transport/auto_reset.h"
 #include "transport/error.h"
-#include "transport/logger.h"
 #include "transport/message_reader.h"
 
 #include <boost/asio/co_spawn.hpp>
@@ -17,11 +16,11 @@ namespace transport {
 struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   Core(any_transport child_transport,
        std::unique_ptr<MessageReader> message_reader,
-       std::shared_ptr<const Logger> logger)
+       const log_source& log)
       : executor_{child_transport.get_executor()},
         child_transport_{std::move(child_transport)},
         message_reader_{std::move(message_reader)},
-        logger_{std::move(logger)} {}
+        log_{log} {}
 
   [[nodiscard]] awaitable<Error> Open();
   [[nodiscard]] awaitable<Error> Close();
@@ -32,9 +31,9 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
       std::span<const char> data);
 
   Executor executor_;
+  log_source log_;
   any_transport child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
-  const std::shared_ptr<const Logger> logger_;
 
   bool opened_ = false;
   bool reading_ = false;
@@ -48,10 +47,10 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
 MessageReaderTransport::MessageReaderTransport(
     any_transport child_transport,
     std::unique_ptr<MessageReader> message_reader,
-    std::shared_ptr<const Logger> logger)
+    const log_source& log)
     : core_{std::make_shared<Core>(std::move(child_transport),
                                    std::move(message_reader),
-                                   std::move(logger))} {
+                                   log)} {
   assert(core_->child_transport_);
   // Passive transport can be connected.
   // assert(!child_transport_.connected());
@@ -119,7 +118,7 @@ awaitable<ErrorOr<any_transport>> MessageReaderTransport::accept() {
   co_return any_transport{std::make_unique<MessageReaderTransport>(
       std::move(accepted_child_transport),
       std::unique_ptr<MessageReader>{core->message_reader_->Clone()},
-      core->logger_)};
+      core->log_)};
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::read(std::span<char> data) {
@@ -150,7 +149,7 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     if (!bytes_popped.ok()) {
       // TODO: Add UT.
       // TODO: Print message.
-      logger_->Write(LogSeverity::Warning, "Invalid message");
+      log_.write(LogSeverity::Warning, "Invalid message");
       opened_ = false;
       co_return bytes_popped;
     }
@@ -162,8 +161,8 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     // Don't allow composite message to contain partial messages.
     if (!message_reader_->IsEmpty() && child_transport_.message_oriented()) {
       // TODO: Print message.
-      logger_->Write(LogSeverity::Warning,
-                     "Composite message contains a partial message");
+      log_.write(LogSeverity::Warning,
+                 "Composite message contains a partial message");
       co_return ERR_FAILED;
     }
 

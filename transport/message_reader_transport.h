@@ -2,6 +2,7 @@
 
 #include "transport/any_transport.h"
 #include "transport/executor.h"
+#include "transport/log.h"
 #include "transport/transport.h"
 
 #include <memory>
@@ -21,7 +22,7 @@ class MessageReaderTransport final : public Transport {
  public:
   MessageReaderTransport(any_transport child_transport,
                          std::unique_ptr<MessageReader> message_reader,
-                         std::shared_ptr<const Logger> logger);
+                         const log_source& log = {});
   virtual ~MessageReaderTransport();
 
   MessageReader& message_reader();

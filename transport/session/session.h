@@ -1,6 +1,7 @@
 #pragma once
 
 #include "transport/error.h"
+#include "transport/log.h"
 #include "transport/session/session_info.h"
 #include "transport/timer.h"
 #include "transport/transport.h"
@@ -12,8 +13,6 @@
 #include <vector>
 
 namespace transport {
-
-class Logger;
 
 class Session final : public Transport {
  public:
@@ -171,8 +170,7 @@ class Session final : public Transport {
   void OnTransportMessageReceived(std::span<const char> data);
 
   Executor executor_;
-
-  std::shared_ptr<const Logger> logger_;
+  log_source log_;
 
   SessionID id_;
   Session* parent_session_ = nullptr;

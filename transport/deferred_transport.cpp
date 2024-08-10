@@ -1,7 +1,7 @@
 #include "transport/deferred_transport.h"
 
 #include "transport/bind_util.h"
-#include "transport/logger.h"
+#include "transport/log.h"
 
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/dispatch.hpp>

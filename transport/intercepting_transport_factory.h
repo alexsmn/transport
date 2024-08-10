@@ -19,13 +19,13 @@ class InterceptingTransportFactory : public TransportFactory {
   virtual ErrorOr<any_transport> CreateTransport(
       const TransportString& transport_string,
       const Executor& executor,
-      std::shared_ptr<const Logger> logger = nullptr) override {
+      const log_source& log = {}) override {
     NET_ASSIGN_OR_RETURN(auto transport,
                          underlying_transport_factory_.CreateTransport(
-                             transport_string, executor, std::move(logger)));
+                             transport_string, executor, log));
 
     if (!interceptor_) {
-      return transport;
+      return std::move(transport);
     }
 
     return any_transport{std::make_unique<InterceptingTransport>(

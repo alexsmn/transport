@@ -1,6 +1,5 @@
 #include "transport/session/session.h"
 
-#include "transport/logger.h"
 #include "transport/message_reader_transport.h"
 #include "transport/message_utils.h"
 #include "transport/session/bytebuf.h"
@@ -32,10 +31,7 @@ inline bool MessageIdLess(uint16_t left, uint16_t right) {
 // Session
 
 Session::Session(const boost::asio::any_io_executor& executor)
-    : executor_{executor},
-      logger_(NullLogger::GetInstance()),
-      timer_{executor},
-      reconnection_period_{1s} {
+    : executor_{executor}, timer_{executor}, reconnection_period_{1s} {
   timer_.StartRepeating(50ms, [this] { OnTimer(); });
 }
 
@@ -114,8 +110,7 @@ void Session::SetTransport(any_transport transport) {
 
   if (transport && !transport.message_oriented()) {
     transport = any_transport{std::make_unique<MessageReaderTransport>(
-        std::move(transport), std::make_unique<SessionMessageReader>(),
-        logger_)};
+        std::move(transport), std::make_unique<SessionMessageReader>(), log_)};
   }
 
   transport_ = std::move(transport);
@@ -201,8 +196,8 @@ void Session::Send(const void* data, size_t len, int priority) {
 }
 
 void Session::OnClosed(Error error) {
-  logger_->WriteF(LogSeverity::Warning, "Session fatal error %s",
-                  ErrorToString(error).c_str());
+  log_.writef(LogSeverity::Warning, "Session fatal error %s",
+              ErrorToString(error).c_str());
 
   Cleanup();
 
@@ -219,8 +214,8 @@ void Session::OnSessionRestored() {
 }
 
 void Session::OnTransportError(Error error) {
-  logger_->WriteF(LogSeverity::Warning, "Session transport error - %s",
-                  ErrorToString(error).c_str());
+  log_.writef(LogSeverity::Warning, "Session transport error - %s",
+              ErrorToString(error).c_str());
 
   cancelation_ = nullptr;
 
@@ -238,7 +233,7 @@ awaitable<Error> Session::open() {
   assert(state_ == CLOSED);
   assert(!cancelation_);
 
-  logger_->Write(LogSeverity::Normal, "Opening session");
+  log_.write(LogSeverity::Normal, "Opening session");
 
   state_ = OPENING;
 
@@ -261,8 +256,8 @@ std::string Session::name() const {
 awaitable<Error> Session::Connect() {
   assert(!cancelation_);
 
-  logger_->WriteF(LogSeverity::Normal, "Connecting to %s",
-                  transport_.name().c_str());
+  log_.writef(LogSeverity::Normal, "Connecting to %s",
+              transport_.name().c_str());
 
   connect_start_ticks_ = Clock::now();
   connecting_ = true;
@@ -383,8 +378,8 @@ void Session::ProcessSessionMessage(uint16_t id,
 void Session::OnTransportOpened() {
   assert(connecting_);
 
-  logger_->WriteF(LogSeverity::Normal, "Transport opened. Name is %s",
-                  transport_.name().c_str());
+  log_.writef(LogSeverity::Normal, "Transport opened. Name is %s",
+              transport_.name().c_str());
 
   connecting_ = false;
 
@@ -399,10 +394,10 @@ void Session::OnTransportOpened() {
 
   // If session is opened, try to restore. Otherwise, start login.
   if (state_ == OPENED) {
-    logger_->Write(LogSeverity::Normal, "Restoring session");
+    log_.write(LogSeverity::Normal, "Restoring session");
     SendOpen(id_);
   } else {
-    logger_->Write(LogSeverity::Normal, "Creating new session");
+    log_.write(LogSeverity::Normal, "Creating new session");
     SendCreate(create_info_);
   }
 }
@@ -441,8 +436,8 @@ void Session::OnCreateResponse(const SessionID& session_id,
 }
 
 void Session::OnTransportClosed(Error error) {
-  logger_->WriteF(LogSeverity::Warning, "Transport closed with error %s",
-                  ErrorToString(error).c_str());
+  log_.writef(LogSeverity::Warning, "Transport closed with error %s",
+              ErrorToString(error).c_str());
 
   OnTransportError(error);
 }
@@ -480,7 +475,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
 
     case NETS_CLOSE: {
       // Close session request.
-      logger_->Write(LogSeverity::Warning, "Close Session request");
+      log_.write(LogSeverity::Warning, "Close Session request");
       // Don't respond on this type of message.
       // Actual close. Assume current transport object may be deleted after next
       // call.
@@ -494,8 +489,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       Error error = boost::system::errc::make_error_code(
           static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
-      logger_->WriteF(LogSeverity::Normal, "Create session response - %s",
-                      ErrorToString(error).c_str());
+      log_.writef(LogSeverity::Normal, "Create session response - %s",
+                  ErrorToString(error).c_str());
 
       // Check login is failed and throw session failure.
       if (error != OK) {
@@ -516,8 +511,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       Error error = boost::system::errc::make_error_code(
           static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
-      logger_->WriteF(LogSeverity::Normal, "Restore session response - %s",
-                      ErrorToString(error).c_str());
+      log_.writef(LogSeverity::Normal, "Restore session response - %s",
+                  ErrorToString(error).c_str());
 
       if (error != OK) {
         OnClosed(error);
@@ -553,8 +548,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     }
 
     default:
-      logger_->WriteF(LogSeverity::Error, "Unknown session message %d",
-                      static_cast<int>(fun));
+      log_.writef(LogSeverity::Error, "Unknown session message %d",
+                  static_cast<int>(fun));
       OnClosed(ERR_FAILED);
       break;
   }
@@ -641,9 +636,8 @@ void Session::OnAccepted(any_transport transport) {
 }
 
 void Session::OnCreate(const CreateSessionInfo& create_info) {
-  logger_->WriteF(LogSeverity::Normal,
-                  "Create Session request name=%s force=%d",
-                  create_info.name.c_str(), create_info.force ? 1 : 0);
+  log_.writef(LogSeverity::Normal, "Create Session request name=%s force=%d",
+              create_info.name.c_str(), create_info.force ? 1 : 0);
 
   // process request
   SessionID session_id;
@@ -691,7 +685,7 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
 }
 
 void Session::OnRestore(const SessionID& session_id) {
-  logger_->Write(LogSeverity::Normal, "Restore Session request");
+  log_.write(LogSeverity::Normal, "Restore Session request");
 
   // process request
   Session* new_session = nullptr;

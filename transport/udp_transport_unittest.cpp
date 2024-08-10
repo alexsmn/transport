@@ -1,7 +1,7 @@
 #include "transport/udp_transport.h"
 
 #include "transport/any_transport.h"
-#include "transport/logger.h"
+#include "transport/log.h"
 #include "transport/test/coroutine_util.h"
 #include "transport/udp_socket.h"
 
@@ -60,11 +60,11 @@ void AsioUdpTransportTest::SetUp() {}
 void AsioUdpTransportTest::TearDown() {}
 
 std::unique_ptr<Transport> AsioUdpTransportTest::OpenTransport(bool active) {
-  auto transport = std::make_unique<AsioUdpTransport>(
-      executor_, NullLogger::GetInstance(), udp_socket_factory,
-      /*host=*/std::string{},
-      /*service=*/std::string{},
-      /*active=*/active);
+  auto transport = std::make_unique<AsioUdpTransport>(executor_, log_source{},
+                                                      udp_socket_factory,
+                                                      /*host=*/std::string{},
+                                                      /*service=*/std::string{},
+                                                      /*active=*/active);
 
   EXPECT_CALL(*socket, Open());
 

@@ -28,9 +28,11 @@ class SerialTransport::SerialPortCore final
     : public AsioTransport::IoCore<boost::asio::serial_port> {
  public:
   SerialPortCore(const Executor& executor,
-                 std::shared_ptr<const Logger> logger,
+                 const log_source& log,
                  std::string device,
                  const Options& options);
+
+  const std::string& device() const { return device_; }
 
   // Core
   virtual awaitable<Error> Open() override;
@@ -42,12 +44,11 @@ class SerialTransport::SerialPortCore final
   const Options options_;
 };
 
-SerialTransport::SerialPortCore::SerialPortCore(
-    const Executor& executor,
-    std::shared_ptr<const Logger> logger,
-    std::string device,
-    const Options& options)
-    : IoCore{executor, std::move(logger)},
+SerialTransport::SerialPortCore::SerialPortCore(const Executor& executor,
+                                                const log_source& log,
+                                                std::string device,
+                                                const Options& options)
+    : IoCore{executor, std::move(log)},
       device_{std::move(device)},
       options_{options} {}
 
@@ -85,23 +86,23 @@ void SerialTransport::SerialPortCore::Cleanup() {
 }
 
 SerialTransport::SerialTransport(const Executor& executor,
-                                 std::shared_ptr<const Logger> logger,
+                                 const log_source& log,
                                  std::string device,
-                                 const Options& options)
-    : executor_{executor},
-      logger_{std::move(logger)},
-      device_{std::move(device)},
-      options_{options} {}
+                                 const Options& options) {
+  core_ = std::make_shared<SerialPortCore>(executor, log, device, options);
+}
 
 awaitable<Error> SerialTransport::open() {
-  core_ =
-      std::make_shared<SerialPortCore>(executor_, logger_, device_, options_);
+  if (!core_) {
+    co_return ERR_INVALID_HANDLE;
+  }
 
-  return core_->Open();
+  co_return co_await core_->Open();
 }
 
 std::string SerialTransport::name() const {
-  return device_;
+  return core_ ? std::static_pointer_cast<SerialPortCore>(core_)->device()
+               : std::string{};
 }
 
 awaitable<ErrorOr<any_transport>> SerialTransport::accept() {

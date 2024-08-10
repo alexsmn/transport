@@ -2,7 +2,7 @@
 
 #include "transport/bytemsg.h"
 #include "transport/error_or.h"
-#include "transport/logger.h"
+#include "transport/log.h"
 
 #include <cassert>
 #include <span>
@@ -32,10 +32,7 @@ namespace transport {
 class MessageReader {
  public:
   MessageReader(void* buffer, size_t capacity)
-      : buffer_(buffer, capacity),
-        complete_(false),
-        logger_(NullLogger::GetInstance()),
-        error_correction_(false) {}
+      : buffer_(buffer, capacity), complete_(false), error_correction_(false) {}
   virtual ~MessageReader() {}
 
   MessageReader(const MessageReader&) = delete;
@@ -83,9 +80,7 @@ class MessageReader {
   bool has_error_correction() const { return error_correction_; }
   void set_error_correction(bool correction) { error_correction_ = correction; }
 
-  void SetLogger(std::shared_ptr<const Logger> logger) {
-    logger_ = std::move(logger);
-  }
+  void set_log(const log_source& log) { log_ = log; }
 
   bool TryCorrectError() { return error_correction_ && SkipFirstByte(); }
 
@@ -131,15 +126,12 @@ class MessageReader {
                                 size_t len,
                                 size_t& expected) const = 0;
 
-  const Logger& logger() const {
-    assert(logger_);
-    return *logger_;
-  }
+  const log_source& log() const { return log_; }
 
  private:
   ByteMessage buffer_;
   mutable bool complete_;
-  std::shared_ptr<const Logger> logger_;
+  log_source log_;
   bool error_correction_;
 };
 

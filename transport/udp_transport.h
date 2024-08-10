@@ -10,7 +10,7 @@ class Logger;
 class AsioUdpTransport final : public AsioTransport {
  public:
   AsioUdpTransport(const Executor& executor,
-                   std::shared_ptr<const Logger> logger,
+                   const log_source& log,
                    UdpSocketFactory udp_socket_factory,
                    std::string host,
                    std::string service,

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "transport/executor.h"
-#include "transport/logger.h"
+#include "transport/log.h"
 #include "transport/transport_factory.h"
 #include "transport/udp_socket_factory.h"
 
@@ -22,8 +22,7 @@ class TransportFactoryImpl : public TransportFactory {
   virtual ErrorOr<any_transport> CreateTransport(
       const TransportString& transport_string,
       const Executor& executor,
-      std::shared_ptr<const Logger> logger =
-          NullLogger::GetInstance()) override;
+      const log_source& log = {}) override;
 
  private:
   boost::asio::io_context& io_context_;

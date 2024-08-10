@@ -1,6 +1,6 @@
 #include "transport/tcp_transport.h"
 
-#include "transport/logger.h"
+#include "transport/log.h"
 
 #include <boost/asio/connect.hpp>
 
@@ -14,13 +14,13 @@ class TcpTransport::ActiveCore final
   using Socket = boost::asio::ip::tcp::socket;
 
   ActiveCore(const Executor& executor,
-             std::shared_ptr<const Logger> logger,
+             const log_source& log,
              const std::string& host,
              const std::string& service);
 
   // A constructor for a socket accepted by a passive TCP transport.
   // Uses the executor of the socket.
-  ActiveCore(std::shared_ptr<const Logger> logger, Socket socket);
+  ActiveCore(Socket socket, const log_source& log);
 
   // Core
   virtual awaitable<Error> Open() override;
@@ -41,18 +41,16 @@ class TcpTransport::ActiveCore final
 };
 
 TcpTransport::ActiveCore::ActiveCore(const Executor& executor,
-                                     std::shared_ptr<const Logger> logger,
+                                     const log_source& log,
                                      const std::string& host,
                                      const std::string& service)
-    : IoCore{executor, std::move(logger)},
+    : IoCore{executor, log},
       host_{host},
       service_{service},
       resolver_{executor} {}
 
-TcpTransport::ActiveCore::ActiveCore(std::shared_ptr<const Logger> logger,
-                                     Socket socket)
-    : IoCore{socket.get_executor(), std::move(logger)},
-      resolver_{socket.get_executor()} {
+TcpTransport::ActiveCore::ActiveCore(Socket socket, const log_source& log)
+    : IoCore{socket.get_executor(), log}, resolver_{socket.get_executor()} {
   io_object_ = std::move(socket);
   connected_ = true;
 }
@@ -64,7 +62,7 @@ awaitable<Error> TcpTransport::ActiveCore::Open() {
     co_return OK;
   }
 
-  logger_->WriteF(LogSeverity::Normal, "Open");
+  log_.writef(LogSeverity::Normal, "Open");
 
   co_return co_await ResolveAndConnect();
 }
@@ -72,8 +70,8 @@ awaitable<Error> TcpTransport::ActiveCore::Open() {
 awaitable<Error> TcpTransport::ActiveCore::ResolveAndConnect() {
   auto ref = shared_from_this();
 
-  logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
-                  host_.c_str(), service_.c_str());
+  log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
+              host_.c_str(), service_.c_str());
 
   auto [error, iterator] = co_await resolver_.async_resolve(
       host_, service_, boost::asio::as_tuple(boost::asio::use_awaitable));
@@ -84,13 +82,13 @@ awaitable<Error> TcpTransport::ActiveCore::ResolveAndConnect() {
 
   if (error) {
     if (error != boost::asio::error::operation_aborted) {
-      logger_->Write(LogSeverity::Warning, "DNS resolution error");
+      log_.write(LogSeverity::Warning, "DNS resolution error");
       ProcessError(error);
     }
     co_return error;
   }
 
-  logger_->Write(LogSeverity::Normal, "DNS resolution completed");
+  log_.write(LogSeverity::Normal, "DNS resolution completed");
 
   co_return co_await Connect(std::move(iterator));
 }
@@ -108,14 +106,14 @@ awaitable<Error> TcpTransport::ActiveCore::Connect(
 
   if (error) {
     if (error != boost::asio::error::operation_aborted) {
-      logger_->Write(LogSeverity::Warning, "Connect error");
+      log_.write(LogSeverity::Warning, "Connect error");
       ProcessError(error);
     }
     co_return error;
   }
 
-  logger_->WriteF(LogSeverity::Normal, "Connected to %s",
-                  connected_iterator->host_name().c_str());
+  log_.writef(LogSeverity::Normal, "Connected to %s",
+              connected_iterator->host_name().c_str());
 
   connected_ = true;
 
@@ -125,7 +123,7 @@ awaitable<Error> TcpTransport::ActiveCore::Connect(
 void TcpTransport::ActiveCore::Cleanup() {
   assert(closed_);
 
-  logger_->Write(LogSeverity::Normal, "Cleanup");
+  log_.write(LogSeverity::Normal, "Cleanup");
 
   connected_ = false;
 
@@ -144,7 +142,7 @@ class TcpTransport::PassiveCore final
  public:
   // The executor must be a sequential one.
   PassiveCore(const Executor& executor,
-              std::shared_ptr<const Logger> logger,
+              const log_source& logger,
               const std::string& host,
               const std::string& service);
 
@@ -173,7 +171,7 @@ class TcpTransport::PassiveCore final
 
   void ProcessError(const boost::system::error_code& ec);
 
-  const std::shared_ptr<const Logger> logger_;
+  log_source log_;
   std::string host_;
   std::string service_;
 
@@ -185,10 +183,10 @@ class TcpTransport::PassiveCore final
 };
 
 TcpTransport::PassiveCore::PassiveCore(const Executor& executor,
-                                       std::shared_ptr<const Logger> logger,
+                                       const log_source& log,
                                        const std::string& host,
                                        const std::string& service)
-    : logger_{std::move(logger)},
+    : log_{log},
       host_{host},
       service_{service},
       resolver_{executor},
@@ -201,14 +199,14 @@ int TcpTransport::PassiveCore::GetLocalPort() const {
 awaitable<Error> TcpTransport::PassiveCore::Open() {
   auto ref = shared_from_this();
 
-  logger_->WriteF(LogSeverity::Normal, "Open");
+  log_.writef(LogSeverity::Normal, "Open");
 
   return ResolveAndBind();
 }
 
 awaitable<Error> TcpTransport::PassiveCore::ResolveAndBind() {
-  logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
-                  host_.c_str(), service_.c_str());
+  log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
+              host_.c_str(), service_.c_str());
 
   auto ref = shared_from_this();
 
@@ -222,21 +220,21 @@ awaitable<Error> TcpTransport::PassiveCore::ResolveAndBind() {
 
   if (error) {
     if (error != boost::asio::error::operation_aborted) {
-      logger_->Write(LogSeverity::Warning, "DNS resolution error");
+      log_.write(LogSeverity::Warning, "DNS resolution error");
       ProcessError(error);
     }
     co_return error;
   }
 
-  logger_->Write(LogSeverity::Normal, "DNS resolution completed");
+  log_.write(LogSeverity::Normal, "DNS resolution completed");
 
   if (auto ec = Bind(std::move(iterator)); ec) {
-    logger_->Write(LogSeverity::Warning, "Bind error");
+    log_.write(LogSeverity::Warning, "Bind error");
     ProcessError(ec);
     co_return error;
   }
 
-  logger_->Write(LogSeverity::Normal, "Bind completed");
+  log_.write(LogSeverity::Normal, "Bind completed");
 
   connected_ = true;
 
@@ -245,7 +243,7 @@ awaitable<Error> TcpTransport::PassiveCore::ResolveAndBind() {
 
 boost::system::error_code TcpTransport::PassiveCore::Bind(
     Resolver::iterator iterator) {
-  logger_->Write(LogSeverity::Normal, "Bind");
+  log_.write(LogSeverity::Normal, "Bind");
 
   boost::system::error_code ec = boost::asio::error::fault;
 
@@ -280,7 +278,7 @@ awaitable<Error> TcpTransport::PassiveCore::Close() {
     co_return ERR_CONNECTION_CLOSED;
   }
 
-  logger_->Write(LogSeverity::Normal, "Close");
+  log_.write(LogSeverity::Normal, "Close");
 
   closed_ = true;
   connected_ = false;
@@ -303,20 +301,20 @@ awaitable<ErrorOr<any_transport>> TcpTransport::PassiveCore::Accept() {
   }
 
   // TODO: Log connection information.
-  logger_->Write(LogSeverity::Normal, "Accept incoming connection");
+  log_.write(LogSeverity::Normal, "Accept incoming connection");
 
   if (error) {
     if (error != boost::asio::error::operation_aborted) {
-      logger_->Write(LogSeverity::Warning, "Accept connection error");
+      log_.write(LogSeverity::Warning, "Accept connection error");
       ProcessError(error);
     }
     co_return error;
   }
 
-  logger_->Write(LogSeverity::Normal, "Connection accepted");
+  log_.write(LogSeverity::Normal, "Connection accepted");
 
   co_return any_transport{
-      std::make_unique<TcpTransport>(logger_, std::move(peer))};
+      std::make_unique<TcpTransport>(std::move(peer), log_)};
 }
 
 awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::Read(
@@ -336,10 +334,10 @@ void TcpTransport::PassiveCore::ProcessError(
   }
 
   if (ec != OK) {
-    logger_->WriteF(LogSeverity::Warning, "Error: %s",
-                    ErrorToShortString(ec).c_str());
+    log_.writef(LogSeverity::Warning, "Error: %s",
+                ErrorToShortString(ec).c_str());
   } else {
-    logger_->WriteF(LogSeverity::Normal, "Graceful close");
+    log_.writef(LogSeverity::Normal, "Graceful close");
   }
 
   connected_ = false;
@@ -349,24 +347,24 @@ void TcpTransport::PassiveCore::ProcessError(
 // TcpTransport
 
 TcpTransport::TcpTransport(const Executor& executor,
-                           std::shared_ptr<const Logger> logger,
+                           const log_source& log,
                            std::string host,
                            std::string service,
                            bool active)
     : type_{active ? Type::ACTIVE : Type::PASSIVE} {
   if (active) {
-    core_ = std::make_shared<ActiveCore>(executor, std::move(logger),
-                                         std::move(host), std::move(service));
+    core_ = std::make_shared<ActiveCore>(executor, log, std::move(host),
+                                         std::move(service));
   } else {
-    core_ = std::make_shared<PassiveCore>(executor, std::move(logger),
-                                          std::move(host), std::move(service));
+    core_ = std::make_shared<PassiveCore>(executor, log, std::move(host),
+                                          std::move(service));
   }
 }
 
-TcpTransport::TcpTransport(std::shared_ptr<const Logger> logger,
-                           boost::asio::ip::tcp::socket socket)
+TcpTransport::TcpTransport(boost::asio::ip::tcp::socket socket,
+                           const log_source& log)
     : type_{Type::ACCEPTED} {
-  core_ = std::make_shared<ActiveCore>(std::move(logger), std::move(socket));
+  core_ = std::make_shared<ActiveCore>(std::move(socket), log);
 }
 
 TcpTransport::~TcpTransport() {
