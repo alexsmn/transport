@@ -6,21 +6,19 @@
 
 namespace transport {
 
-class TcpTransport final : public AsioTransport {
+class ActiveTcpTransport final : public AsioTransport {
  public:
-  TcpTransport(const Executor& executor,
-               const log_source& log,
-               std::string host,
-               std::string service,
-               bool active);
+  ActiveTcpTransport(const Executor& executor,
+                     const log_source& log,
+                     std::string host,
+                     std::string service);
 
   // A constructor for a socket accepted by a passive TCP transport.
   // Uses the executor of the socket.
-  TcpTransport(boost::asio::ip::tcp::socket socket, const log_source& log);
+  ActiveTcpTransport(boost::asio::ip::tcp::socket socket,
+                     const log_source& log);
 
-  ~TcpTransport();
-
-  [[nodiscard]] int GetLocalPort() const;
+  ~ActiveTcpTransport();
 
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
@@ -32,10 +30,30 @@ class TcpTransport final : public AsioTransport {
 
  private:
   class ActiveCore;
-  class PassiveCore;
 
-  enum class Type { ACTIVE, PASSIVE, ACCEPTED };
+  enum class Type { ACTIVE, ACCEPTED };
   const Type type_;
+};
+
+class PassiveTcpTransport final : public AsioTransport {
+ public:
+  PassiveTcpTransport(const Executor& executor,
+                      const log_source& log,
+                      std::string host,
+                      std::string service);
+
+  ~PassiveTcpTransport();
+
+  [[nodiscard]] int GetLocalPort() const;
+
+  [[nodiscard]] virtual awaitable<Error> open() override;
+  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+
+  [[nodiscard]] virtual std::string name() const override;
+  [[nodiscard]] virtual bool active() const override { return false; }
+
+ private:
+  class PassiveCore;
 };
 
 }  // namespace transport

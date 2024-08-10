@@ -6,9 +6,9 @@
 
 namespace transport {
 
-// TcpTransport::ActiveCore
+// ActiveTcpTransport::ActiveCore
 
-class TcpTransport::ActiveCore final
+class ActiveTcpTransport::ActiveCore final
     : public IoCore<boost::asio::ip::tcp::socket> {
  public:
   using Socket = boost::asio::ip::tcp::socket;
@@ -40,22 +40,22 @@ class TcpTransport::ActiveCore final
   Resolver resolver_;
 };
 
-TcpTransport::ActiveCore::ActiveCore(const Executor& executor,
-                                     const log_source& log,
-                                     const std::string& host,
-                                     const std::string& service)
+ActiveTcpTransport::ActiveCore::ActiveCore(const Executor& executor,
+                                           const log_source& log,
+                                           const std::string& host,
+                                           const std::string& service)
     : IoCore{executor, log},
       host_{host},
       service_{service},
       resolver_{executor} {}
 
-TcpTransport::ActiveCore::ActiveCore(Socket socket, const log_source& log)
+ActiveTcpTransport::ActiveCore::ActiveCore(Socket socket, const log_source& log)
     : IoCore{socket.get_executor(), log}, resolver_{socket.get_executor()} {
   io_object_ = std::move(socket);
   connected_ = true;
 }
 
-awaitable<Error> TcpTransport::ActiveCore::open() {
+awaitable<Error> ActiveTcpTransport::ActiveCore::open() {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
   if (connected_) {
@@ -67,7 +67,7 @@ awaitable<Error> TcpTransport::ActiveCore::open() {
   co_return co_await ResolveAndConnect();
 }
 
-awaitable<Error> TcpTransport::ActiveCore::ResolveAndConnect() {
+awaitable<Error> ActiveTcpTransport::ActiveCore::ResolveAndConnect() {
   auto ref = shared_from_this();
 
   log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
@@ -93,7 +93,7 @@ awaitable<Error> TcpTransport::ActiveCore::ResolveAndConnect() {
   co_return co_await Connect(std::move(iterator));
 }
 
-awaitable<Error> TcpTransport::ActiveCore::Connect(
+awaitable<Error> ActiveTcpTransport::ActiveCore::Connect(
     Resolver::iterator iterator) {
   auto ref = std::static_pointer_cast<ActiveCore>(shared_from_this());
 
@@ -120,7 +120,7 @@ awaitable<Error> TcpTransport::ActiveCore::Connect(
   co_return OK;
 }
 
-void TcpTransport::ActiveCore::Cleanup() {
+void ActiveTcpTransport::ActiveCore::Cleanup() {
   assert(closed_);
 
   log_.write(LogSeverity::Normal, "Cleanup");
@@ -134,9 +134,9 @@ void TcpTransport::ActiveCore::Cleanup() {
   io_object_.close(ec);
 }
 
-// TcpTransport::PassiveCore
+// PassiveTcpTransport::PassiveCore
 
-class TcpTransport::PassiveCore final
+class PassiveTcpTransport::PassiveCore final
     : public Core,
       public std::enable_shared_from_this<PassiveCore> {
  public:
@@ -182,21 +182,21 @@ class TcpTransport::PassiveCore final
   bool closed_ = false;
 };
 
-TcpTransport::PassiveCore::PassiveCore(const Executor& executor,
-                                       const log_source& log,
-                                       const std::string& host,
-                                       const std::string& service)
+PassiveTcpTransport::PassiveCore::PassiveCore(const Executor& executor,
+                                              const log_source& log,
+                                              const std::string& host,
+                                              const std::string& service)
     : log_{log},
       host_{host},
       service_{service},
       resolver_{executor},
       acceptor_{executor} {}
 
-int TcpTransport::PassiveCore::GetLocalPort() const {
+int PassiveTcpTransport::PassiveCore::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-awaitable<Error> TcpTransport::PassiveCore::open() {
+awaitable<Error> PassiveTcpTransport::PassiveCore::open() {
   auto ref = shared_from_this();
 
   log_.writef(LogSeverity::Normal, "Open");
@@ -204,7 +204,7 @@ awaitable<Error> TcpTransport::PassiveCore::open() {
   return ResolveAndBind();
 }
 
-awaitable<Error> TcpTransport::PassiveCore::ResolveAndBind() {
+awaitable<Error> PassiveTcpTransport::PassiveCore::ResolveAndBind() {
   log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
               host_.c_str(), service_.c_str());
 
@@ -241,7 +241,7 @@ awaitable<Error> TcpTransport::PassiveCore::ResolveAndBind() {
   co_return OK;
 }
 
-boost::system::error_code TcpTransport::PassiveCore::Bind(
+boost::system::error_code PassiveTcpTransport::PassiveCore::Bind(
     Resolver::iterator iterator) {
   log_.write(LogSeverity::Normal, "Bind");
 
@@ -268,7 +268,7 @@ boost::system::error_code TcpTransport::PassiveCore::Bind(
   return ec;
 }
 
-awaitable<Error> TcpTransport::PassiveCore::close() {
+awaitable<Error> PassiveTcpTransport::PassiveCore::close() {
   auto ref = shared_from_this();
 
   co_await boost::asio::dispatch(acceptor_.get_executor(),
@@ -287,7 +287,7 @@ awaitable<Error> TcpTransport::PassiveCore::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> TcpTransport::PassiveCore::accept() {
+awaitable<ErrorOr<any_transport>> PassiveTcpTransport::PassiveCore::accept() {
   auto ref = shared_from_this();
 
   // TODO: Use different executor.
@@ -314,20 +314,20 @@ awaitable<ErrorOr<any_transport>> TcpTransport::PassiveCore::accept() {
   log_.write(LogSeverity::Normal, "Connection accepted");
 
   co_return any_transport{
-      std::make_unique<TcpTransport>(std::move(peer), log_)};
+      std::make_unique<ActiveTcpTransport>(std::move(peer), log_)};
 }
 
-awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::read(
+awaitable<ErrorOr<size_t>> PassiveTcpTransport::PassiveCore::read(
     std::span<char> data) {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> TcpTransport::PassiveCore::write(
+awaitable<ErrorOr<size_t>> PassiveTcpTransport::PassiveCore::write(
     std::span<const char> data) {
   co_return ERR_ACCESS_DENIED;
 }
 
-void TcpTransport::PassiveCore::ProcessError(
+void PassiveTcpTransport::PassiveCore::ProcessError(
     const boost::system::error_code& ec) {
   if (closed_) {
     return;
@@ -344,59 +344,75 @@ void TcpTransport::PassiveCore::ProcessError(
   closed_ = true;
 }
 
-// TcpTransport
+// ActiveTcpTransport
 
-TcpTransport::TcpTransport(const Executor& executor,
-                           const log_source& log,
-                           std::string host,
-                           std::string service,
-                           bool active)
-    : type_{active ? Type::ACTIVE : Type::PASSIVE} {
-  if (active) {
-    core_ = std::make_shared<ActiveCore>(executor, log, std::move(host),
-                                         std::move(service));
-  } else {
-    core_ = std::make_shared<PassiveCore>(executor, log, std::move(host),
-                                          std::move(service));
-  }
+ActiveTcpTransport::ActiveTcpTransport(const Executor& executor,
+                                       const log_source& log,
+                                       std::string host,
+                                       std::string service)
+    : type_{Type::ACTIVE} {
+  core_ = std::make_shared<ActiveCore>(executor, log, std::move(host),
+                                       std::move(service));
 }
 
-TcpTransport::TcpTransport(boost::asio::ip::tcp::socket socket,
-                           const log_source& log)
+ActiveTcpTransport::ActiveTcpTransport(boost::asio::ip::tcp::socket socket,
+                                       const log_source& log)
     : type_{Type::ACCEPTED} {
   core_ = std::make_shared<ActiveCore>(std::move(socket), log);
 }
 
-TcpTransport::~TcpTransport() {
+ActiveTcpTransport::~ActiveTcpTransport() {
   // The base class closes the core on destruction.
 }
 
-awaitable<Error> TcpTransport::open() {
+awaitable<Error> ActiveTcpTransport::open() {
   co_return co_await core_->open();
 }
 
-awaitable<ErrorOr<any_transport>> TcpTransport::accept() {
+awaitable<ErrorOr<any_transport>> ActiveTcpTransport::accept() {
   co_return co_await core_->accept();
 }
 
-int TcpTransport::GetLocalPort() const {
-  return core_ && type_ == Type::PASSIVE
-             ? std::static_pointer_cast<PassiveCore>(core_)->GetLocalPort()
-             : 0;
-}
-
-std::string TcpTransport::name() const {
+std::string ActiveTcpTransport::name() const {
   switch (type_) {
     case Type::ACTIVE:
       return "TCP Active";
-    case Type::PASSIVE:
-      return "TCP Passive";
     case Type::ACCEPTED:
       return "TCP Accepted";
     default:
       assert(false);
       return "TCP Unknown";
   }
+}
+
+// PassiveTcpTransport
+
+PassiveTcpTransport::PassiveTcpTransport(const Executor& executor,
+                                         const log_source& log,
+                                         std::string host,
+                                         std::string service) {
+  core_ = std::make_shared<PassiveCore>(executor, log, std::move(host),
+                                        std::move(service));
+}
+
+PassiveTcpTransport::~PassiveTcpTransport() {
+  // The base class closes the core on destruction.
+}
+
+awaitable<Error> PassiveTcpTransport::open() {
+  co_return co_await core_->open();
+}
+
+awaitable<ErrorOr<any_transport>> PassiveTcpTransport::accept() {
+  co_return co_await core_->accept();
+}
+
+int PassiveTcpTransport::GetLocalPort() const {
+  return std::static_pointer_cast<PassiveCore>(core_)->GetLocalPort();
+}
+
+std::string PassiveTcpTransport::name() const {
+  return "TCP Passive";
 }
 
 }  // namespace transport
