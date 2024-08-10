@@ -200,7 +200,7 @@ std::string MessageReaderTransport::name() const {
   return "MSG:" + core_->child_transport_.name();
 }
 
-Executor MessageReaderTransport::get_executor() const {
+Executor MessageReaderTransport::get_executor() {
   return core_->child_transport_.get_executor();
 }
 

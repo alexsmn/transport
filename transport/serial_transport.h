@@ -7,7 +7,7 @@
 
 namespace transport {
 
-class SerialTransport final : public AsioTransport {
+class SerialTransport final : public AsioTransport<boost::asio::serial_port> {
  public:
   struct Options {
     std::optional<boost::asio::serial_port::baud_rate> baud_rate;
@@ -22,14 +22,19 @@ class SerialTransport final : public AsioTransport {
                   std::string device,
                   const Options& options);
 
+  const std::string& device() const { return device_; }
+
   // Transport overrides
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
-  virtual std::string name() const override;
-  virtual bool active() const override { return true; }
+  [[nodiscard]] virtual std::string name() const override;
+  [[nodiscard]] virtual bool active() const override { return true; }
 
  private:
-  class SerialPortCore;
+  virtual void Cleanup() override;
+
+  const std::string device_;
+  const Options options_;
 };
 
 }  // namespace transport

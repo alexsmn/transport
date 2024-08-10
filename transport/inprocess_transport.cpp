@@ -45,7 +45,7 @@ class InprocessTransportHost::Client final : public Transport {
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
 
-  virtual Executor get_executor() const override { return executor_; }
+  virtual Executor get_executor() override { return executor_; }
 
   void Receive(std::span<const char> data) {
     // Must be opened.
@@ -126,7 +126,7 @@ class InprocessTransportHost::Server final : public Transport {
     co_return ERR_ACCESS_DENIED;
   }
 
-  virtual Executor get_executor() const override { return executor_; }
+  virtual Executor get_executor() override { return executor_; }
 
   virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override {
@@ -197,7 +197,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     co_return data.size();
   }
 
-  virtual Executor get_executor() const override { return server_.executor_; }
+  virtual Executor get_executor() override { return server_.executor_; }
 
   void OnClientClosed() {
     // WARNING: Client might have not called `Open` yet.

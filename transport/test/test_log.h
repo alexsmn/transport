@@ -7,7 +7,7 @@
 
 namespace transport {
 
-class DebugLogger : public Logger {
+class TestLogSink : public LogSink {
  public:
   virtual void Write(LogSeverity severity, const char* message) const override {
     std::lock_guard lock{mutex_};

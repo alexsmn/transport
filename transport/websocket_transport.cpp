@@ -127,7 +127,7 @@ class WebSocketTransport::Connection : public Transport {
   virtual bool message_oriented() const override { return true; }
   virtual bool connected() const override { return true; }
   virtual bool active() const override { return false; }
-  virtual Executor get_executor() const override;
+  virtual Executor get_executor() override;
 
  private:
   const std::shared_ptr<ConnectionCore> core_;
@@ -166,7 +166,7 @@ awaitable<ErrorOr<size_t>> WebSocketTransport::Connection::write(
   return core_->Write(data);
 }
 
-Executor WebSocketTransport::Connection::get_executor() const {
+Executor WebSocketTransport::Connection::get_executor() {
   return core_->executor();
 }
 
@@ -323,7 +323,7 @@ awaitable<Error> WebSocketTransport::close() {
   co_return OK;
 }
 
-Executor WebSocketTransport::get_executor() const {
+Executor WebSocketTransport::get_executor() {
   return core_->executor();
 }
 

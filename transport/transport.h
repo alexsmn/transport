@@ -71,7 +71,7 @@ class Transport : public Connector,
   Transport(const Transport&) = delete;
   Transport& operator=(const Transport&) = delete;
 
-  [[nodiscard]] virtual Executor get_executor() const = 0;
+  [[nodiscard]] virtual Executor get_executor() = 0;
 
   [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() = 0;
 

@@ -32,7 +32,7 @@ class QueueTransport final : public Transport {
   virtual bool message_oriented() const override { return true; }
   virtual bool connected() const override { return connected_; }
   virtual bool active() const override { return active_; }
-  virtual Executor get_executor() const override { return executor_; }
+  virtual Executor get_executor() override { return executor_; }
 
  private:
   using Message = std::vector<char>;

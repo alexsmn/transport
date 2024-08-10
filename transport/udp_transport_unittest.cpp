@@ -35,7 +35,7 @@ class MockUdpSocket : public UdpSocket {
 
 }  // namespace
 
-class AsioUdpTransportTest : public Test {
+class UdpTransportTest : public Test {
  public:
   virtual void SetUp() override;
   virtual void TearDown() override;
@@ -55,16 +55,16 @@ class AsioUdpTransportTest : public Test {
   };
 };
 
-void AsioUdpTransportTest::SetUp() {}
+void UdpTransportTest::SetUp() {}
 
-void AsioUdpTransportTest::TearDown() {}
+void UdpTransportTest::TearDown() {}
 
-std::unique_ptr<Transport> AsioUdpTransportTest::OpenTransport(bool active) {
-  auto transport = std::make_unique<AsioUdpTransport>(executor_, log_source{},
-                                                      udp_socket_factory,
-                                                      /*host=*/std::string{},
-                                                      /*service=*/std::string{},
-                                                      /*active=*/active);
+std::unique_ptr<Transport> UdpTransportTest::OpenTransport(bool active) {
+  auto transport = std::make_unique<UdpTransport>(executor_, log_source{},
+                                                  udp_socket_factory,
+                                                  /*host=*/std::string{},
+                                                  /*service=*/std::string{},
+                                                  /*active=*/active);
 
   EXPECT_CALL(*socket, Open());
 
@@ -82,13 +82,13 @@ std::unique_ptr<Transport> AsioUdpTransportTest::OpenTransport(bool active) {
   return transport;
 }
 
-void AsioUdpTransportTest::ReceiveMessage() {
+void UdpTransportTest::ReceiveMessage() {
   const UdpSocket::Endpoint peer_endpoint;
   UdpSocket::Datagram datagram;
   message_handler(peer_endpoint, std::move(datagram));
 }
 
-TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportImmediatelyDestroyed) {
+TEST_F(UdpTransportTest, UdpServer_AcceptedTransportImmediatelyDestroyed) {
   auto transport = OpenTransport(/*active=*/false);
   ReceiveMessage();
 
@@ -100,7 +100,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportImmediatelyDestroyed) {
   EXPECT_CALL(*socket, Close());
 }
 
-TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
+TEST_F(UdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
   auto transport = OpenTransport(/*active=*/false);
   ReceiveMessage();
 
@@ -117,7 +117,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
   EXPECT_CALL(*socket, Close());
 }
 
-TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
+TEST_F(UdpTransportTest, UdpServer_AcceptedTransportClosed) {
   auto transport = OpenTransport(/*active=*/false);
   ReceiveMessage();
 
@@ -132,7 +132,7 @@ TEST_F(AsioUdpTransportTest, UdpServer_AcceptedTransportClosed) {
 }
 
 #if 0
-TEST_F(AsioUdpTransportTest,
+TEST_F(UdpTransportTest,
        UdpServer_AcceptedTransportDestroyedFromMessageHandler) {
   OpenTransport(false);
   ExpectTransportAccepted();
@@ -144,7 +144,7 @@ TEST_F(AsioUdpTransportTest,
   EXPECT_CALL(*socket, Close());
 }
 
-TEST_F(AsioUdpTransportTest,
+TEST_F(UdpTransportTest,
        UdpServer_AcceptedTransportClosedFromMessageHandler) {
   OpenTransport(false);
   ExpectTransportAccepted();

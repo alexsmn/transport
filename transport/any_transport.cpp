@@ -13,7 +13,7 @@ any_transport::any_transport(any_transport&&) = default;
 
 any_transport& any_transport::operator=(any_transport&&) = default;
 
-Executor any_transport::get_executor() const {
+Executor any_transport::get_executor() {
   return transport_ ? transport_->get_executor() : Executor{};
 }
 

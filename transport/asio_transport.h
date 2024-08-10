@@ -6,70 +6,28 @@
 #include "transport/transport.h"
 
 #include <boost/asio/buffer.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/experimental/as_tuple.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
-#include <boost/circular_buffer.hpp>
 #include <memory>
 
 namespace transport {
 
 class Logger;
 
+template <class IoObject>
 class AsioTransport : public Transport {
  public:
-  ~AsioTransport();
+  [[nodiscard]] virtual bool message_oriented() const override { return false; }
+
+  [[nodiscard]] virtual Executor get_executor() override {
+    return io_object_.get_executor();
+  }
+
+  [[nodiscard]] virtual bool connected() const override { return connected_; }
 
   [[nodiscard]] virtual awaitable<Error> close() override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
-      std::span<char> data) override;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
-      std::span<const char> data) override;
-
-  virtual bool message_oriented() const override;
-  virtual bool connected() const override;
-  virtual Executor get_executor() const override;
-
- protected:
-  class Core;
-
-  template <class IoObject>
-  class IoCore;
-
-  std::shared_ptr<Core> core_;
-};
-
-class AsioTransport::Core {
- public:
-  virtual ~Core() {}
-
-  [[nodiscard]] virtual awaitable<Error> open() = 0;
-  [[nodiscard]] virtual awaitable<Error> close() = 0;
-  [[nodiscard]] virtual Executor get_executor() = 0;
-  [[nodiscard]] virtual bool connected() const = 0;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() = 0;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
-      std::span<char> data) = 0;
-
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
-      std::span<const char> data) = 0;
-};
-
-// AsioTransport::Core
-
-template <class IoObject>
-class AsioTransport::IoCore : public Core,
-                              public std::enable_shared_from_this<Core> {
- public:
-  // Core
-  [[nodiscard]] virtual awaitable<Error> close() override;
-  virtual Executor get_executor() override { return io_object_.get_executor(); }
-  virtual bool connected() const override { return connected_; }
 
   [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
 
@@ -80,7 +38,7 @@ class AsioTransport::IoCore : public Core,
       std::span<const char> data) override;
 
  protected:
-  IoCore(const Executor& executor, const log_source& log);
+  AsioTransport(const Executor& executor, const log_source& log);
 
   void ProcessError(Error error);
 
@@ -100,14 +58,12 @@ class AsioTransport::IoCore : public Core,
 };
 
 template <class IoObject>
-inline AsioTransport::IoCore<IoObject>::IoCore(const Executor& executor,
-                                               const log_source& log)
+inline AsioTransport<IoObject>::AsioTransport(const Executor& executor,
+                                              const log_source& log)
     : log_{std::move(log)}, io_object_{executor} {}
 
 template <class IoObject>
-inline awaitable<Error> AsioTransport::IoCore<IoObject>::close() {
-  auto ref = shared_from_this();
-
+inline awaitable<Error> AsioTransport<IoObject>::close() {
   co_await boost::asio::dispatch(io_object_.get_executor(),
                                  boost::asio::use_awaitable);
 
@@ -123,13 +79,12 @@ inline awaitable<Error> AsioTransport::IoCore<IoObject>::close() {
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<any_transport>>
-AsioTransport::IoCore<IoObject>::accept() {
+inline awaitable<ErrorOr<any_transport>> AsioTransport<IoObject>::accept() {
   co_return ERR_INVALID_ARGUMENT;
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::read(
+inline awaitable<ErrorOr<size_t>> AsioTransport<IoObject>::read(
     std::span<char> data) {
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -139,7 +94,6 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::read(
     co_return ERR_IO_PENDING;
   }
 
-  auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
   AutoReset reading{reading_, true};
 
   auto [ec, bytes_transferred] = co_await io_object_.async_read_some(
@@ -150,7 +104,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::read(
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::write(
+inline awaitable<ErrorOr<size_t>> AsioTransport<IoObject>::write(
     std::span<const char> data) {
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -160,7 +114,6 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::write(
     co_return ERR_IO_PENDING;
   }
 
-  auto ref = std::static_pointer_cast<IoCore>(shared_from_this());
   AutoReset writing{writing_, true};
 
   auto [ec, bytes_transferred] = co_await boost::asio::async_write(
@@ -179,7 +132,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport::IoCore<IoObject>::write(
 }
 
 template <class IoObject>
-inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
+inline void AsioTransport<IoObject>::ProcessError(Error error) {
   assert(!closed_);
 
   if (error != OK) {
@@ -192,39 +145,6 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
   closed_ = true;
 
   Cleanup();
-}
-
-// AsioTransport
-
-inline AsioTransport::~AsioTransport() {
-  boost::asio::co_spawn(
-      core_->get_executor(), [core = core_] { return core->close(); },
-      boost::asio::detached);
-}
-
-inline awaitable<Error> AsioTransport::close() {
-  return core_->close();
-}
-
-inline awaitable<ErrorOr<size_t>> AsioTransport::read(std::span<char> data) {
-  co_return co_await core_->read(data);
-}
-
-inline awaitable<ErrorOr<size_t>> AsioTransport::write(
-    std::span<const char> data) {
-  co_return co_await core_->write(data);
-}
-
-inline bool AsioTransport::message_oriented() const {
-  return false;
-}
-
-inline bool AsioTransport::connected() const {
-  return core_->connected();
-}
-
-inline Executor AsioTransport::get_executor() const {
-  return core_->get_executor();
 }
 
 }  // namespace transport

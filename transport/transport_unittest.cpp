@@ -1,7 +1,7 @@
 #include "transport/transport.h"
 #include "transport/message_reader_transport.h"
 #include "transport/message_utils.h"
-#include "transport/test/debug_logger.h"
+#include "transport/test/test_log.h"
 #include "transport/test/test_message_reader.h"
 #include "transport/transport_factory_impl.h"
 #include "transport/transport_string.h"
@@ -80,8 +80,7 @@ class TransportTest : public TestWithParam<TestParams> {
   boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
       io_context_work_guard_ = boost::asio::make_work_guard(io_context_);
 
-  static inline log_source kDebugLog =
-      log_source{std::make_shared<DebugLogger>()};
+  static inline log_source kLog = log_source{std::make_shared<TestLogSink>()};
 
   static const int kThreadCount = 1;
   static const int kClientCount = 10;
@@ -262,7 +261,7 @@ TransportTest::TransportTest() {}
 
 void TransportTest::SetUp() {
   for (int i = 0; i < kClientCount; ++i) {
-    auto log = kDebugLog.with_channel(std::format("Client {}", i + 1));
+    auto log = kLog.with_channel(std::format("Client {}", i + 1));
 
     auto transport = CreateTransport(boost::asio::make_strand(io_context_), log,
                                      /*active=*/true);
@@ -299,7 +298,7 @@ any_transport TransportTest::CreateTransport(const Executor& executor,
 }
 
 TransportTest::Server TransportTest::MakeServer() {
-  auto log = kDebugLog.with_channel("Server");
+  auto log = kLog.with_channel("Server");
 
   auto transport = CreateTransport(boost::asio::make_strand(io_context_), log,
                                    /*active=*/false);
