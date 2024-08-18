@@ -100,6 +100,10 @@ inline awaitable<ErrorOr<size_t>> AsioTransport<IoObject>::read(
       boost::asio::buffer(data),
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
+  if (ec) {
+    co_return ec;
+  }
+
   co_return bytes_transferred;
 }
 

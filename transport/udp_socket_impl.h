@@ -48,7 +48,8 @@ inline UdpSocketImpl::UdpSocketImpl(UdpSocketContext&& context)
     : UdpSocketContext{std::move(context)}, read_buffer_(1024 * 1024) {}
 
 inline UdpSocketImpl::~UdpSocketImpl() {
-  assert(closed_);
+  boost::system::error_code ec;
+  socket_.close(ec);
 }
 
 inline awaitable<Error> UdpSocketImpl::Open() {

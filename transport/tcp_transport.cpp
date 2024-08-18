@@ -8,20 +8,27 @@ namespace transport {
 
 // ActiveTcpTransport
 
-ActiveTcpTransport::ActiveTcpTransport(const Executor& executor,
-                                       const log_source& log,
-                                       const std::string& host,
-                                       const std::string& service)
+ActiveTcpTransport::ActiveTcpTransport(
+    const Executor& executor,
+    const log_source& log,
+    const std::string& host,
+    const std::string& service,
+    const std::source_location& source_location)
     : AsioTransport{executor, log},
       host_{host},
       service_{service},
       resolver_{executor},
-      type_{Type::ACTIVE} {}
+      type_{Type::ACTIVE},
+      source_location_{source_location} {}
 
-ActiveTcpTransport::ActiveTcpTransport(Socket socket, const log_source& log)
+ActiveTcpTransport::ActiveTcpTransport(
+    Socket socket,
+    const log_source& log,
+    const std::source_location& source_location)
     : AsioTransport{socket.get_executor(), log},
       type_{Type::ACCEPTED},
-      resolver_{socket.get_executor()} {
+      resolver_{socket.get_executor()},
+      source_location_{source_location} {
   io_object_ = std::move(socket);
   connected_ = true;
 }
@@ -242,8 +249,6 @@ awaitable<ErrorOr<any_transport>> PassiveTcpTransport::accept() {
   auto [error, peer] = co_await acceptor_.async_accept(
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  assert(peer.get_executor() == acceptor_.get_executor());
-
   if (closed_) {
     co_return ERR_ABORTED;
   }
@@ -261,8 +266,8 @@ awaitable<ErrorOr<any_transport>> PassiveTcpTransport::accept() {
 
   log_.write(LogSeverity::Normal, "Connection accepted");
 
-  co_return any_transport{
-      std::make_unique<ActiveTcpTransport>(std::move(peer), log_)};
+  co_return any_transport{std::make_unique<ActiveTcpTransport>(
+      std::move(peer), log_, std::source_location::current())};
 }
 
 awaitable<ErrorOr<size_t>> PassiveTcpTransport::read(std::span<char> data) {

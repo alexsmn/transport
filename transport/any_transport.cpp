@@ -13,6 +13,10 @@ any_transport::any_transport(any_transport&&) = default;
 
 any_transport& any_transport::operator=(any_transport&&) = default;
 
+void any_transport::reset() {
+  transport_.reset();
+}
+
 Executor any_transport::get_executor() {
   return transport_ ? transport_->get_executor() : Executor{};
 }

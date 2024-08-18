@@ -128,6 +128,10 @@ awaitable<Error> ActiveUdpTransport::UdpActiveCore::open() {
 }
 
 awaitable<Error> ActiveUdpTransport::UdpActiveCore::close() {
+  if (!socket_) {
+    co_return ERR_INVALID_HANDLE;
+  }
+
   auto ref = shared_from_this();
 
   co_await boost::asio::dispatch(executor_, boost::asio::use_awaitable);
