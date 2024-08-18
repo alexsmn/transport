@@ -7,6 +7,9 @@
 #include <boost/asio/io_context.hpp>
 #include <gmock/gmock.h>
 
+#define NET_ASSERT_OK(x) ASSERT_EQ(x, ::transport::OK)
+#define NET_EXPECT_OK(x) EXPECT_EQ(x, ::transport::OK)
+
 namespace transport {
 
 inline awaitable<void> CoVoid() {

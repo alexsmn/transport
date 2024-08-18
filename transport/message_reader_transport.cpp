@@ -11,6 +11,14 @@
 
 namespace transport {
 
+any_transport BindMessageReader(any_transport child_transport,
+                                std::unique_ptr<MessageReader> message_reader,
+                                const log_source& log) {
+  assert(!child_transport.message_oriented());
+  return any_transport{std::make_unique<MessageReaderTransport>(
+      std::move(child_transport), std::move(message_reader), log)};
+}
+
 // MessageReaderTransport::Core
 
 struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
@@ -35,11 +43,10 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   any_transport child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
 
-  bool opened_ = false;
   bool reading_ = false;
 
   // TODO: Remove and replace with `weak_from_this`.
-  std::shared_ptr<bool> cancelation_;
+  std::shared_ptr<bool> cancelation_ = std::make_shared<bool>();
 };
 
 // MessageReaderTransport
@@ -85,23 +92,12 @@ bool MessageReaderTransport::message_oriented() const {
 }
 
 [[nodiscard]] awaitable<Error> MessageReaderTransport::Core::Open() {
-  // Passive transport can be connected.
-  // assert(!child_transport_.connected());
-  assert(!cancelation_);
-  assert(!opened_);
-
   cancelation_ = std::make_shared<bool>(false);
-  opened_ = true;
 
   return child_transport_.open();
 }
 
 awaitable<Error> MessageReaderTransport::Core::Close() {
-  if (!opened_) {
-    co_return ERR_CONNECTION_CLOSED;
-  }
-
-  opened_ = false;
   cancelation_ = nullptr;
   message_reader_->Reset();
 
@@ -115,10 +111,10 @@ awaitable<ErrorOr<any_transport>> MessageReaderTransport::accept() {
   NET_ASSIGN_OR_CO_RETURN(auto accepted_child_transport,
                           co_await core->child_transport_.accept());
 
-  co_return any_transport{std::make_unique<MessageReaderTransport>(
+  co_return BindMessageReader(
       std::move(accepted_child_transport),
       std::unique_ptr<MessageReader>{core->message_reader_->Clone()},
-      core->log_)};
+      core->log_);
 }
 
 awaitable<ErrorOr<size_t>> MessageReaderTransport::read(std::span<char> data) {
@@ -129,10 +125,6 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     std::span<char> buffer) {
   if (!child_transport_) {
     co_return ERR_INVALID_HANDLE;
-  }
-
-  if (!opened_) {
-    co_return ERR_CONNECTION_CLOSED;
   }
 
   if (reading_) {
@@ -150,7 +142,6 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
       // TODO: Add UT.
       // TODO: Print message.
       log_.write(LogSeverity::Warning, "Invalid message");
-      opened_ = false;
       co_return bytes_popped;
     }
 
@@ -174,7 +165,6 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
     }
 
     if (!bytes_read.ok() || *bytes_read == 0) {
-      opened_ = false;
       co_return bytes_read;
     }
 

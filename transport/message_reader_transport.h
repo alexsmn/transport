@@ -51,4 +51,8 @@ class MessageReaderTransport final : public Transport {
   const std::shared_ptr<Core> core_;
 };
 
+any_transport BindMessageReader(any_transport child_transport,
+                                std::unique_ptr<MessageReader> message_reader,
+                                const log_source& log = {});
+
 }  // namespace transport
