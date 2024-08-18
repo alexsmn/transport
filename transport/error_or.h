@@ -18,7 +18,7 @@
 #define NET_ASSIGN_OR_RETURN_IMPL(lhs, rexpr, res, return_impl)             \
   auto res = (rexpr);                                                       \
   if (!res.ok()) {                                                          \
-    static constexpr ::boost::source_location loc = BOOST_CURRENT_LOCATION; \
+    static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
     return_impl ::transport::Error{res.error(), &loc};                            \
   }                                                                         \
   lhs = std::move(res.value());
@@ -28,7 +28,7 @@
 
 #define NET_RETURN_IF_ERROR_IMPL(rexpr, return_impl)                        \
   if (auto err = (rexpr); err != transport::OK) {                                 \
-    static constexpr ::boost::source_location loc = BOOST_CURRENT_LOCATION; \
+    static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
     return_impl ::transport::Error{err, &loc};                                    \
   }
 

@@ -15,6 +15,7 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/locale/encoding_utf.hpp>
+#include <thread>
 
 #if defined(OS_WIN)
 #include <Windows.h>

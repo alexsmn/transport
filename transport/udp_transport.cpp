@@ -431,9 +431,9 @@ void PassiveUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(
 
   std::vector<std::shared_ptr<AcceptedUdpTransport::UdpAcceptedCore>>
       accepted_transports;
-  accepted_transports.reserve(accepted_transports_.size());
-  std::ranges::copy(accepted_transports_ | std::views::values,
-                    std::back_inserter(accepted_transports));
+  for (const auto& [endpoint, accepted_core] : accepted_transports_) {
+    accepted_transports.push_back(accepted_core);
+  }
 
   for (const auto& accepted_transport : accepted_transports) {
     accepted_transport->OnSocketClosed(UdpSocket::Error{});

@@ -3,26 +3,26 @@
 #include "transport/asio_transport.h"
 
 #include <boost/asio/ip/tcp.hpp>
-#include <source_location>
+#include <boost/assert/source_location.hpp>
 
 namespace transport {
 
 class ActiveTcpTransport final
     : public AsioTransport<boost::asio::ip::tcp::socket> {
  public:
-  ActiveTcpTransport(const Executor& executor,
-                     const log_source& log,
-                     const std::string& host,
-                     const std::string& service,
-                     const std::source_location& source_location =
-                         std::source_location::current());
+  ActiveTcpTransport(
+      const Executor& executor,
+      const log_source& log,
+      const std::string& host,
+      const std::string& service,
+      const boost::source_location& source_location = BOOST_CURRENT_LOCATION);
 
   // A constructor for a socket accepted by a passive TCP transport.
   // Uses the executor of the socket.
-  ActiveTcpTransport(boost::asio::ip::tcp::socket socket,
-                     const log_source& log,
-                     const std::source_location& source_location =
-                         std::source_location::current());
+  ActiveTcpTransport(
+      boost::asio::ip::tcp::socket socket,
+      const log_source& log,
+      const boost::source_location& source_location = BOOST_CURRENT_LOCATION);
 
   ~ActiveTcpTransport();
 
@@ -47,7 +47,7 @@ class ActiveTcpTransport final
 
   std::string host_;
   std::string service_;
-  std::source_location source_location_;
+  boost::source_location source_location_;
 
   Resolver resolver_;
 
