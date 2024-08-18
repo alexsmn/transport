@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "boost-asio",
+    "boost-beast",
+    "boost-system",
+    "gtest"
+  ],
+  "vcpkg-configuration": {
+    "default-registry": {
+      "kind": "git",
+      "baseline": "2f210a9c13fcf2b0c36b1f2187366feec37e3390",
+      "repository": "https://github.com/microsoft/vcpkg"
+    }
+  }
+}
