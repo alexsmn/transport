@@ -13,7 +13,7 @@ ActiveTcpTransport::ActiveTcpTransport(
     const log_source& log,
     const std::string& host,
     const std::string& service,
-    const std::source_location& source_location)
+    const boost::source_location& source_location)
     : AsioTransport{executor, log},
       host_{host},
       service_{service},
@@ -24,7 +24,7 @@ ActiveTcpTransport::ActiveTcpTransport(
 ActiveTcpTransport::ActiveTcpTransport(
     Socket socket,
     const log_source& log,
-    const std::source_location& source_location)
+    const boost::source_location& source_location)
     : AsioTransport{socket.get_executor(), log},
       type_{Type::ACCEPTED},
       resolver_{socket.get_executor()},
@@ -267,7 +267,7 @@ awaitable<ErrorOr<any_transport>> PassiveTcpTransport::accept() {
   log_.write(LogSeverity::Normal, "Connection accepted");
 
   co_return any_transport{std::make_unique<ActiveTcpTransport>(
-      std::move(peer), log_, std::source_location::current())};
+      std::move(peer), log_, BOOST_CURRENT_LOCATION)};
 }
 
 awaitable<ErrorOr<size_t>> PassiveTcpTransport::read(std::span<char> data) {

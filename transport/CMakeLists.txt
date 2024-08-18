@@ -49,6 +49,7 @@ add_library(Transport::transport ALIAS transport)
 target_compile_features(transport PUBLIC cxx_std_20)
 
 if(WIN32)
+  target_compile_definitions(transport PRIVATE _WIN32_WINNT=0x0601)
   target_compile_options(transport PRIVATE /bigobj)
 endif()
 
@@ -67,6 +68,10 @@ target_link_libraries(transport_unittests PRIVATE
   GTest::gmock_main
   transport
 )
+
+if(WIN32)
+  target_compile_definitions(transport_unittests PRIVATE _WIN32_WINNT=0x0601)
+endif()
 
 include(GoogleTest)
 gtest_discover_tests(transport_unittests)

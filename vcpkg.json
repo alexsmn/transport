@@ -2,7 +2,9 @@
   "dependencies": [
     "boost-asio",
     "boost-beast",
+    "boost-locale",
     "boost-system",
+    "boost-uuid",
     "gtest"
   ],
   "vcpkg-configuration": {

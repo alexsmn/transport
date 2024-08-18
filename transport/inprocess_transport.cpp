@@ -2,7 +2,6 @@
 
 #include "transport/transport.h"
 
-#include <format>
 #include <queue>
 
 namespace transport {
@@ -27,7 +26,7 @@ class InprocessTransportHost::Client final : public Transport {
   virtual bool active() const override { return true; }
 
   virtual std::string name() const override {
-    return std::format("client:{}", channel_name_);
+    return "client:" + channel_name_;
   }
 
   [[nodiscard]] virtual awaitable<Error> open() override;
@@ -91,7 +90,7 @@ class InprocessTransportHost::Server final : public Transport {
   virtual bool active() const override { return false; }
 
   virtual std::string name() const override {
-    return std::format("server:{}", channel_name_);
+    return "server:" + channel_name_;
   }
 
   [[nodiscard]] virtual awaitable<Error> open() override {
@@ -162,7 +161,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
   virtual bool active() const override { return false; }
 
   virtual std::string name() const override {
-    return std::format("server:{}", server_.channel_name_);
+    return "server:" + server_.channel_name_;
   }
 
   [[nodiscard]] virtual awaitable<Error> open() override {

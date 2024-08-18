@@ -13,6 +13,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
 #include <gmock/gmock.h>
+#include <thread>
 
 using namespace testing;
 
@@ -193,7 +194,7 @@ TEST_P(TransportTest, StressTest) {
               RunEchoClient(
                   CreateTransport(
                       boost::asio::make_strand(io_context_),
-                      kLog.with_channel(std::format("Client {}", i + 1)),
+                      kLog.with_channel("Client " + std::to_string(i + 1)),
                       /*active=*/true),
                   kClientExchangeMessage, kClientExchangeCount),
               boost::asio::deferred));
