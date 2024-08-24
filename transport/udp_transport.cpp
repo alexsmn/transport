@@ -159,6 +159,8 @@ awaitable<ErrorOr<any_transport>> ActiveUdpTransport::UdpActiveCore::accept() {
 
 awaitable<ErrorOr<size_t>> ActiveUdpTransport::UdpActiveCore::read(
     std::span<char> data) {
+  auto ref = shared_from_this();
+
   auto [ec, datagram] = co_await read_channel_.async_receive(
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
@@ -344,6 +346,7 @@ PassiveUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
 
 void PassiveUdpTransport::UdpPassiveCore::shutdown() {
   socket_->Shutdown();
+  CloseAllAcceptedTransports(ERR_ABORTED);
 }
 
 awaitable<Error> PassiveUdpTransport::UdpPassiveCore::open() {
@@ -420,32 +423,37 @@ void PassiveUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
 void PassiveUdpTransport::UdpPassiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
+  std::shared_ptr<AcceptedUdpTransport::UdpAcceptedCore> accepted_core;
+
   if (auto i = accepted_transports_.find(endpoint);
       i != accepted_transports_.end()) {
-    i->second->OnSocketMessage(endpoint, std::move(datagram));
-    return;
+    accepted_core = i->second;
+  } else {
+    log_.writef(LogSeverity::Normal,
+                "Accept new transport from endpoint %s. There are %d accepted "
+                "transports",
+                ToString(endpoint).c_str(),
+                static_cast<int>(accepted_transports_.size()));
+
+    accepted_core = std::make_shared<AcceptedUdpTransport::UdpAcceptedCore>(
+        executor_, log_, shared_from_this(), endpoint);
+
+    accepted_transports_.insert_or_assign(endpoint, accepted_core);
+
+    bool posted =
+        accept_channel_.try_send(boost::system::error_code{}, accepted_core);
+
+    if (!posted) {
+      log_.write(LogSeverity::Error, "Accept queue is full");
+      return;
+    }
   }
 
-  log_.writef(
-      LogSeverity::Normal,
-      "Accept new transport from endpoint %s. There are %d accepted transports",
-      ToString(endpoint).c_str(),
-      static_cast<int>(accepted_transports_.size()));
-
-  auto accepted_core = std::make_shared<AcceptedUdpTransport::UdpAcceptedCore>(
-      executor_, log_, shared_from_this(), endpoint);
-
-  accepted_transports_.insert_or_assign(endpoint, accepted_core);
-
-  bool posted =
-      accept_channel_.try_send(boost::system::error_code{}, accepted_core);
-
-  if (!posted) {
-    log_.write(LogSeverity::Error, "Accept queue is full");
-    return;
-  }
-
-  accepted_core->OnSocketMessage(endpoint, std::move(datagram));
+  boost::asio::dispatch(
+      accepted_core->get_executor(),
+      [accepted_core, endpoint, datagram = std::move(datagram)]() mutable {
+        accepted_core->OnSocketMessage(endpoint, std::move(datagram));
+      });
 }
 
 void PassiveUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(
@@ -455,13 +463,15 @@ void PassiveUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(
               ErrorToString(error).c_str());
 
   std::vector<std::shared_ptr<AcceptedUdpTransport::UdpAcceptedCore>>
-      accepted_transports;
+      accepted_cores;
   for (const auto& [endpoint, accepted_core] : accepted_transports_) {
-    accepted_transports.push_back(accepted_core);
+    accepted_cores.push_back(accepted_core);
   }
 
-  for (const auto& accepted_transport : accepted_transports) {
-    accepted_transport->OnSocketClosed(UdpSocket::Error{});
+  for (const auto& accepted_core : accepted_cores) {
+    boost::asio::dispatch(accepted_core->get_executor(), [accepted_core] {
+      accepted_core->OnSocketClosed(UdpSocket::Error{});
+    });
   }
 }
 
