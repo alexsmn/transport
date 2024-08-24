@@ -65,6 +65,8 @@ class UdpTransportCore {
 
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) = 0;
+
+  virtual void shutdown() = 0;
 };
 
 // ActiveUdpTransport::UdpActiveCore
@@ -85,12 +87,11 @@ class ActiveUdpTransport::UdpActiveCore final
   [[nodiscard]] virtual awaitable<Error> open() override;
   [[nodiscard]] virtual awaitable<Error> close() override;
   [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
-
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
       std::span<char> data) override;
-
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
       std::span<const char> data) override;
+  virtual void shutdown() override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -109,6 +110,11 @@ class ActiveUdpTransport::UdpActiveCore final
 
   bool connected_ = false;
   UdpSocket::Endpoint peer_endpoint_;
+
+  boost::asio::experimental::channel<void(boost::system::error_code,
+                                          UdpSocket::Datagram datagram)>
+      read_channel_{executor_,
+                    /*max_buffer_size=*/std::numeric_limits<size_t>::max()};
 };
 
 ActiveUdpTransport::UdpActiveCore::UdpActiveCore(
@@ -120,6 +126,10 @@ ActiveUdpTransport::UdpActiveCore::UdpActiveCore(
       udp_socket_factory_{std::move(udp_socket_factory)},
       host_{std::move(host)},
       service_{std::move(service)} {}
+
+void ActiveUdpTransport::UdpActiveCore::shutdown() {
+  socket_->Shutdown();
+}
 
 awaitable<Error> ActiveUdpTransport::UdpActiveCore::open() {
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
@@ -149,7 +159,19 @@ awaitable<ErrorOr<any_transport>> ActiveUdpTransport::UdpActiveCore::accept() {
 
 awaitable<ErrorOr<size_t>> ActiveUdpTransport::UdpActiveCore::read(
     std::span<char> data) {
-  co_return ERR_FAILED;
+  auto [ec, datagram] = co_await read_channel_.async_receive(
+      boost::asio::as_tuple(boost::asio::use_awaitable));
+
+  if (ec) {
+    co_return ec;
+  }
+
+  if (datagram.size() > data.size()) {
+    co_return ERR_INVALID_ARGUMENT;
+  }
+
+  std::ranges::copy(datagram, data.begin());
+  co_return datagram.size();
 }
 
 awaitable<ErrorOr<size_t>> ActiveUdpTransport::UdpActiveCore::write(
@@ -166,9 +188,8 @@ void ActiveUdpTransport::UdpActiveCore::OnSocketOpened(
 void ActiveUdpTransport::UdpActiveCore::OnSocketMessage(
     const UdpSocket::Endpoint& endpoint,
     UdpSocket::Datagram&& datagram) {
-  /*if (handlers_.on_message) {
-    handlers_.on_message(datagram);
-  }*/
+  // TODO: Handle fail.
+  read_channel_.try_send(boost::system::error_code{}, std::move(datagram));
 }
 
 void ActiveUdpTransport::UdpActiveCore::OnSocketClosed(
@@ -219,10 +240,9 @@ class AcceptedUdpTransport::UdpAcceptedCore final
   virtual awaitable<ErrorOr<any_transport>> accept() override;
   virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual void shutdown() override;
 
  private:
-  UdpSocketContext MakeUdpSocketImplContext();
-
   void OnSocketMessage(const UdpSocket::Endpoint& endpoint,
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::Error& error);
@@ -264,6 +284,7 @@ class PassiveUdpTransport::UdpPassiveCore final
   virtual awaitable<ErrorOr<any_transport>> accept() override;
   virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
   virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual void shutdown() override;
 
  private:
   UdpSocketContext MakeUdpSocketImplContext();
@@ -319,6 +340,10 @@ PassiveUdpTransport::UdpPassiveCore::UdpPassiveCore(
 
 PassiveUdpTransport::UdpPassiveCore::~UdpPassiveCore() {
   assert(accepted_transports_.empty());
+}
+
+void PassiveUdpTransport::UdpPassiveCore::shutdown() {
+  socket_->Shutdown();
 }
 
 awaitable<Error> PassiveUdpTransport::UdpPassiveCore::open() {
@@ -499,6 +524,8 @@ AcceptedUdpTransport::UdpAcceptedCore::~UdpAcceptedCore() {
   }
 }
 
+void AcceptedUdpTransport::UdpAcceptedCore::shutdown() {}
+
 awaitable<Error> AcceptedUdpTransport::UdpAcceptedCore::open() {
   co_return ERR_ADDRESS_IN_USE;
 }
@@ -582,9 +609,8 @@ ActiveUdpTransport::ActiveUdpTransport(const Executor& executor,
 }
 
 ActiveUdpTransport::~ActiveUdpTransport() {
-  boost::asio::co_spawn(
-      core_->get_executor(), [core = core_] { return core->close(); },
-      boost::asio::detached);
+  boost::asio::dispatch(core_->get_executor(),
+                        [core = core_] { core->shutdown(); });
 }
 
 Executor ActiveUdpTransport::get_executor() {
@@ -678,9 +704,8 @@ AcceptedUdpTransport::AcceptedUdpTransport(
     : core_{std::move(core)} {}
 
 AcceptedUdpTransport::~AcceptedUdpTransport() {
-  boost::asio::co_spawn(
-      core_->get_executor(), [core = core_] { return core->close(); },
-      boost::asio::detached);
+  boost::asio::dispatch(core_->get_executor(),
+                        [core = core_] { core->shutdown(); });
 }
 
 Executor AcceptedUdpTransport::get_executor() {

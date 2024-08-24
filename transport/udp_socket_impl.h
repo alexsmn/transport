@@ -7,12 +7,11 @@
 
 namespace transport {
 
-class UdpSocketImpl : private UdpSocketContext,
-                      public UdpSocket,
-                      public std::enable_shared_from_this<UdpSocketImpl> {
+class UdpSocketImpl final : private UdpSocketContext,
+                            public UdpSocket,
+                            public std::enable_shared_from_this<UdpSocketImpl> {
  public:
   explicit UdpSocketImpl(UdpSocketContext&& context);
-  ~UdpSocketImpl();
 
   // UdpSocket
   virtual awaitable<Error> Open() override;
@@ -21,6 +20,8 @@ class UdpSocketImpl : private UdpSocketContext,
   virtual awaitable<ErrorOr<size_t>> SendTo(
       Endpoint endpoint,
       std::span<const char> datagram) override;
+
+  virtual void Shutdown() override;
 
  private:
   [[nodiscard]] awaitable<void> StartReading();
@@ -47,7 +48,7 @@ class UdpSocketImpl : private UdpSocketContext,
 inline UdpSocketImpl::UdpSocketImpl(UdpSocketContext&& context)
     : UdpSocketContext{std::move(context)}, read_buffer_(1024 * 1024) {}
 
-inline UdpSocketImpl::~UdpSocketImpl() {
+inline void UdpSocketImpl::Shutdown() {
   boost::system::error_code ec;
   socket_.close(ec);
 }
