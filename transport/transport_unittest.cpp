@@ -57,8 +57,7 @@ INSTANTIATE_TEST_SUITE_P(
     // TODO: Enable multi-threaded UDP tests.
     testing::Values(TestParams{.transport_string = "TCP;Port=4321"},
                     TestParams{.transport_string = "TCP;Port=4322"},
-                    TestParams{.transport_string = "UDP;Port=4323",
-                               .thread_count = 1}));
+                    TestParams{.transport_string = "UDP;Port=4323"}));
 
 namespace {
 
@@ -177,11 +176,11 @@ TEST_P(TransportTest, StressTest) {
   boost::asio::co_spawn(
       io_context_,
       [this]() -> awaitable<void> {
-        auto server = CreateTransport(io_context_.get_executor(),
+        auto server = CreateTransport(boost::asio::make_strand(io_context_),
                                       kLog.with_channel("Server"),
                                       /*active=*/false);
         NET_EXPECT_OK(co_await server.open());
-        boost::asio::co_spawn(io_context_.get_executor(), RunServer(server),
+        boost::asio::co_spawn(server.get_executor(), RunServer(server),
                               boost::asio::detached);
 
         using OpType = decltype(boost::asio::co_spawn(
@@ -191,14 +190,15 @@ TEST_P(TransportTest, StressTest) {
         std::vector<OpType> ops;
 
         for (int i = 0; i < kClientCount; ++i) {
+          auto client = CreateTransport(
+              boost::asio::make_strand(io_context_),
+              kLog.with_channel("Client " + std::to_string(i + 1)),
+              /*active=*/true);
+          auto executor = client.get_executor();
           ops.emplace_back(boost::asio::co_spawn(
-              io_context_,
-              RunEchoClient(
-                  CreateTransport(
-                      boost::asio::make_strand(io_context_),
-                      kLog.with_channel("Client " + std::to_string(i + 1)),
-                      /*active=*/true),
-                  kClientExchangeMessage, kClientExchangeCount),
+              executor,
+              RunEchoClient(std::move(client), kClientExchangeMessage,
+                            kClientExchangeCount),
               boost::asio::deferred));
         }
 
