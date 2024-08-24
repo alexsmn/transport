@@ -21,6 +21,7 @@ namespace transport {
 
 struct TestParams {
   std::string transport_string;
+  int thread_count = 10;
 };
 
 // The test parameter is a transport string with no active/passive parameter.
@@ -36,13 +37,12 @@ class TransportTest : public TestWithParam<TestParams> {
                                 const log_source& log,
                                 bool active);
 
-  boost::asio::io_context io_context_{kThreadCount};
+  boost::asio::io_context io_context_{GetParam().thread_count};
 
   TransportFactoryImpl transport_factory_{io_context_};
 
-  static inline log_source kLog = log_source{std::make_shared<TestLogSink>()};
+  static inline log_source kLog{std::make_shared<TestLogSink>()};
 
-  static const int kThreadCount = 10;
   static const int kClientCount = 100;
   static const int kClientExchangeCount = 3;
 
@@ -54,9 +54,11 @@ INSTANTIATE_TEST_SUITE_P(
     AllTransportTests,
     TransportTest,
     // TODO: Random port.
-    // TODO: Implement send retries and enable UDP tests: "UDP;Port=4322".
+    // TODO: Enable multi-threaded UDP tests.
     testing::Values(TestParams{.transport_string = "TCP;Port=4321"},
-                    TestParams{.transport_string = "TCP;Port=4322"}));
+                    TestParams{.transport_string = "TCP;Port=4322"},
+                    TestParams{.transport_string = "UDP;Port=4323",
+                               .thread_count = 1}));
 
 namespace {
 
@@ -216,7 +218,7 @@ TEST_P(TransportTest, StressTest) {
       boost::asio::detached);
 
   std::vector<std::jthread> threads;
-  for (int i = 0; i < kThreadCount - 1; ++i) {
+  for (int i = 0; i < GetParam().thread_count - 1; ++i) {
     threads.emplace_back([&io_context = io_context_] { io_context.run(); });
   }
   io_context_.run();

@@ -22,6 +22,8 @@ class UdpSocket {
   [[nodiscard]] virtual awaitable<ErrorOr<size_t>> SendTo(
       Endpoint endpoint,
       std::span<const char> datagram) = 0;
+
+  virtual void Shutdown() = 0;
 };
 
 struct UdpSocketContext {

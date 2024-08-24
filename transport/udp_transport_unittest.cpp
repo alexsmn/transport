@@ -31,6 +31,8 @@ class MockUdpSocket : public UdpSocket {
               SendTo,
               (Endpoint endpoint, std::span<const char> datagram),
               (override));
+
+  MOCK_METHOD(void, Shutdown, (), (override));
 };
 
 }  // namespace
