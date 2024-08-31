@@ -33,7 +33,7 @@ class TransportTest : public TestWithParam<TestParams> {
   virtual void SetUp() override;
   virtual void TearDown() override;
 
-  any_transport CreateTransport(const Executor& executor,
+  any_transport CreateTransport(const executor& executor,
                                 const log_source& log,
                                 bool active);
 
@@ -62,7 +62,7 @@ INSTANTIATE_TEST_SUITE_P(
 namespace {
 
 [[nodiscard]] awaitable<error_code> Write(const any_transport& transport,
-                                     std::span<const char> data) {
+                                          std::span<const char> data) {
   NET_ASSIGN_OR_CO_RETURN(auto bytes_written, co_await transport.write(data));
 
   if (bytes_written != data.size()) {
@@ -151,7 +151,7 @@ void TransportTest::SetUp() {}
 
 void TransportTest::TearDown() {}
 
-any_transport TransportTest::CreateTransport(const Executor& executor,
+any_transport TransportTest::CreateTransport(const executor& executor,
                                              const log_source& log,
                                              bool active) {
   auto transport_string_suffix = active ? ";Active" : ";Passive";

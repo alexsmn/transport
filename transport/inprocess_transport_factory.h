@@ -13,7 +13,7 @@ class InprocessTransportFactory : public TransportFactory {
   // TransportFactory
   virtual expected<any_transport> CreateTransport(
       const TransportString& transport_string,
-      const Executor& executor,
+      const executor& executor,
       const log_source& log = {}) override;
 
  private:
@@ -22,7 +22,7 @@ class InprocessTransportFactory : public TransportFactory {
 
 inline expected<any_transport> InprocessTransportFactory::CreateTransport(
     const TransportString& transport_string,
-    const Executor& executor,
+    const executor& executor,
     const log_source& log) {
   auto channel_name = transport_string.GetParamStr(TransportString::kParamName);
 

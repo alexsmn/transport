@@ -28,7 +28,7 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   void OnClosed(error_code error);
 
-  Executor executor_;
+  executor executor_;
   any_transport underlying_transport_;
   CloseHandler additional_close_handler_;
 };
@@ -136,7 +136,7 @@ bool DeferredTransport::active() const {
   return core_->underlying_transport_.active();
 }
 
-Executor DeferredTransport::get_executor() {
+executor DeferredTransport::get_executor() {
   return core_->underlying_transport_.get_executor();
 }
 

@@ -27,7 +27,7 @@ class UdpSocket {
 };
 
 struct UdpSocketContext {
-  const Executor executor_;
+  const executor executor_;
   const std::string host_;
   const std::string service_;
   const bool active_ = false;

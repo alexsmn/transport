@@ -9,7 +9,7 @@ namespace transport {
 // ActiveTcpTransport
 
 ActiveTcpTransport::ActiveTcpTransport(
-    const Executor& executor,
+    const executor& executor,
     const log_source& log,
     const std::string& host,
     const std::string& service,
@@ -127,7 +127,7 @@ void ActiveTcpTransport::Cleanup() {
 
 // PassiveTcpTransport
 
-PassiveTcpTransport::PassiveTcpTransport(const Executor& executor,
+PassiveTcpTransport::PassiveTcpTransport(const executor& executor,
                                          const log_source& log,
                                          const std::string& host,
                                          const std::string& service)

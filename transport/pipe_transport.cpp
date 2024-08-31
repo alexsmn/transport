@@ -10,7 +10,7 @@ using namespace std::chrono_literals;
 
 namespace transport {
 
-PipeTransport::PipeTransport(const Executor& executor) : executor_{executor} {}
+PipeTransport::PipeTransport(const executor& executor) : executor_{executor} {}
 
 PipeTransport::~PipeTransport() {
   if (handle_ != INVALID_HANDLE_VALUE) {

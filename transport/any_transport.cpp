@@ -17,8 +17,8 @@ void any_transport::reset() {
   transport_.reset();
 }
 
-Executor any_transport::get_executor() {
-  return transport_ ? transport_->get_executor() : Executor{};
+executor any_transport::get_executor() {
+  return transport_ ? transport_->get_executor() : executor{};
 }
 
 std::string any_transport::name() const {

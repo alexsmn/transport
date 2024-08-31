@@ -31,7 +31,7 @@ class AcceptedUdpTransport final : public Transport {
   [[nodiscard]] virtual bool active() const override { return false; }
   [[nodiscard]] virtual bool connected() const override;
   [[nodiscard]] virtual bool message_oriented() const override { return true; }
-  [[nodiscard]] virtual Executor get_executor() override;
+  [[nodiscard]] virtual executor get_executor() override;
 
   [[nodiscard]] virtual awaitable<error_code> open() override;
   [[nodiscard]] virtual awaitable<error_code> close() override;
@@ -53,7 +53,7 @@ class UdpTransportCore {
  public:
   virtual ~UdpTransportCore() = default;
 
-  [[nodiscard]] virtual Executor get_executor() = 0;
+  [[nodiscard]] virtual executor get_executor() = 0;
   [[nodiscard]] virtual bool connected() const = 0;
 
   [[nodiscard]] virtual awaitable<error_code> open() = 0;
@@ -75,13 +75,13 @@ class ActiveUdpTransport::UdpActiveCore final
     : public UdpTransportCore,
       public std::enable_shared_from_this<UdpActiveCore> {
  public:
-  UdpActiveCore(const Executor& executor,
+  UdpActiveCore(const executor& executor,
                 UdpSocketFactory udp_socket_factory,
                 std::string host,
                 std::string service);
 
   // UdpTransportCore
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
   virtual bool connected() const override { return connected_; }
 
   [[nodiscard]] virtual awaitable<error_code> open() override;
@@ -101,7 +101,7 @@ class ActiveUdpTransport::UdpActiveCore final
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::error_code& error);
 
-  const Executor executor_;
+  const executor executor_;
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
   const std::string service_;
@@ -118,7 +118,7 @@ class ActiveUdpTransport::UdpActiveCore final
 };
 
 ActiveUdpTransport::UdpActiveCore::UdpActiveCore(
-    const Executor& executor,
+    const executor& executor,
     UdpSocketFactory udp_socket_factory,
     std::string host,
     std::string service)
@@ -228,14 +228,14 @@ class AcceptedUdpTransport::UdpAcceptedCore final
       public std::enable_shared_from_this<UdpAcceptedCore> {
  public:
   UdpAcceptedCore(
-      const Executor& executor,
+      const executor& executor,
       const log_source& log,
       std::shared_ptr<PassiveUdpTransport::UdpPassiveCore> passive_core,
       UdpSocket::Endpoint endpoint);
   ~UdpAcceptedCore();
 
   // UdpTransportCore
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
   virtual bool connected() const override { return connected_; }
   virtual awaitable<error_code> open() override;
   virtual awaitable<error_code> close() override;
@@ -250,7 +250,7 @@ class AcceptedUdpTransport::UdpAcceptedCore final
                        UdpSocket::Datagram&& datagram);
   void OnSocketClosed(const UdpSocket::error_code& error);
 
-  Executor executor_;
+  executor executor_;
   log_source log_;
   std::shared_ptr<PassiveUdpTransport::UdpPassiveCore> passive_core_;
   UdpSocket::Endpoint endpoint_;
@@ -272,7 +272,7 @@ class PassiveUdpTransport::UdpPassiveCore final
     : public UdpTransportCore,
       public std::enable_shared_from_this<UdpPassiveCore> {
  public:
-  UdpPassiveCore(const Executor& executor,
+  UdpPassiveCore(const executor& executor,
                  const log_source& log,
                  UdpSocketFactory udp_socket_factory,
                  std::string host,
@@ -280,7 +280,7 @@ class PassiveUdpTransport::UdpPassiveCore final
   ~UdpPassiveCore();
 
   // UdpTransportCore
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
   virtual bool connected() const override { return connected_; }
   virtual awaitable<error_code> open() override;
   virtual awaitable<error_code> close() override;
@@ -305,7 +305,7 @@ class PassiveUdpTransport::UdpPassiveCore final
   void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
   void CloseAllAcceptedTransports(error_code error);
 
-  const Executor executor_;
+  const executor executor_;
   const log_source log_;
   const UdpSocketFactory udp_socket_factory_;
   const std::string host_;
@@ -331,7 +331,7 @@ class PassiveUdpTransport::UdpPassiveCore final
 // PassiveUdpTransport::UdpPassiveCore
 
 PassiveUdpTransport::UdpPassiveCore::UdpPassiveCore(
-    const Executor& executor,
+    const executor& executor,
     const log_source& log,
     UdpSocketFactory udp_socket_factory,
     std::string host,
@@ -519,7 +519,7 @@ PassiveUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
 // AcceptedUdpTransport::UdpAcceptedCore
 
 AcceptedUdpTransport::UdpAcceptedCore::UdpAcceptedCore(
-    const Executor& executor,
+    const executor& executor,
     const log_source& log,
     std::shared_ptr<PassiveUdpTransport::UdpPassiveCore> passive_core,
     UdpSocket::Endpoint endpoint)
@@ -610,7 +610,7 @@ void AcceptedUdpTransport::UdpAcceptedCore::OnSocketClosed(
 
 // ActiveUdpTransport
 
-ActiveUdpTransport::ActiveUdpTransport(const Executor& executor,
+ActiveUdpTransport::ActiveUdpTransport(const executor& executor,
                                        const log_source& log,
                                        UdpSocketFactory udp_socket_factory,
                                        std::string host,
@@ -625,7 +625,7 @@ ActiveUdpTransport::~ActiveUdpTransport() {
                         [core = core_] { core->shutdown(); });
 }
 
-Executor ActiveUdpTransport::get_executor() {
+executor ActiveUdpTransport::get_executor() {
   return core_->get_executor();
 }
 
@@ -660,7 +660,7 @@ awaitable<expected<size_t>> ActiveUdpTransport::write(
 
 // PassiveUdpTransport
 
-PassiveUdpTransport::PassiveUdpTransport(const Executor& executor,
+PassiveUdpTransport::PassiveUdpTransport(const executor& executor,
                                          const log_source& log,
                                          UdpSocketFactory udp_socket_factory,
                                          std::string host,
@@ -676,7 +676,7 @@ PassiveUdpTransport::~PassiveUdpTransport() {
       boost::asio::detached);
 }
 
-Executor PassiveUdpTransport::get_executor() {
+executor PassiveUdpTransport::get_executor() {
   return core_->get_executor();
 }
 
@@ -720,7 +720,7 @@ AcceptedUdpTransport::~AcceptedUdpTransport() {
                         [core = core_] { core->shutdown(); });
 }
 
-Executor AcceptedUdpTransport::get_executor() {
+executor AcceptedUdpTransport::get_executor() {
   return core_->get_executor();
 }
 

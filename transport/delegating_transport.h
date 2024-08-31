@@ -47,7 +47,7 @@ class DelegatingTransport : public Transport {
     return delegate_.active();
   }
 
-  [[nodiscard]] virtual Executor get_executor() override {
+  [[nodiscard]] virtual executor get_executor() override {
     return delegate_.get_executor();
   }
 

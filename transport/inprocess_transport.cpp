@@ -9,7 +9,7 @@ namespace transport {
 class InprocessTransportHost::Client final : public Transport {
  public:
   Client(InprocessTransportHost& host,
-         const Executor& executor,
+         const executor& executor,
          std::string channel_name)
       : host_{host},
         executor_{executor},
@@ -44,7 +44,7 @@ class InprocessTransportHost::Client final : public Transport {
   [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override;
 
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
 
   void Receive(std::span<const char> data) {
     // Must be opened.
@@ -60,7 +60,7 @@ class InprocessTransportHost::Client final : public Transport {
 
  private:
   InprocessTransportHost& host_;
-  const Executor executor_;
+  const executor executor_;
   const std::string channel_name_;
 
   AcceptedClient* accepted_client_ = nullptr;
@@ -71,7 +71,7 @@ class InprocessTransportHost::Client final : public Transport {
 class InprocessTransportHost::Server final : public Transport {
  public:
   Server(InprocessTransportHost& host,
-         const Executor& executor,
+         const executor& executor,
          std::string channel_name)
       : host_{host},
         executor_{executor},
@@ -125,7 +125,7 @@ class InprocessTransportHost::Server final : public Transport {
     co_return ERR_ACCESS_DENIED;
   }
 
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
 
   virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override {
@@ -136,7 +136,7 @@ class InprocessTransportHost::Server final : public Transport {
 
  private:
   InprocessTransportHost& host_;
-  const Executor executor_;
+  const executor executor_;
   const std::string channel_name_;
 
   bool opened_ = false;
@@ -196,7 +196,7 @@ class InprocessTransportHost::AcceptedClient final : public Transport {
     co_return data.size();
   }
 
-  virtual Executor get_executor() override { return server_.executor_; }
+  virtual executor get_executor() override { return server_.executor_; }
 
   void OnClientClosed() {
     // WARNING: Client might have not called `Open` yet.
@@ -276,14 +276,14 @@ InprocessTransportHost::Server::AcceptClient(Client& client) {
 // InprocessTransportHost
 
 any_transport InprocessTransportHost::CreateServer(
-    const Executor& executor,
+    const executor& executor,
     std::string_view channel_name) {
   return any_transport{
       std::make_unique<Server>(*this, executor, std::string{channel_name})};
 }
 
 any_transport InprocessTransportHost::CreateClient(
-    const Executor& executor,
+    const executor& executor,
     std::string_view channel_name) {
   return any_transport{
       std::make_unique<Client>(*this, executor, std::string{channel_name})};
