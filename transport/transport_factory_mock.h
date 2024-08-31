@@ -11,7 +11,7 @@ class MockTransportFactory : public TransportFactory {
   MOCK_METHOD(expected<any_transport>,
               CreateTransport,
               (const TransportString& transport_string,
-               const Executor& executor,
+               const executor& executor,
                const log_source& log));
 };
 

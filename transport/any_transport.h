@@ -24,7 +24,7 @@ class any_transport {
 
   void reset();
 
-  [[nodiscard]] Executor get_executor();
+  [[nodiscard]] executor get_executor();
   [[nodiscard]] std::string name() const;
   [[nodiscard]] bool message_oriented() const;
   [[nodiscard]] bool active() const;

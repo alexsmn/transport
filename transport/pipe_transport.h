@@ -9,7 +9,7 @@ namespace transport {
 // TODO: Rework with `boost/process/async_pipe.hpp`.
 class PipeTransport final : public Transport {
  public:
-  explicit PipeTransport(const Executor& executor);
+  explicit PipeTransport(const executor& executor);
   virtual ~PipeTransport();
 
   void Init(const std::wstring& name, bool server);
@@ -29,10 +29,10 @@ class PipeTransport final : public Transport {
   virtual bool message_oriented() const override { return false; }
   virtual bool connected() const override { return connected_; }
   virtual bool active() const override { return true; }
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
 
  private:
-  Executor executor_;
+  executor executor_;
 
   std::wstring name_;
   bool server_ = false;

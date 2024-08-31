@@ -6,7 +6,7 @@ namespace transport {
 
 class StubTransport : public Transport {
  public:
-  explicit StubTransport(const Executor& executor) : executor_{executor} {}
+  explicit StubTransport(const executor& executor) : executor_{executor} {}
 
   virtual awaitable<error_code> open() override { co_return OK; }
 
@@ -29,10 +29,10 @@ class StubTransport : public Transport {
   virtual bool message_oriented() const override { return true; }
   virtual bool connected() const override { return false; }
   virtual bool active() const override { return true; }
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
 
  private:
-  Executor executor_;
+  executor executor_;
 };
 
 }  // namespace transport

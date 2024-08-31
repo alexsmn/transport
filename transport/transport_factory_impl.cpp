@@ -87,7 +87,7 @@ TransportFactoryImpl::~TransportFactoryImpl() = default;
 
 expected<any_transport> TransportFactoryImpl::CreateTransport(
     const TransportString& transport_string,
-    const Executor& executor,
+    const executor& executor,
     const log_source& log) {
   log.writef(LogSeverity::Normal, "Create transport: %s",
              transport_string.ToString().c_str());

@@ -11,7 +11,7 @@ class ActiveTcpTransport final
     : public AsioTransport<boost::asio::ip::tcp::socket> {
  public:
   ActiveTcpTransport(
-      const Executor& executor,
+      const executor& executor,
       const log_source& log,
       const std::string& host,
       const std::string& service,
@@ -58,7 +58,7 @@ class ActiveTcpTransport final
 class PassiveTcpTransport final
     : public AsioTransport<boost::asio::ip::tcp::socket> {
  public:
-  PassiveTcpTransport(const Executor& executor,
+  PassiveTcpTransport(const executor& executor,
                       const log_source& log,
                       const std::string& host,
                       const std::string& service);
@@ -71,7 +71,7 @@ class PassiveTcpTransport final
   [[nodiscard]] virtual bool active() const override { return false; }
   [[nodiscard]] virtual bool connected() const override { return connected_; }
 
-  [[nodiscard]] virtual Executor get_executor() override {
+  [[nodiscard]] virtual executor get_executor() override {
     return acceptor_.get_executor();
   }
 

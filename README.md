@@ -13,10 +13,10 @@ It introduces a factory for constructing a transport object from a string descri
 Echo server example:
 
 ```c++
-awaitable<Error> RunServer(boost::asio::io_context& io_context) {
+awaitable<error_code> RunServer(boost::asio::io_context& io_context) {
   TransportFactoryImpl transport_factory{io_context};
 
-  NET_ASSIGN_OR_CO_ERROR(auto server,
+  NET_ASSIGN_OR_CO_RETURN(auto server,
     transport_factory.CreateTransport(TransportString{“TCP;Passive;Port=1234”}));
 
   NET_CO_RETURN_IF_ERROR(co_await server.open());
@@ -31,7 +31,7 @@ awaitable<Error> RunServer(boost::asio::io_context& io_context) {
   }
 }
 
-awaitable<Error> RunEcho(any_transport transport) {
+awaitable<error_code> RunEcho(any_transport transport) {
   std::vector<char> buffer;
 
   for (;;) {
@@ -51,13 +51,13 @@ awaitable<Error> RunEcho(any_transport transport) {
 Client example:
 
 ```c++
-awaitable<Error> RunClient(boost::asio::io_context& io_context) {
+awaitable<error_code> RunClient(boost::asio::io_context& io_context) {
   TransportFactoryImpl transport_factory{io_context};
-  NET_ASSIGN_OR_CO_ERROR(auto client,
+  NET_ASSIGN_OR_CO_RETURN(auto client,
     transport_factory.CreateTransport(TransportString{“TCP;Active;Port=1234”}));
 
   const char message[] = {1, 2, 3};
-  NET_ASSIGN_OR_CO_ERROR(auto result, co_await client.write(message));
+  NET_ASSIGN_OR_CO_RETURN(auto result, co_await client.write(message));
 
   std::vector<char> buffer;
   NET_CO_RETURN_IF_ERROR(co_await ReadMessage(client, 64, buffer));

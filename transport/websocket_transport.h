@@ -6,7 +6,7 @@ namespace transport {
 
 class WebSocketTransport final : public Transport {
  public:
-  WebSocketTransport(const Executor& executor, std::string host, int port);
+  WebSocketTransport(const executor& executor, std::string host, int port);
   ~WebSocketTransport();
 
   [[nodiscard]] virtual awaitable<error_code> open() override;
@@ -27,7 +27,7 @@ class WebSocketTransport final : public Transport {
   virtual bool message_oriented() const override { return true; }
   virtual bool connected() const override { return false; }
   virtual bool active() const override { return false; }
-  virtual Executor get_executor() override;
+  virtual executor get_executor() override;
 
  private:
   class Core;

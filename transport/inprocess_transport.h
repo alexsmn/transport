@@ -9,10 +9,10 @@ namespace transport {
 
 class InprocessTransportHost {
  public:
-  any_transport CreateServer(const Executor& executor,
+  any_transport CreateServer(const executor& executor,
                              std::string_view channel_name);
 
-  any_transport CreateClient(const Executor& executor,
+  any_transport CreateClient(const executor& executor,
                              std::string_view channel_name);
 
  private:

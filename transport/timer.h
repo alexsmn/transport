@@ -10,7 +10,7 @@ class Timer {
  public:
   using Period = std::chrono::nanoseconds;
 
-  explicit Timer(const Executor& executor) : executor_{executor} {}
+  explicit Timer(const executor& executor) : executor_{executor} {}
 
   template <class Callback>
   void StartOne(Period period, Callback&& callback) {
@@ -38,7 +38,7 @@ class Timer {
   struct CoreImpl
       : public Core,
         public std::enable_shared_from_this<CoreImpl<kRepeating, Callback>> {
-    CoreImpl(const Executor& executor, Period period, Callback&& callback)
+    CoreImpl(const executor& executor, Period period, Callback&& callback)
         : timer_{executor},
           period_{period},
           callback_{std::forward<Callback>(callback)} {}
@@ -65,7 +65,7 @@ class Timer {
     Callback callback_;
   };
 
-  Executor executor_;
+  executor executor_;
 
   std::shared_ptr<Core> core_;
 };

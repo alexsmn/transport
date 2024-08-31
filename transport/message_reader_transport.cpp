@@ -38,7 +38,7 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   [[nodiscard]] awaitable<expected<size_t>> WriteMessage(
       std::span<const char> data);
 
-  Executor executor_;
+  executor executor_;
   log_source log_;
   any_transport child_transport_;
   const std::unique_ptr<MessageReader> message_reader_;
@@ -190,7 +190,7 @@ std::string MessageReaderTransport::name() const {
   return "MSG:" + core_->child_transport_.name();
 }
 
-Executor MessageReaderTransport::get_executor() {
+executor MessageReaderTransport::get_executor() {
   return core_->child_transport_.get_executor();
 }
 

@@ -15,7 +15,7 @@ class WebSocketTransport::ConnectionCore
   ConnectionCore(boost::beast::websocket::stream<boost::beast::tcp_stream> ws)
       : ws{std::move(ws)} {}
 
-  Executor executor() { return ws.get_executor(); }
+  executor get_executor() { return ws.get_executor(); }
 
   [[nodiscard]] awaitable<error_code> Open();
   [[nodiscard]] awaitable<error_code> Close();
@@ -127,7 +127,7 @@ class WebSocketTransport::Connection : public Transport {
   virtual bool message_oriented() const override { return true; }
   virtual bool connected() const override { return true; }
   virtual bool active() const override { return false; }
-  virtual Executor get_executor() override;
+  virtual executor get_executor() override;
 
  private:
   const std::shared_ptr<ConnectionCore> core_;
@@ -137,7 +137,7 @@ class WebSocketTransport::Connection : public Transport {
 WebSocketTransport::Connection::~Connection() {
   if (opened_) {
     boost::asio::co_spawn(
-        core_->executor(), [core = core_] { return core->Close(); },
+        core_->get_executor(), [core = core_] { return core->Close(); },
         boost::asio::detached);
   }
 }
@@ -166,17 +166,17 @@ awaitable<expected<size_t>> WebSocketTransport::Connection::write(
   return core_->Write(data);
 }
 
-Executor WebSocketTransport::Connection::get_executor() {
-  return core_->executor();
+executor WebSocketTransport::Connection::get_executor() {
+  return core_->get_executor();
 }
 
 // WebSocketTransport::Core
 
 class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
  public:
-  Core(const Executor& executor, std::string host, int port);
+  Core(const executor& executor, std::string host, int port);
 
-  Executor executor() const { return executor_; }
+  executor get_executor() const { return executor_; }
 
   [[nodiscard]] awaitable<error_code> Open();
   [[nodiscard]] awaitable<error_code> Close();
@@ -189,14 +189,14 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
       boost::beast::websocket::stream<boost::beast::tcp_stream> ws);
 
  private:
-  Executor executor_;
+  executor executor_;
   const std::string host_;
   const int port_;
 
   boost::asio::ip::tcp::acceptor acceptor_{executor_};
 };
 
-WebSocketTransport::Core::Core(const Executor& executor,
+WebSocketTransport::Core::Core(const executor& executor,
                                std::string host,
                                int port)
     : executor_{executor}, host_{std::move(host)}, port_{port} {}
@@ -299,7 +299,7 @@ awaitable<void> WebSocketTransport::Core::DoSession(
 
 // WebSocketTransport
 
-WebSocketTransport::WebSocketTransport(const Executor& executor,
+WebSocketTransport::WebSocketTransport(const executor& executor,
                                        std::string host,
                                        int port)
     : core_{std::make_shared<Core>(executor, std::move(host), port)} {}
@@ -307,7 +307,7 @@ WebSocketTransport::WebSocketTransport(const Executor& executor,
 WebSocketTransport::~WebSocketTransport() {
   if (core_) {
     boost::asio::co_spawn(
-        core_->executor(), [core = core_] { return core->Close(); },
+        core_->get_executor(), [core = core_] { return core->Close(); },
         boost::asio::detached);
   }
 }
@@ -323,8 +323,8 @@ awaitable<error_code> WebSocketTransport::close() {
   co_return OK;
 }
 
-Executor WebSocketTransport::get_executor() {
-  return core_->executor();
+executor WebSocketTransport::get_executor() {
+  return core_->get_executor();
 }
 
 awaitable<expected<any_transport>> WebSocketTransport::accept() {

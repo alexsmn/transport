@@ -47,7 +47,7 @@ class TransportMock : public Transport {
   MOCK_METHOD(bool, message_oriented, (), (const override));
   MOCK_METHOD(bool, connected, (), (const override));
   MOCK_METHOD(bool, active, (), (const override));
-  MOCK_METHOD(Executor, get_executor, (), (override));
+  MOCK_METHOD(executor, get_executor, (), (override));
 };
 
 }  // namespace transport

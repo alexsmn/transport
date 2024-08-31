@@ -17,7 +17,7 @@ class DummyTransport : public Transport {
   virtual bool message_oriented() const override;
   virtual bool connected() const override;
   virtual bool active() const override;
-  virtual Executor get_executor() override;
+  virtual executor get_executor() override;
 
  private:
   bool opened_ = false;
@@ -67,7 +67,7 @@ inline bool DummyTransport::active() const {
   return true;
 }
 
-inline Executor DummyTransport::get_executor() {
+inline executor DummyTransport::get_executor() {
   return boost::asio::system_executor{};
 }
 

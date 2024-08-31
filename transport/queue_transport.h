@@ -10,7 +10,7 @@ namespace transport {
 
 class QueueTransport final : public Transport {
  public:
-  explicit QueueTransport(const Executor& executor);
+  explicit QueueTransport(const executor& executor);
 
   void SetActive(QueueTransport& peer);
 
@@ -32,7 +32,7 @@ class QueueTransport final : public Transport {
   virtual bool message_oriented() const override { return true; }
   virtual bool connected() const override { return connected_; }
   virtual bool active() const override { return active_; }
-  virtual Executor get_executor() override { return executor_; }
+  virtual executor get_executor() override { return executor_; }
 
  private:
   using Message = std::vector<char>;
@@ -41,7 +41,7 @@ class QueueTransport final : public Transport {
   void OnMessage(const void* data, size_t size);
   void OnAccept(QueueTransport& transport);
 
-  Executor executor_;
+  executor executor_;
 
   MessageQueue read_queue_;
 

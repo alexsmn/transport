@@ -21,7 +21,7 @@ class AsioTransport : public Transport {
  public:
   [[nodiscard]] virtual bool message_oriented() const override { return false; }
 
-  [[nodiscard]] virtual Executor get_executor() override {
+  [[nodiscard]] virtual executor get_executor() override {
     return io_object_.get_executor();
   }
 
@@ -38,7 +38,7 @@ class AsioTransport : public Transport {
       std::span<const char> data) override;
 
  protected:
-  AsioTransport(const Executor& executor, const log_source& log);
+  AsioTransport(const executor& executor, const log_source& log);
 
   void ProcessError(error_code error);
 
@@ -58,7 +58,7 @@ class AsioTransport : public Transport {
 };
 
 template <class IoObject>
-inline AsioTransport<IoObject>::AsioTransport(const Executor& executor,
+inline AsioTransport<IoObject>::AsioTransport(const executor& executor,
                                               const log_source& log)
     : log_{std::move(log)}, io_object_{executor} {}
 

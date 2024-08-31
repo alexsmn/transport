@@ -45,7 +45,7 @@ class UdpTransportTest : public Test {
   [[nodiscard]] any_transport OpenTransport(bool active);
   void ReceiveMessage();
 
-  Executor executor_ = boost::asio::system_executor{};
+  executor executor_ = boost::asio::system_executor{};
   std::shared_ptr<MockUdpSocket> socket = std::make_shared<MockUdpSocket>();
   UdpSocketContext::OpenHandler open_handler;
   UdpSocketContext::MessageHandler message_handler;

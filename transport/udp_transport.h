@@ -10,7 +10,7 @@ class AcceptedUdpTransport;
 
 class ActiveUdpTransport final : public Transport {
  public:
-  ActiveUdpTransport(const Executor& executor,
+  ActiveUdpTransport(const executor& executor,
                      const log_source& log,
                      UdpSocketFactory udp_socket_factory,
                      std::string host,
@@ -22,7 +22,7 @@ class ActiveUdpTransport final : public Transport {
   [[nodiscard]] virtual bool active() const override { return true; }
   [[nodiscard]] virtual bool connected() const override;
   [[nodiscard]] virtual bool message_oriented() const override { return true; }
-  [[nodiscard]] virtual Executor get_executor() override;
+  [[nodiscard]] virtual executor get_executor() override;
 
   [[nodiscard]] virtual awaitable<error_code> open() override;
   [[nodiscard]] virtual awaitable<error_code> close() override;
@@ -42,7 +42,7 @@ class ActiveUdpTransport final : public Transport {
 
 class PassiveUdpTransport final : public Transport {
  public:
-  PassiveUdpTransport(const Executor& executor,
+  PassiveUdpTransport(const executor& executor,
                       const log_source& log,
                       UdpSocketFactory udp_socket_factory,
                       std::string host,
@@ -54,7 +54,7 @@ class PassiveUdpTransport final : public Transport {
   [[nodiscard]] virtual bool active() const override { return false; }
   [[nodiscard]] virtual bool connected() const override;
   [[nodiscard]] virtual bool message_oriented() const override { return true; }
-  [[nodiscard]] virtual Executor get_executor() override;
+  [[nodiscard]] virtual executor get_executor() override;
 
   [[nodiscard]] virtual awaitable<error_code> open() override;
   [[nodiscard]] virtual awaitable<error_code> close() override;

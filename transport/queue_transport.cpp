@@ -6,7 +6,7 @@ using namespace std::chrono_literals;
 
 namespace transport {
 
-QueueTransport::QueueTransport(const Executor& executor)
+QueueTransport::QueueTransport(const executor& executor)
     : executor_{executor}, timer_{executor} {
   active_ = false;
 }

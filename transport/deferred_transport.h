@@ -23,12 +23,13 @@ class DeferredTransport final : public Transport {
   virtual awaitable<error_code> close() override;
   virtual awaitable<expected<any_transport>> accept() override;
   virtual awaitable<expected<size_t>> read(std::span<char> data) override;
-  virtual awaitable<expected<size_t>> write(std::span<const char> data) override;
+  virtual awaitable<expected<size_t>> write(
+      std::span<const char> data) override;
   virtual std::string name() const override;
   virtual bool message_oriented() const override;
   virtual bool connected() const override;
   virtual bool active() const override;
-  virtual Executor get_executor() override;
+  virtual executor get_executor() override;
 
  private:
   struct Core;

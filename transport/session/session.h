@@ -26,7 +26,7 @@ class Session final : public Transport {
     virtual void OnSessionTransportError(error_code error) = 0;
   };
 
-  explicit Session(const Executor& executor);
+  explicit Session(const executor& executor);
   virtual ~Session();
 
   // Assign new session transport. If there is another one, delete it.
@@ -91,7 +91,7 @@ class Session final : public Transport {
 
   [[nodiscard]] virtual bool active() const override { return true; }
 
-  [[nodiscard]] virtual Executor get_executor() override { return executor_; }
+  [[nodiscard]] virtual executor get_executor() override { return executor_; }
 
  private:
   struct Message {
@@ -167,7 +167,7 @@ class Session final : public Transport {
   void OnTransportClosed(error_code error);
   void OnTransportMessageReceived(std::span<const char> data);
 
-  Executor executor_;
+  executor executor_;
   log_source log_;
 
   SessionID id_;

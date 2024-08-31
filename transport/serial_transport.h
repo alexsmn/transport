@@ -17,7 +17,7 @@ class SerialTransport final : public AsioTransport<boost::asio::serial_port> {
     std::optional<boost::asio::serial_port::character_size> character_size;
   };
 
-  SerialTransport(const Executor& executor,
+  SerialTransport(const executor& executor,
                   const log_source& log,
                   std::string device,
                   const Options& options);

@@ -18,7 +18,7 @@ class TransportFactory {
   // Returns nullptr if parameters are invalid.
   virtual expected<any_transport> CreateTransport(
       const TransportString& transport_string,
-      const Executor& executor,
+      const executor& executor,
       const log_source& log = {}) = 0;
 };
 

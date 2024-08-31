@@ -24,7 +24,7 @@ inline bool SetOption(boost::asio::serial_port& serial_port,
 
 }  // namespace
 
-SerialTransport::SerialTransport(const Executor& executor,
+SerialTransport::SerialTransport(const executor& executor,
                                  const log_source& log,
                                  std::string device,
                                  const Options& options)

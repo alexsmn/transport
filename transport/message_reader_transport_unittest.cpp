@@ -26,7 +26,7 @@ class MessageTransportTest : public Test {
   [[nodiscard]] awaitable<expected<std::vector<char>>> ReadMessage();
 
   boost::asio::io_context io_context_;
-  Executor executor_ = io_context_.get_executor();
+  executor executor_ = io_context_.get_executor();
 
   TransportMock* child_transport_ = nullptr;
 

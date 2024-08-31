@@ -6,19 +6,19 @@
 
 namespace transport {
 
-class ImmediateExecutor {
+class immediate_executor {
  public:
-  ImmediateExecutor() = default;
-  ~ImmediateExecutor() = default;
+  immediate_executor() = default;
+  ~immediate_executor() = default;
 
-  ImmediateExecutor(const ImmediateExecutor& other) {}
-  ImmediateExecutor(ImmediateExecutor&& other) noexcept {}
+  immediate_executor(const immediate_executor& other) {}
+  immediate_executor(immediate_executor&& other) noexcept {}
 
-  bool operator==(const ImmediateExecutor& other) const {
+  bool operator==(const immediate_executor& other) const {
     return this == &other;
   }
 
-  bool operator!=(const ImmediateExecutor& other) const {
+  bool operator!=(const immediate_executor& other) const {
     return this != &other;
   }
 
@@ -62,7 +62,7 @@ class ImmediateExecutor {
   mutable boost::asio::execution_context context_;
 };
 
-static_assert(boost::asio::is_executor<ImmediateExecutor>::value,
-              "ImmediateExecutor must meet the requirements of Executor");
+static_assert(boost::asio::is_executor<immediate_executor>::value,
+              "immediate_executor must meet the requirements of executor");
 
 }  // namespace transport
