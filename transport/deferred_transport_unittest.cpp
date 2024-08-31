@@ -29,7 +29,7 @@ void DeferredTransportTest::SetUp() {
 }
 
 TEST_F(DeferredTransportTest, Destroy_DestroysUnderlyingTransport) {
-  EXPECT_CALL(*underlying_transport_, Destroy());
+  EXPECT_CALL(*underlying_transport_, destroy());
 
   deferred_transport_.reset();
 }

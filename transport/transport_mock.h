@@ -25,9 +25,9 @@ class TransportMock : public Transport {
         .WillByDefault(Return(boost::asio::system_executor{}));
   }
 
-  ~TransportMock() { Destroy(); }
+  ~TransportMock() { destroy(); }
 
-  MOCK_METHOD(void, Destroy, ());
+  MOCK_METHOD(void, destroy, ());
 
   MOCK_METHOD(awaitable<error_code>, open, (), (override));
   MOCK_METHOD(awaitable<error_code>, close, (), (override));
