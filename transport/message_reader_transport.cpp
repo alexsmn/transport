@@ -5,8 +5,6 @@
 #include "transport/error.h"
 #include "transport/message_reader.h"
 
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
 #include <boost/asio/dispatch.hpp>
 
 namespace transport {
@@ -38,6 +36,8 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
   [[nodiscard]] awaitable<expected<size_t>> WriteMessage(
       std::span<const char> data);
 
+  void Destroy();
+
   executor executor_;
   log_source log_;
   any_transport child_transport_;
@@ -64,7 +64,12 @@ MessageReaderTransport::MessageReaderTransport(
 }
 
 MessageReaderTransport::~MessageReaderTransport() {
-  boost::asio::dispatch(core_->executor_, std::bind_front(&Core::Close, core_));
+  core_->Destroy();
+}
+
+void MessageReaderTransport::Core::Destroy() {
+  cancelation_ = nullptr;
+  child_transport_.reset();
 }
 
 MessageReader& MessageReaderTransport::message_reader() {
@@ -129,6 +134,10 @@ awaitable<expected<size_t>> MessageReaderTransport::Core::ReadMessage(
 
   if (reading_) {
     co_return ERR_IO_PENDING;
+  }
+
+  if (!cancelation_) {
+    co_return ERR_CONNECTION_CLOSED;
   }
 
   auto ref = shared_from_this();
