@@ -1,7 +1,7 @@
 #pragma once
 
 #include "transport/awaitable.h"
-#include "transport/error_or.h"
+#include "transport/expected.h"
 
 #include <boost/asio/experimental/channel.hpp>
 #include <memory>
@@ -17,7 +17,7 @@ class WriteQueue {
 
   void BlindWrite(std::span<const char> data);
 
-  awaitable<ErrorOr<size_t>> Write(std::span<const char> data);
+  awaitable<expected<size_t>> Write(std::span<const char> data);
 
  private:
   any_transport& transport_;

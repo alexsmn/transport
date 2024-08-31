@@ -4,55 +4,55 @@
 
 namespace transport {
 
-using Error = boost::system::error_code;
+using error_code = boost::system::error_code;
 
-constexpr Error OK =
+constexpr error_code OK =
     boost::system::errc::make_error_code(boost::system::errc::success);
-constexpr Error ERR_FAILED =
+constexpr error_code ERR_FAILED =
     boost::system::errc::make_error_code(boost::system::errc::io_error);
-constexpr Error ERR_ABORTED = boost::system::errc::make_error_code(
+constexpr error_code ERR_ABORTED = boost::system::errc::make_error_code(
     boost::system::errc::operation_canceled);
-constexpr Error ERR_INVALID_ARGUMENT =
+constexpr error_code ERR_INVALID_ARGUMENT =
     boost::system::errc::make_error_code(boost::system::errc::invalid_argument);
-constexpr Error ERR_ACCESS_DENIED = boost::system::errc::make_error_code(
+constexpr error_code ERR_ACCESS_DENIED = boost::system::errc::make_error_code(
     boost::system::errc::permission_denied);
-constexpr Error ERR_ADDRESS_IN_USE =
+constexpr error_code ERR_ADDRESS_IN_USE =
     boost::system::errc::make_error_code(boost::system::errc::address_in_use);
-constexpr Error ERR_CONNECTION_CLOSED =
+constexpr error_code ERR_CONNECTION_CLOSED =
     boost::system::errc::make_error_code(boost::system::errc::connection_reset);
-constexpr Error ERR_INVALID_HANDLE = boost::system::errc::make_error_code(
+constexpr error_code ERR_INVALID_HANDLE = boost::system::errc::make_error_code(
     boost::system::errc::bad_file_descriptor);
-constexpr Error ERR_IO_PENDING = boost::system::errc::make_error_code(
+constexpr error_code ERR_IO_PENDING = boost::system::errc::make_error_code(
     boost::system::errc::resource_unavailable_try_again);
-constexpr Error ERR_NOT_IMPLEMENTED = boost::system::errc::make_error_code(
+constexpr error_code ERR_NOT_IMPLEMENTED = boost::system::errc::make_error_code(
     boost::system::errc::function_not_supported);
-constexpr Error ERR_TIMED_OUT =
+constexpr error_code ERR_TIMED_OUT =
     boost::system::errc::make_error_code(boost::system::errc::timed_out);
-constexpr Error ERR_SSL_BAD_PEER_PUBLIC_KEY =
+constexpr error_code ERR_SSL_BAD_PEER_PUBLIC_KEY =
     boost::system::errc::make_error_code(boost::system::errc::bad_message);
 
 #if 0
-constexpr Error ERR_CONNECTION_REFUSED =
+constexpr error_code ERR_CONNECTION_REFUSED =
     boost::system::errc::make_error_code(boost::system::errc::connection_refused);
-constexpr Error ERR_NOT_FOUND =
+constexpr error_code ERR_NOT_FOUND =
     boost::system::errc::make_error_code(boost::system::errc::no_such_file_or_directory);
-constexpr Error ERR_NOT_SUPPORTED =
+constexpr error_code ERR_NOT_SUPPORTED =
     boost::system::errc::make_error_code(boost::system::errc::operation_not_supported);
-constexpr Error ERR_FAILED =
+constexpr error_code ERR_FAILED =
     boost::system::errc::operation_canceled;
-constexpr Error ERR_INTERNAL =
+constexpr error_code ERR_INTERNAL =
     boost::system::errc::make_error_code(boost::system::errc::bad_message);
-constexpr Error ERR_FAILED_PRECONDITION =
+constexpr error_code ERR_FAILED_PRECONDITION =
     boost::system::errc::make_error_code(boost::system::errc::bad_address);
-constexpr Error ERR_OUT_OF_RANGE =
+constexpr error_code ERR_OUT_OF_RANGE =
     boost::system::errc::make_error_code(boost::system::errc::result_out_of_range);
 #endif
 
-inline std::string ErrorToString(Error error) {
+inline std::string ErrorToString(error_code error) {
   return error.message();
 }
 
-inline std::string ErrorToShortString(Error error) {
+inline std::string ErrorToShortString(error_code error) {
   return error.message();
 }
 

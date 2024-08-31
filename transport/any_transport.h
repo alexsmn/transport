@@ -30,11 +30,11 @@ class any_transport {
   [[nodiscard]] bool active() const;
   [[nodiscard]] bool connected() const;
 
-  [[nodiscard]] awaitable<Error> open();
-  [[nodiscard]] awaitable<Error> close();
-  [[nodiscard]] awaitable<ErrorOr<any_transport>> accept();
-  [[nodiscard]] awaitable<ErrorOr<size_t>> read(std::span<char> data) const;
-  [[nodiscard]] awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] awaitable<error_code> open();
+  [[nodiscard]] awaitable<error_code> close();
+  [[nodiscard]] awaitable<expected<any_transport>> accept();
+  [[nodiscard]] awaitable<expected<size_t>> read(std::span<char> data) const;
+  [[nodiscard]] awaitable<expected<size_t>> write(
       std::span<const char> data) const;
 
  private:

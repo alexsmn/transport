@@ -3,8 +3,8 @@
 #include "transport/any_transport.h"
 #include "transport/awaitable.h"
 #include "transport/error.h"
-#include "transport/error_or.h"
 #include "transport/executor.h"
+#include "transport/expected.h"
 
 #include <cassert>
 #include <functional>
@@ -18,7 +18,7 @@ class Connector {
  public:
   virtual ~Connector() = default;
 
-  [[nodiscard]] virtual awaitable<Error> open() = 0;
+  [[nodiscard]] virtual awaitable<error_code> open() = 0;
 };
 
 class Sender {
@@ -27,7 +27,7 @@ class Sender {
 
   // Caller must retain the buffer until the operation completes.
   // Returns amount of bytes written or an error.
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> buffer) = 0;
 };
 
@@ -37,7 +37,7 @@ class Reader {
 
   // For streaming transports. Caller must retain the buffer until the operation
   // completes. Returns zero when transport is closed.
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> buffer) = 0;
 };
 
@@ -73,9 +73,9 @@ class Transport : public Connector,
 
   [[nodiscard]] virtual Executor get_executor() = 0;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() = 0;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() = 0;
 
-  [[nodiscard]] virtual awaitable<Error> close() = 0;
+  [[nodiscard]] virtual awaitable<error_code> close() = 0;
 };
 
 }  // namespace transport

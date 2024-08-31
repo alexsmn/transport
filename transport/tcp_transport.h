@@ -31,8 +31,8 @@ class ActiveTcpTransport final
     return type_ == Type::ACTIVE;
   }
 
-  [[nodiscard]] virtual awaitable<Error> open() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<error_code> open() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
 
  protected:
   // AsioTransport
@@ -42,8 +42,8 @@ class ActiveTcpTransport final
   using Socket = boost::asio::ip::tcp::socket;
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  [[nodiscard]] awaitable<Error> ResolveAndConnect();
-  [[nodiscard]] awaitable<Error> Connect(Resolver::iterator iterator);
+  [[nodiscard]] awaitable<error_code> ResolveAndConnect();
+  [[nodiscard]] awaitable<error_code> Connect(Resolver::iterator iterator);
 
   std::string host_;
   std::string service_;
@@ -75,14 +75,14 @@ class PassiveTcpTransport final
     return acceptor_.get_executor();
   }
 
-  [[nodiscard]] virtual awaitable<Error> open() override;
-  [[nodiscard]] virtual awaitable<Error> close() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<error_code> open() override;
+  [[nodiscard]] virtual awaitable<error_code> close() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override;
 
  protected:
@@ -93,7 +93,7 @@ class PassiveTcpTransport final
   using Socket = boost::asio::ip::tcp::socket;
   using Resolver = boost::asio::ip::tcp::resolver;
 
-  [[nodiscard]] awaitable<Error> ResolveAndBind();
+  [[nodiscard]] awaitable<error_code> ResolveAndBind();
   [[nodiscard]] boost::system::error_code Bind(Resolver::iterator iterator);
 
   void ProcessError(const boost::system::error_code& ec);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "transport/bytemsg.h"
-#include "transport/error_or.h"
+#include "transport/expected.h"
 #include "transport/log.h"
 
 #include <cassert>
@@ -60,7 +60,7 @@ class MessageReader {
   }
 
   // Returns an empty span if there is no data to pop.
-  ErrorOr<size_t> Pop(std::span<char> data) {
+  expected<size_t> Pop(std::span<char> data) {
     size_t bytes_expected = 0;
     if (!GetBytesExpected(buffer_.data, buffer_.size, bytes_expected)) {
       return ERR_FAILED;

@@ -15,42 +15,42 @@
 #define NET_ASSIGN_OR_CO_RETURN(lhs, rexpr) \
   NET_ASSIGN_OR_RETURN_IMPL(lhs, rexpr, CONCAT(res, __LINE__), co_return)
 
-#define NET_ASSIGN_OR_RETURN_IMPL(lhs, rexpr, res, return_impl)             \
-  auto res = (rexpr);                                                       \
-  if (!res.ok()) {                                                          \
+#define NET_ASSIGN_OR_RETURN_IMPL(lhs, rexpr, res, return_impl)           \
+  auto res = (rexpr);                                                     \
+  if (!res.ok()) {                                                        \
     static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
-    return_impl ::transport::Error{res.error(), &loc};                            \
-  }                                                                         \
+    return_impl ::transport::error_code{res.error(), &loc};               \
+  }                                                                       \
   lhs = std::move(res.value());
 
 #define NET_RETURN_IF_ERROR(rexpr) NET_RETURN_IF_ERROR_IMPL(rexpr, return)
 #define NET_CO_RETURN_IF_ERROR(rexpr) NET_RETURN_IF_ERROR_IMPL(rexpr, co_return)
 
-#define NET_RETURN_IF_ERROR_IMPL(rexpr, return_impl)                        \
-  if (auto err = (rexpr); err != transport::OK) {                                 \
+#define NET_RETURN_IF_ERROR_IMPL(rexpr, return_impl)                      \
+  if (auto err = (rexpr); err != transport::OK) {                         \
     static constexpr boost::source_location loc = BOOST_CURRENT_LOCATION; \
-    return_impl ::transport::Error{err, &loc};                                    \
+    return_impl ::transport::error_code{err, &loc};                       \
   }
 
 namespace transport {
 
 template <class T>
-class [[nodiscard]] ErrorOr {
+class [[nodiscard]] expected {
  public:
-  ErrorOr(Error error) : value_{error} { assert(error != OK); }
+  expected(error_code error) : value_{error} { assert(error != OK); }
 
   template <class E>
     requires boost::system::is_error_code_enum<E>::value
-  ErrorOr(E ec) : value_{Error{ec}} {
+  expected(E ec) : value_{error_code{ec}} {
     assert(ec != boost::system::errc::success);
   }
 
-  ErrorOr(T value) : value_{std::move(value)} {}
+  expected(T value) : value_{std::move(value)} {}
 
   bool ok() const { return std::holds_alternative<T>(value_); }
 
-  Error error() const {
-    const auto* error = std::get_if<Error>(&value_);
+  error_code error() const {
+    const auto* error = std::get_if<error_code>(&value_);
     return error ? *error : OK;
   }
 
@@ -87,19 +87,20 @@ class [[nodiscard]] ErrorOr {
     return &std::get<T>(value_);
   }
 
-  bool operator==(Error error) const { return this->error() == error; }
+  bool operator==(error_code error) const { return this->error() == error; }
 
   bool operator==(const T& value) const {
     return ok() && this->value() == value;
   }
 
  private:
-  std::variant<Error, T> value_;
+  std::variant<error_code, T> value_;
 };
 
 }  // namespace transport
 
 template <class T>
-inline std::ostream& operator<<(std::ostream& os, const transport::ErrorOr<T>& st) {
+inline std::ostream& operator<<(std::ostream& os,
+                                const transport::expected<T>& st) {
   return st.ok() ? (os << *st) : (os << st.error());
 }

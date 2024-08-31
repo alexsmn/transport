@@ -15,14 +15,14 @@ class PipeTransport final : public Transport {
   void Init(const std::wstring& name, bool server);
 
   // Transport overrides.
-  [[nodiscard]] virtual awaitable<Error> open() override;
-  [[nodiscard]] virtual awaitable<Error> close() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<error_code> open() override;
+  [[nodiscard]] virtual awaitable<error_code> close() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override;
 
   virtual std::string name() const override;

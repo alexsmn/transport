@@ -32,7 +32,7 @@ SerialTransport::SerialTransport(const Executor& executor,
       device_{std::move(device)},
       options_{options} {}
 
-awaitable<Error> SerialTransport::open() {
+awaitable<error_code> SerialTransport::open() {
   boost::system::error_code ec;
   io_object_.open(device_, ec);
   if (ec) {
@@ -67,7 +67,7 @@ std::string SerialTransport::name() const {
   return device_;
 }
 
-awaitable<ErrorOr<any_transport>> SerialTransport::accept() {
+awaitable<expected<any_transport>> SerialTransport::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 

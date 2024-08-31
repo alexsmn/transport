@@ -37,7 +37,7 @@ bool any_transport::connected() const {
   return transport_ && transport_->connected();
 }
 
-awaitable<Error> any_transport::open() {
+awaitable<error_code> any_transport::open() {
   if (!transport_) {
     co_return ERR_INVALID_HANDLE;
   }
@@ -45,7 +45,7 @@ awaitable<Error> any_transport::open() {
   co_return co_await transport_->open();
 }
 
-awaitable<Error> any_transport::close() {
+awaitable<error_code> any_transport::close() {
   assert(transport_);
 
   if (!transport_) {
@@ -55,7 +55,7 @@ awaitable<Error> any_transport::close() {
   co_return co_await transport_->close();
 }
 
-awaitable<ErrorOr<any_transport>> any_transport::accept() {
+awaitable<expected<any_transport>> any_transport::accept() {
   if (!transport_) {
     co_return ERR_INVALID_HANDLE;
   }
@@ -65,7 +65,7 @@ awaitable<ErrorOr<any_transport>> any_transport::accept() {
   co_return any_transport{std::move(transport)};
 }
 
-awaitable<ErrorOr<size_t>> any_transport::read(std::span<char> data) const {
+awaitable<expected<size_t>> any_transport::read(std::span<char> data) const {
   if (!transport_) {
     co_return ERR_INVALID_HANDLE;
   }
@@ -73,7 +73,7 @@ awaitable<ErrorOr<size_t>> any_transport::read(std::span<char> data) const {
   co_return co_await transport_->read(data);
 }
 
-awaitable<ErrorOr<size_t>> any_transport::write(
+awaitable<expected<size_t>> any_transport::write(
     std::span<const char> data) const {
   if (!transport_) {
     co_return ERR_INVALID_HANDLE;

@@ -16,7 +16,7 @@ class InterceptingTransportFactory : public TransportFactory {
     interceptor_ = interceptor;
   }
 
-  virtual ErrorOr<any_transport> CreateTransport(
+  virtual expected<any_transport> CreateTransport(
       const TransportString& transport_string,
       const Executor& executor,
       const log_source& log = {}) override {

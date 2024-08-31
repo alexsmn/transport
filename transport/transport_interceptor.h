@@ -1,6 +1,6 @@
 #pragma once
 
-#include "transport/error_or.h"
+#include "transport/expected.h"
 
 #include <optional>
 #include <span>
@@ -11,7 +11,7 @@ class TransportInterceptor {
  public:
   virtual ~TransportInterceptor() = default;
 
-  virtual std::optional<ErrorOr<size_t>> InterceptWrite(
+  virtual std::optional<expected<size_t>> InterceptWrite(
       std::span<const char> data) const {
     return std::nullopt;
   }

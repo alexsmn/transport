@@ -85,7 +85,7 @@ TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
 
 TransportFactoryImpl::~TransportFactoryImpl() = default;
 
-ErrorOr<any_transport> TransportFactoryImpl::CreateTransport(
+expected<any_transport> TransportFactoryImpl::CreateTransport(
     const TransportString& transport_string,
     const Executor& executor,
     const log_source& log) {
@@ -161,7 +161,7 @@ ErrorOr<any_transport> TransportFactoryImpl::CreateTransport(
             transport_string.GetParamStr(TransportString::kParamFlowControl)));
 
     } catch (const std::runtime_error& e) {
-      log.writef(LogSeverity::Warning, "Error: %s", e.what());
+      log.writef(LogSeverity::Warning, "error_code: %s", e.what());
       return ERR_INVALID_ARGUMENT;
     }
 

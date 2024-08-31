@@ -61,7 +61,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 namespace {
 
-[[nodiscard]] awaitable<Error> Write(const any_transport& transport,
+[[nodiscard]] awaitable<error_code> Write(const any_transport& transport,
                                      std::span<const char> data) {
   NET_ASSIGN_OR_CO_RETURN(auto bytes_written, co_await transport.write(data));
 
@@ -72,7 +72,7 @@ namespace {
   co_return OK;
 }
 
-[[nodiscard]] awaitable<Error> RunEchoAccepted(any_transport transport) {
+[[nodiscard]] awaitable<error_code> RunEchoAccepted(any_transport transport) {
   auto cancelation = co_await boost::asio::this_coro::cancellation_state;
   std::vector<char> buffer;
   for (;;) {
@@ -102,7 +102,7 @@ namespace {
   co_return co_await transport.close();
 }
 
-[[nodiscard]] awaitable<Error> RunServer(any_transport& transport) {
+[[nodiscard]] awaitable<error_code> RunServer(any_transport& transport) {
   int next_client_id = 1;
 
   for (;;) {
@@ -117,7 +117,7 @@ namespace {
   co_return OK;
 }
 
-[[nodiscard]] awaitable<Error> RunEchoClient(
+[[nodiscard]] awaitable<error_code> RunEchoClient(
     any_transport transport,
     std::span<const char> exchange_message,
     int exchange_count) {

@@ -81,7 +81,7 @@ void Session::Cleanup() {
   }
 }
 
-awaitable<Error> Session::close() {
+awaitable<error_code> Session::close() {
   Cleanup();
 
   state_ = CLOSED;
@@ -195,7 +195,7 @@ void Session::Send(const void* data, size_t len, int priority) {
   }
 }
 
-void Session::OnClosed(Error error) {
+void Session::OnClosed(error_code error) {
   log_.writef(LogSeverity::Warning, "Session fatal error %s",
               ErrorToString(error).c_str());
 
@@ -213,7 +213,7 @@ void Session::OnSessionRestored() {
     session_transport_observer_->OnSessionRecovered();
 }
 
-void Session::OnTransportError(Error error) {
+void Session::OnTransportError(error_code error) {
   log_.writef(LogSeverity::Warning, "Session transport error - %s",
               ErrorToString(error).c_str());
 
@@ -229,7 +229,7 @@ void Session::OnTransportError(Error error) {
   }
 }
 
-awaitable<Error> Session::open() {
+awaitable<error_code> Session::open() {
   assert(state_ == CLOSED);
   assert(!cancelation_);
 
@@ -240,11 +240,11 @@ awaitable<Error> Session::open() {
   return Connect();
 }
 
-awaitable<ErrorOr<size_t>> Session::read(std::span<char> data) {
+awaitable<expected<size_t>> Session::read(std::span<char> data) {
   co_return ERR_NOT_IMPLEMENTED;
 }
 
-awaitable<ErrorOr<size_t>> Session::write(std::span<const char> data) {
+awaitable<expected<size_t>> Session::write(std::span<const char> data) {
   Send(data.data(), data.size());
   co_return data.size();
 }
@@ -253,7 +253,7 @@ std::string Session::name() const {
   return "Session";
 }
 
-awaitable<Error> Session::Connect() {
+awaitable<error_code> Session::Connect() {
   assert(!cancelation_);
 
   log_.writef(LogSeverity::Normal, "Connecting to %s",
@@ -435,7 +435,7 @@ void Session::OnCreateResponse(const SessionID& session_id,
   state_ = OPENED;
 }
 
-void Session::OnTransportClosed(Error error) {
+void Session::OnTransportClosed(error_code error) {
   log_.writef(LogSeverity::Warning, "Transport closed with error %s",
               ErrorToString(error).c_str());
 
@@ -486,7 +486,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     case NETS_CREATE | NETS_RESPONSE: {
       // Client-only: Login response.
       // Parse
-      Error error = boost::system::errc::make_error_code(
+      error_code error = boost::system::errc::make_error_code(
           static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
       log_.writef(LogSeverity::Normal, "Create session response - %s",
@@ -508,7 +508,7 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     }
 
     case NETS_OPEN | NETS_RESPONSE: {
-      Error error = boost::system::errc::make_error_code(
+      error_code error = boost::system::errc::make_error_code(
           static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
       log_.writef(LogSeverity::Normal, "Restore session response - %s",
@@ -642,7 +642,7 @@ void Session::OnCreate(const CreateSessionInfo& create_info) {
   // process request
   SessionID session_id;
   SessionInfo session_info;
-  Error error = OK;
+  error_code error = OK;
 
   std::unique_ptr<Transport> self(this);
 
@@ -691,7 +691,7 @@ void Session::OnRestore(const SessionID& session_id) {
   Session* new_session = nullptr;
   SessionInfo session_info;
   memset(&session_info, 0, sizeof(session_info));
-  Error error = OK;
+  error_code error = OK;
 
   if (!parent_session_) {
     error = ERR_FAILED;

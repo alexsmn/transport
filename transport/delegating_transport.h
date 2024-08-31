@@ -9,24 +9,24 @@ class DelegatingTransport : public Transport {
  public:
   explicit DelegatingTransport(any_transport& delegate) : delegate_{delegate} {}
 
-  [[nodiscard]] virtual awaitable<Error> open() override {
+  [[nodiscard]] virtual awaitable<error_code> open() override {
     return delegate_.open();
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override {
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override {
     return delegate_.accept();
   }
 
-  [[nodiscard]] awaitable<transport::Error> close() override {
+  [[nodiscard]] awaitable<transport::error_code> close() override {
     return delegate_.close();
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) override {
     return delegate_.read(data);
   }
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override {
     return delegate_.write(data);
   }

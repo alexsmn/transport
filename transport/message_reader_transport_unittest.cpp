@@ -23,7 +23,7 @@ class MessageTransportTest : public Test {
 
   void ExpectChildReadSome(const std::vector<std::vector<char>>& fragments);
   void ExpectChildReadMessage(const std::vector<char>& message);
-  [[nodiscard]] awaitable<ErrorOr<std::vector<char>>> ReadMessage();
+  [[nodiscard]] awaitable<expected<std::vector<char>>> ReadMessage();
 
   boost::asio::io_context io_context_;
   Executor executor_ = io_context_.get_executor();
@@ -76,7 +76,7 @@ void MessageTransportTest::ExpectChildReadSome(
   EXPECT_CALL(*child_transport_, read(/*buffer=*/_))
       .Times(fragments.size())
       .WillRepeatedly(Invoke([shared_fragments](std::span<char> data)
-                                 -> awaitable<ErrorOr<size_t>> {
+                                 -> awaitable<expected<size_t>> {
         if (shared_fragments->empty()) {
           co_return ERR_FAILED;
         }
@@ -96,8 +96,8 @@ void MessageTransportTest::ExpectChildReadSome(
 void MessageTransportTest::ExpectChildReadMessage(
     const std::vector<char>& message) {
   EXPECT_CALL(*child_transport_, read(/*buffer=*/_))
-      .WillOnce(
-          Invoke([message](std::span<char> data) -> awaitable<ErrorOr<size_t>> {
+      .WillOnce(Invoke(
+          [message](std::span<char> data) -> awaitable<expected<size_t>> {
             if (data.size() < message.size()) {
               co_return ERR_FAILED;
             }
@@ -106,7 +106,7 @@ void MessageTransportTest::ExpectChildReadMessage(
           }));
 }
 
-awaitable<ErrorOr<std::vector<char>>> MessageTransportTest::ReadMessage() {
+awaitable<expected<std::vector<char>>> MessageTransportTest::ReadMessage() {
   std::array<char, 100> buffer;
   if (auto bytes_read = co_await message_transport_->read(buffer);
       bytes_read.ok()) {

@@ -11,7 +11,7 @@ namespace transport {
 class InprocessTransportFactory : public TransportFactory {
  public:
   // TransportFactory
-  virtual ErrorOr<any_transport> CreateTransport(
+  virtual expected<any_transport> CreateTransport(
       const TransportString& transport_string,
       const Executor& executor,
       const log_source& log = {}) override;
@@ -20,7 +20,7 @@ class InprocessTransportFactory : public TransportFactory {
   InprocessTransportHost inprocess_transport_host_;
 };
 
-inline ErrorOr<any_transport> InprocessTransportFactory::CreateTransport(
+inline expected<any_transport> InprocessTransportFactory::CreateTransport(
     const TransportString& transport_string,
     const Executor& executor,
     const log_source& log) {

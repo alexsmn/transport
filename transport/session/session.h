@@ -23,7 +23,7 @@ class Session final : public Transport {
   class SessionTransportObserver {
    public:
     virtual void OnSessionRecovered() = 0;
-    virtual void OnSessionTransportError(Error error) = 0;
+    virtual void OnSessionTransportError(error_code error) = 0;
   };
 
   explicit Session(const Executor& executor);
@@ -72,14 +72,14 @@ class Session final : public Transport {
   any_transport DetachTransport();
 
   // Transport
-  [[nodiscard]] virtual awaitable<Error> open() override;
-  [[nodiscard]] virtual awaitable<Error> close() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<error_code> open() override;
+  [[nodiscard]] virtual awaitable<error_code> close() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override;
 
   [[nodiscard]] virtual std::string name() const override;
@@ -91,9 +91,7 @@ class Session final : public Transport {
 
   [[nodiscard]] virtual bool active() const override { return true; }
 
-  [[nodiscard]] virtual Executor get_executor() override {
-    return executor_;
-  }
+  [[nodiscard]] virtual Executor get_executor() override { return executor_; }
 
  private:
   struct Message {
@@ -118,7 +116,7 @@ class Session final : public Transport {
 
   using SessionMap = std::map<SessionID, Session*, SessionIDLess>;
 
-  [[nodiscard]] awaitable<Error> Connect();
+  [[nodiscard]] awaitable<error_code> Connect();
   [[nodiscard]] awaitable<void> OpenTransport();
   [[nodiscard]] awaitable<void> CloseTransport();
   void Cleanup();
@@ -132,7 +130,7 @@ class Session final : public Transport {
 
   void OnMessageReceived(const void* data, size_t size);
   // Connection failure (restorable).
-  void OnTransportError(Error error);
+  void OnTransportError(error_code error);
   // Transport was broken and restored without problems.
   void OnSessionRestored();
 
@@ -160,13 +158,13 @@ class Session final : public Transport {
   void SendPossible();
   // Non-restorable error happen. Session shall be closed. Fires also on any
   // unhandled exception, so must be handled.
-  void OnClosed(Error error);
+  void OnClosed(error_code error);
 
   void OnTimer();
 
   // Transport::Delegate overrides
   void OnTransportOpened();
-  void OnTransportClosed(Error error);
+  void OnTransportClosed(error_code error);
   void OnTransportMessageReceived(std::span<const char> data);
 
   Executor executor_;

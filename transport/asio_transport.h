@@ -27,20 +27,20 @@ class AsioTransport : public Transport {
 
   [[nodiscard]] virtual bool connected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<Error> close() override;
+  [[nodiscard]] virtual awaitable<error_code> close() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override;
 
  protected:
   AsioTransport(const Executor& executor, const log_source& log);
 
-  void ProcessError(Error error);
+  void ProcessError(error_code error);
 
   // Must be called under `io_object_.get_executor()`.
   virtual void Cleanup() = 0;
@@ -63,7 +63,7 @@ inline AsioTransport<IoObject>::AsioTransport(const Executor& executor,
     : log_{std::move(log)}, io_object_{executor} {}
 
 template <class IoObject>
-inline awaitable<Error> AsioTransport<IoObject>::close() {
+inline awaitable<error_code> AsioTransport<IoObject>::close() {
   co_await boost::asio::dispatch(io_object_.get_executor(),
                                  boost::asio::use_awaitable);
 
@@ -79,12 +79,12 @@ inline awaitable<Error> AsioTransport<IoObject>::close() {
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<any_transport>> AsioTransport<IoObject>::accept() {
+inline awaitable<expected<any_transport>> AsioTransport<IoObject>::accept() {
   co_return ERR_INVALID_ARGUMENT;
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>> AsioTransport<IoObject>::read(
+inline awaitable<expected<size_t>> AsioTransport<IoObject>::read(
     std::span<char> data) {
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -108,7 +108,7 @@ inline awaitable<ErrorOr<size_t>> AsioTransport<IoObject>::read(
 }
 
 template <class IoObject>
-inline awaitable<ErrorOr<size_t>> AsioTransport<IoObject>::write(
+inline awaitable<expected<size_t>> AsioTransport<IoObject>::write(
     std::span<const char> data) {
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -136,11 +136,11 @@ inline awaitable<ErrorOr<size_t>> AsioTransport<IoObject>::write(
 }
 
 template <class IoObject>
-inline void AsioTransport<IoObject>::ProcessError(Error error) {
+inline void AsioTransport<IoObject>::ProcessError(error_code error) {
   assert(!closed_);
 
   if (error != OK) {
-    log_.writef(LogSeverity::Warning, "Error: %s",
+    log_.writef(LogSeverity::Warning, "error_code: %s",
                 ErrorToShortString(error).c_str());
   } else {
     log_.writef(LogSeverity::Normal, "Graceful close");

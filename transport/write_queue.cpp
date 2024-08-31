@@ -21,7 +21,7 @@ void WriteQueue::BlindWrite(std::span<const char> data) {
       boost::asio::detached);
 }
 
-awaitable<ErrorOr<size_t>> WriteQueue::Write(std::span<const char> data) {
+awaitable<expected<size_t>> WriteQueue::Write(std::span<const char> data) {
   auto current_write = std::make_shared<Channel>(transport_.get_executor(),
                                                  /*max_buffer_size =*/1);
 

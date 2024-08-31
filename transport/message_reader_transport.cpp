@@ -30,12 +30,12 @@ struct MessageReaderTransport::Core : std::enable_shared_from_this<Core> {
         message_reader_{std::move(message_reader)},
         log_{log} {}
 
-  [[nodiscard]] awaitable<Error> Open();
-  [[nodiscard]] awaitable<Error> Close();
+  [[nodiscard]] awaitable<error_code> Open();
+  [[nodiscard]] awaitable<error_code> Close();
 
-  [[nodiscard]] awaitable<ErrorOr<size_t>> ReadMessage(std::span<char> buffer);
+  [[nodiscard]] awaitable<expected<size_t>> ReadMessage(std::span<char> buffer);
 
-  [[nodiscard]] awaitable<ErrorOr<size_t>> WriteMessage(
+  [[nodiscard]] awaitable<expected<size_t>> WriteMessage(
       std::span<const char> data);
 
   Executor executor_;
@@ -79,11 +79,11 @@ bool MessageReaderTransport::active() const {
   return core_->child_transport_.active();
 }
 
-awaitable<Error> MessageReaderTransport::open() {
+awaitable<error_code> MessageReaderTransport::open() {
   return core_->Open();
 }
 
-awaitable<Error> MessageReaderTransport::close() {
+awaitable<error_code> MessageReaderTransport::close() {
   return core_->Close();
 }
 
@@ -91,20 +91,20 @@ bool MessageReaderTransport::message_oriented() const {
   return true;
 }
 
-[[nodiscard]] awaitable<Error> MessageReaderTransport::Core::Open() {
+[[nodiscard]] awaitable<error_code> MessageReaderTransport::Core::Open() {
   cancelation_ = std::make_shared<bool>(false);
 
   return child_transport_.open();
 }
 
-awaitable<Error> MessageReaderTransport::Core::Close() {
+awaitable<error_code> MessageReaderTransport::Core::Close() {
   cancelation_ = nullptr;
   message_reader_->Reset();
 
   co_return co_await child_transport_.close();
 }
 
-awaitable<ErrorOr<any_transport>> MessageReaderTransport::accept() {
+awaitable<expected<any_transport>> MessageReaderTransport::accept() {
   auto core = core_;
 
   // TODO: Bind message reader to the accepted transport.
@@ -117,11 +117,11 @@ awaitable<ErrorOr<any_transport>> MessageReaderTransport::accept() {
       core->log_);
 }
 
-awaitable<ErrorOr<size_t>> MessageReaderTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> MessageReaderTransport::read(std::span<char> data) {
   return core_->ReadMessage(data);
 }
 
-awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
+awaitable<expected<size_t>> MessageReaderTransport::Core::ReadMessage(
     std::span<char> buffer) {
   if (!child_transport_) {
     co_return ERR_INVALID_HANDLE;
@@ -172,12 +172,12 @@ awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::ReadMessage(
   }
 }
 
-awaitable<ErrorOr<size_t>> MessageReaderTransport::write(
+awaitable<expected<size_t>> MessageReaderTransport::write(
     std::span<const char> data) {
   co_return co_await core_->WriteMessage(std::move(data));
 }
 
-awaitable<ErrorOr<size_t>> MessageReaderTransport::Core::WriteMessage(
+awaitable<expected<size_t>> MessageReaderTransport::Core::WriteMessage(
     std::span<const char> data) {
   if (!child_transport_) {
     co_return ERR_INVALID_HANDLE;
