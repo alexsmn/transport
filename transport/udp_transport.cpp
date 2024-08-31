@@ -33,14 +33,14 @@ class AcceptedUdpTransport final : public Transport {
   [[nodiscard]] virtual bool message_oriented() const override { return true; }
   [[nodiscard]] virtual Executor get_executor() override;
 
-  [[nodiscard]] virtual awaitable<Error> open() override;
-  [[nodiscard]] virtual awaitable<Error> close() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<error_code> open() override;
+  [[nodiscard]] virtual awaitable<error_code> close() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) override;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override;
 
  private:
@@ -56,14 +56,14 @@ class UdpTransportCore {
   [[nodiscard]] virtual Executor get_executor() = 0;
   [[nodiscard]] virtual bool connected() const = 0;
 
-  [[nodiscard]] virtual awaitable<Error> open() = 0;
-  [[nodiscard]] virtual awaitable<Error> close() = 0;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() = 0;
+  [[nodiscard]] virtual awaitable<error_code> open() = 0;
+  [[nodiscard]] virtual awaitable<error_code> close() = 0;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() = 0;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) = 0;
 
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) = 0;
 
   virtual void shutdown() = 0;
@@ -84,12 +84,12 @@ class ActiveUdpTransport::UdpActiveCore final
   virtual Executor get_executor() override { return executor_; }
   virtual bool connected() const override { return connected_; }
 
-  [[nodiscard]] virtual awaitable<Error> open() override;
-  [[nodiscard]] virtual awaitable<Error> close() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> read(
+  [[nodiscard]] virtual awaitable<error_code> open() override;
+  [[nodiscard]] virtual awaitable<error_code> close() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<expected<size_t>> read(
       std::span<char> data) override;
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> write(
+  [[nodiscard]] virtual awaitable<expected<size_t>> write(
       std::span<const char> data) override;
   virtual void shutdown() override;
 
@@ -99,7 +99,7 @@ class ActiveUdpTransport::UdpActiveCore final
   void OnSocketOpened(const UdpSocket::Endpoint& endpoint);
   void OnSocketMessage(const UdpSocket::Endpoint& endpoint,
                        UdpSocket::Datagram&& datagram);
-  void OnSocketClosed(const UdpSocket::Error& error);
+  void OnSocketClosed(const UdpSocket::error_code& error);
 
   const Executor executor_;
   const UdpSocketFactory udp_socket_factory_;
@@ -131,13 +131,13 @@ void ActiveUdpTransport::UdpActiveCore::shutdown() {
   socket_->Shutdown();
 }
 
-awaitable<Error> ActiveUdpTransport::UdpActiveCore::open() {
+awaitable<error_code> ActiveUdpTransport::UdpActiveCore::open() {
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
 
   return socket_->Open();
 }
 
-awaitable<Error> ActiveUdpTransport::UdpActiveCore::close() {
+awaitable<error_code> ActiveUdpTransport::UdpActiveCore::close() {
   if (!socket_) {
     co_return ERR_INVALID_HANDLE;
   }
@@ -153,11 +153,11 @@ awaitable<Error> ActiveUdpTransport::UdpActiveCore::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> ActiveUdpTransport::UdpActiveCore::accept() {
+awaitable<expected<any_transport>> ActiveUdpTransport::UdpActiveCore::accept() {
   co_return ERR_INVALID_ARGUMENT;
 }
 
-awaitable<ErrorOr<size_t>> ActiveUdpTransport::UdpActiveCore::read(
+awaitable<expected<size_t>> ActiveUdpTransport::UdpActiveCore::read(
     std::span<char> data) {
   auto ref = shared_from_this();
 
@@ -176,7 +176,7 @@ awaitable<ErrorOr<size_t>> ActiveUdpTransport::UdpActiveCore::read(
   co_return datagram.size();
 }
 
-awaitable<ErrorOr<size_t>> ActiveUdpTransport::UdpActiveCore::write(
+awaitable<expected<size_t>> ActiveUdpTransport::UdpActiveCore::write(
     std::span<const char> data) {
   return socket_->SendTo(peer_endpoint_, data);
 }
@@ -195,7 +195,7 @@ void ActiveUdpTransport::UdpActiveCore::OnSocketMessage(
 }
 
 void ActiveUdpTransport::UdpActiveCore::OnSocketClosed(
-    const UdpSocket::Error& error) {
+    const UdpSocket::error_code& error) {
   connected_ = false;
 }
 
@@ -214,7 +214,7 @@ UdpSocketContext ActiveUdpTransport::UdpActiveCore::MakeUdpSocketImplContext() {
         if (auto ref = weak_ptr.lock())
           ref->OnSocketMessage(endpoint, std::move(datagram));
       },
-      [weak_ptr = weak_from_this()](const UdpSocket::Error& error) {
+      [weak_ptr = weak_from_this()](const UdpSocket::error_code& error) {
         if (auto ref = weak_ptr.lock())
           ref->OnSocketClosed(error);
       },
@@ -237,17 +237,18 @@ class AcceptedUdpTransport::UdpAcceptedCore final
   // UdpTransportCore
   virtual Executor get_executor() override { return executor_; }
   virtual bool connected() const override { return connected_; }
-  virtual awaitable<Error> open() override;
-  virtual awaitable<Error> close() override;
-  virtual awaitable<ErrorOr<any_transport>> accept() override;
-  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
-  virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual awaitable<error_code> open() override;
+  virtual awaitable<error_code> close() override;
+  virtual awaitable<expected<any_transport>> accept() override;
+  virtual awaitable<expected<size_t>> read(std::span<char> data) override;
+  virtual awaitable<expected<size_t>> write(
+      std::span<const char> data) override;
   virtual void shutdown() override;
 
  private:
   void OnSocketMessage(const UdpSocket::Endpoint& endpoint,
                        UdpSocket::Datagram&& datagram);
-  void OnSocketClosed(const UdpSocket::Error& error);
+  void OnSocketClosed(const UdpSocket::error_code& error);
 
   Executor executor_;
   log_source log_;
@@ -281,11 +282,12 @@ class PassiveUdpTransport::UdpPassiveCore final
   // UdpTransportCore
   virtual Executor get_executor() override { return executor_; }
   virtual bool connected() const override { return connected_; }
-  virtual awaitable<Error> open() override;
-  virtual awaitable<Error> close() override;
-  virtual awaitable<ErrorOr<any_transport>> accept() override;
-  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
-  virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual awaitable<error_code> open() override;
+  virtual awaitable<error_code> close() override;
+  virtual awaitable<expected<any_transport>> accept() override;
+  virtual awaitable<expected<size_t>> read(std::span<char> data) override;
+  virtual awaitable<expected<size_t>> write(
+      std::span<const char> data) override;
   virtual void shutdown() override;
 
  private:
@@ -294,14 +296,14 @@ class PassiveUdpTransport::UdpPassiveCore final
   void OnSocketOpened(const UdpSocket::Endpoint& endpoint);
   void OnSocketMessage(const UdpSocket::Endpoint& endpoint,
                        UdpSocket::Datagram&& datagram);
-  void OnSocketClosed(const UdpSocket::Error& error);
+  void OnSocketClosed(const UdpSocket::error_code& error);
 
-  [[nodiscard]] awaitable<ErrorOr<size_t>> InternalWrite(
+  [[nodiscard]] awaitable<expected<size_t>> InternalWrite(
       UdpSocket::Endpoint endpoint,
       std::span<const char> datagram);
 
   void RemoveAcceptedTransport(const UdpSocket::Endpoint& endpoint);
-  void CloseAllAcceptedTransports(Error error);
+  void CloseAllAcceptedTransports(error_code error);
 
   const Executor executor_;
   const log_source log_;
@@ -349,7 +351,7 @@ void PassiveUdpTransport::UdpPassiveCore::shutdown() {
   CloseAllAcceptedTransports(ERR_ABORTED);
 }
 
-awaitable<Error> PassiveUdpTransport::UdpPassiveCore::open() {
+awaitable<error_code> PassiveUdpTransport::UdpPassiveCore::open() {
   log_.writef(LogSeverity::Normal, "Open");
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
@@ -357,7 +359,7 @@ awaitable<Error> PassiveUdpTransport::UdpPassiveCore::open() {
   return socket_->Open();
 }
 
-awaitable<Error> PassiveUdpTransport::UdpPassiveCore::close() {
+awaitable<error_code> PassiveUdpTransport::UdpPassiveCore::close() {
   auto ref = shared_from_this();
 
   co_await boost::asio::dispatch(executor_, boost::asio::use_awaitable);
@@ -373,7 +375,7 @@ awaitable<Error> PassiveUdpTransport::UdpPassiveCore::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>>
+awaitable<expected<any_transport>>
 PassiveUdpTransport::UdpPassiveCore::accept() {
   auto ref = shared_from_this();
 
@@ -388,18 +390,18 @@ PassiveUdpTransport::UdpPassiveCore::accept() {
       new AcceptedUdpTransport{std::move(accepted_core)})};
 }
 
-awaitable<ErrorOr<size_t>> PassiveUdpTransport::UdpPassiveCore::read(
+awaitable<expected<size_t>> PassiveUdpTransport::UdpPassiveCore::read(
     std::span<char> data) {
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> PassiveUdpTransport::UdpPassiveCore::write(
+awaitable<expected<size_t>> PassiveUdpTransport::UdpPassiveCore::write(
     std::span<const char> data) {
   assert(false);
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> PassiveUdpTransport::UdpPassiveCore::InternalWrite(
+awaitable<expected<size_t>> PassiveUdpTransport::UdpPassiveCore::InternalWrite(
     UdpSocket::Endpoint endpoint,
     std::span<const char> datagram) {
   return socket_->SendTo(std::move(endpoint), datagram);
@@ -457,7 +459,7 @@ void PassiveUdpTransport::UdpPassiveCore::OnSocketMessage(
 }
 
 void PassiveUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(
-    Error error) {
+    error_code error) {
   log_.writef(LogSeverity::Normal, "Close %d accepted transports - %s",
               static_cast<int>(accepted_transports_.size()),
               ErrorToString(error).c_str());
@@ -470,7 +472,7 @@ void PassiveUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(
 
   for (const auto& accepted_core : accepted_cores) {
     boost::asio::dispatch(accepted_core->get_executor(), [accepted_core] {
-      accepted_core->OnSocketClosed(UdpSocket::Error{});
+      accepted_core->OnSocketClosed(UdpSocket::error_code{});
     });
   }
 }
@@ -484,7 +486,7 @@ void PassiveUdpTransport::UdpPassiveCore::OnSocketOpened(
 }
 
 void PassiveUdpTransport::UdpPassiveCore::OnSocketClosed(
-    const UdpSocket::Error& error) {
+    const UdpSocket::error_code& error) {
   log_.writef(LogSeverity::Normal, "Closed - %s", error.message().c_str());
 
   connected_ = false;
@@ -507,7 +509,7 @@ PassiveUdpTransport::UdpPassiveCore::MakeUdpSocketImplContext() {
         if (auto ref = weak_ptr.lock())
           ref->OnSocketMessage(endpoint, std::move(datagram));
       },
-      [weak_ptr = weak_from_this()](const UdpSocket::Error& error) {
+      [weak_ptr = weak_from_this()](const UdpSocket::error_code& error) {
         if (auto ref = weak_ptr.lock())
           ref->OnSocketClosed(error);
       },
@@ -536,11 +538,11 @@ AcceptedUdpTransport::UdpAcceptedCore::~UdpAcceptedCore() {
 
 void AcceptedUdpTransport::UdpAcceptedCore::shutdown() {}
 
-awaitable<Error> AcceptedUdpTransport::UdpAcceptedCore::open() {
+awaitable<error_code> AcceptedUdpTransport::UdpAcceptedCore::open() {
   co_return ERR_ADDRESS_IN_USE;
 }
 
-awaitable<Error> AcceptedUdpTransport::UdpAcceptedCore::close() {
+awaitable<error_code> AcceptedUdpTransport::UdpAcceptedCore::close() {
   if (passive_core_) {
     passive_core_->RemoveAcceptedTransport(endpoint_);
     passive_core_ = nullptr;
@@ -551,12 +553,12 @@ awaitable<Error> AcceptedUdpTransport::UdpAcceptedCore::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>>
+awaitable<expected<any_transport>>
 AcceptedUdpTransport::UdpAcceptedCore::accept() {
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> AcceptedUdpTransport::UdpAcceptedCore::read(
+awaitable<expected<size_t>> AcceptedUdpTransport::UdpAcceptedCore::read(
     std::span<char> data) {
   auto [ec, message] = co_await received_message_channel_.async_receive(
       boost::asio::experimental::as_tuple(boost::asio::use_awaitable));
@@ -573,7 +575,7 @@ awaitable<ErrorOr<size_t>> AcceptedUdpTransport::UdpAcceptedCore::read(
   co_return message.size();
 }
 
-awaitable<ErrorOr<size_t>> AcceptedUdpTransport::UdpAcceptedCore::write(
+awaitable<expected<size_t>> AcceptedUdpTransport::UdpAcceptedCore::write(
     std::span<const char> data) {
   if (!passive_core_ || !connected_) {
     co_return ERR_CONNECTION_CLOSED;
@@ -595,7 +597,7 @@ void AcceptedUdpTransport::UdpAcceptedCore::OnSocketMessage(
 }
 
 void AcceptedUdpTransport::UdpAcceptedCore::OnSocketClosed(
-    const UdpSocket::Error& error) {
+    const UdpSocket::error_code& error) {
   assert(passive_core_);
 
   if (passive_core_) {
@@ -631,11 +633,11 @@ bool ActiveUdpTransport::connected() const {
   return core_->connected();
 }
 
-awaitable<Error> ActiveUdpTransport::open() {
+awaitable<error_code> ActiveUdpTransport::open() {
   return core_->open();
 }
 
-awaitable<Error> ActiveUdpTransport::close() {
+awaitable<error_code> ActiveUdpTransport::close() {
   return core_->close();
 }
 
@@ -643,15 +645,15 @@ std::string ActiveUdpTransport::name() const {
   return "UDP";
 }
 
-awaitable<ErrorOr<any_transport>> ActiveUdpTransport::accept() {
+awaitable<expected<any_transport>> ActiveUdpTransport::accept() {
   return core_->accept();
 }
 
-awaitable<ErrorOr<size_t>> ActiveUdpTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> ActiveUdpTransport::read(std::span<char> data) {
   return core_->read(data);
 }
 
-awaitable<ErrorOr<size_t>> ActiveUdpTransport::write(
+awaitable<expected<size_t>> ActiveUdpTransport::write(
     std::span<const char> data) {
   return core_->write(data);
 }
@@ -682,11 +684,11 @@ bool PassiveUdpTransport::connected() const {
   return core_->connected();
 }
 
-awaitable<Error> PassiveUdpTransport::open() {
+awaitable<error_code> PassiveUdpTransport::open() {
   return core_->open();
 }
 
-awaitable<Error> PassiveUdpTransport::close() {
+awaitable<error_code> PassiveUdpTransport::close() {
   return core_->close();
 }
 
@@ -694,15 +696,15 @@ std::string PassiveUdpTransport::name() const {
   return "UDP";
 }
 
-awaitable<ErrorOr<any_transport>> PassiveUdpTransport::accept() {
+awaitable<expected<any_transport>> PassiveUdpTransport::accept() {
   return core_->accept();
 }
 
-awaitable<ErrorOr<size_t>> PassiveUdpTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> PassiveUdpTransport::read(std::span<char> data) {
   return core_->read(data);
 }
 
-awaitable<ErrorOr<size_t>> PassiveUdpTransport::write(
+awaitable<expected<size_t>> PassiveUdpTransport::write(
     std::span<const char> data) {
   return core_->write(data);
 }
@@ -726,11 +728,11 @@ bool AcceptedUdpTransport::connected() const {
   return core_->connected();
 }
 
-awaitable<Error> AcceptedUdpTransport::open() {
+awaitable<error_code> AcceptedUdpTransport::open() {
   return core_->open();
 }
 
-awaitable<Error> AcceptedUdpTransport::close() {
+awaitable<error_code> AcceptedUdpTransport::close() {
   return core_->close();
 }
 
@@ -738,15 +740,15 @@ std::string AcceptedUdpTransport::name() const {
   return "UDP";
 }
 
-awaitable<ErrorOr<any_transport>> AcceptedUdpTransport::accept() {
+awaitable<expected<any_transport>> AcceptedUdpTransport::accept() {
   return core_->accept();
 }
 
-awaitable<ErrorOr<size_t>> AcceptedUdpTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> AcceptedUdpTransport::read(std::span<char> data) {
   return core_->read(data);
 }
 
-awaitable<ErrorOr<size_t>> AcceptedUdpTransport::write(
+awaitable<expected<size_t>> AcceptedUdpTransport::write(
     std::span<const char> data) {
   return core_->write(data);
 }

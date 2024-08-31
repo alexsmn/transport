@@ -23,7 +23,7 @@ void PipeTransport::Init(const std::wstring& name, bool server) {
   server_ = server;
 }
 
-awaitable<Error> PipeTransport::open() {
+awaitable<error_code> PipeTransport::open() {
   assert(handle_ == INVALID_HANDLE_VALUE);
 
   HANDLE handle;
@@ -57,7 +57,7 @@ awaitable<Error> PipeTransport::open() {
   co_return OK;
 }
 
-awaitable<Error> PipeTransport::close() {
+awaitable<error_code> PipeTransport::close() {
   if (handle_ == INVALID_HANDLE_VALUE) {
     co_return ERR_INVALID_HANDLE;
   }
@@ -68,11 +68,11 @@ awaitable<Error> PipeTransport::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> PipeTransport::accept() {
+awaitable<expected<any_transport>> PipeTransport::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> PipeTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> PipeTransport::read(std::span<char> data) {
   OVERLAPPED overlapped = {0};
   DWORD bytes_read;
   if (!ReadFile(handle_, data.data(), data.size(), &bytes_read, &overlapped)) {
@@ -82,7 +82,7 @@ awaitable<ErrorOr<size_t>> PipeTransport::read(std::span<char> data) {
   co_return bytes_read;
 }
 
-awaitable<ErrorOr<size_t>> PipeTransport::write(std::span<const char> data) {
+awaitable<expected<size_t>> PipeTransport::write(std::span<const char> data) {
   DWORD bytes_written = 0;
   if (!WriteFile(handle_, data.data(), data.size(), &bytes_written, nullptr)) {
     co_return ERR_FAILED;

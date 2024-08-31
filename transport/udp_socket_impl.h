@@ -14,10 +14,10 @@ class UdpSocketImpl final : private UdpSocketContext,
   explicit UdpSocketImpl(UdpSocketContext&& context);
 
   // UdpSocket
-  virtual awaitable<Error> Open() override;
+  virtual awaitable<error_code> Open() override;
   virtual awaitable<void> Close() override;
 
-  virtual awaitable<ErrorOr<size_t>> SendTo(
+  virtual awaitable<expected<size_t>> SendTo(
       Endpoint endpoint,
       std::span<const char> datagram) override;
 
@@ -53,7 +53,7 @@ inline void UdpSocketImpl::Shutdown() {
   socket_.close(ec);
 }
 
-inline awaitable<Error> UdpSocketImpl::Open() {
+inline awaitable<error_code> UdpSocketImpl::Open() {
   auto ref = shared_from_this();
 
   auto [error, iterator] = co_await resolver_.async_resolve(
@@ -121,7 +121,7 @@ inline awaitable<void> UdpSocketImpl::Close() {
   socket_.close();
 }
 
-inline awaitable<ErrorOr<size_t>> UdpSocketImpl::SendTo(
+inline awaitable<expected<size_t>> UdpSocketImpl::SendTo(
     Endpoint endpoint,
     std::span<const char> datagram) {
   auto size = datagram.size();

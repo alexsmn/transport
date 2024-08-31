@@ -9,13 +9,13 @@ class TestTransportDelegate : public Transport::Delegate {
   TestTransportDelegate() : opened_(false) {}
 
   virtual void OnTransportOpened() override { opened_ = true; }
-  virtual void OnTransportClosed(Error error) override { opened_ = false; }
+  virtual void OnTransportClosed(error_code error) override { opened_ = false; }
   virtual void OnTransportDataReceived() override {}
   virtual void OnTransportMessageReceived(const void* data, size_t size) override {
     const char* chars = static_cast<const char*>(data);
     queue_.push(Message(chars, chars + size));
   }
-  virtual Error OnTransportAccepted(
+  virtual error_code OnTransportAccepted(
       std::unique_ptr<Transport>& transport) override {}
 
   bool opened_;

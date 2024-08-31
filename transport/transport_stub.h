@@ -8,19 +8,19 @@ class StubTransport : public Transport {
  public:
   explicit StubTransport(const Executor& executor) : executor_{executor} {}
 
-  virtual awaitable<Error> open() override { co_return OK; }
+  virtual awaitable<error_code> open() override { co_return OK; }
 
-  virtual awaitable<ErrorOr<any_transport>> accept() {
+  virtual awaitable<expected<any_transport>> accept() {
     co_return ERR_NOT_IMPLEMENTED;
   }
 
-  virtual awaitable<Error> close() override { co_return OK; }
+  virtual awaitable<error_code> close() override { co_return OK; }
 
-  virtual awaitable<ErrorOr<size_t>> read(std::span<char> buffer) override {
+  virtual awaitable<expected<size_t>> read(std::span<char> buffer) override {
     co_return 0;
   }
 
-  virtual awaitable<ErrorOr<size_t>> write(
+  virtual awaitable<expected<size_t>> write(
       std::span<const char> buffer) override {
     co_return buffer.size();
   }

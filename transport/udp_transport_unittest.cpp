@@ -21,13 +21,13 @@ class MockUdpSocket : public UdpSocket {
     ON_CALL(*this, Close()).WillByDefault(CoReturnVoid());
 
     ON_CALL(*this, SendTo(/*endpoint=*/_, /*datagram=*/_))
-        .WillByDefault(CoReturn(ErrorOr<size_t>(static_cast<size_t>(0))));
+        .WillByDefault(CoReturn(expected<size_t>(static_cast<size_t>(0))));
   }
 
-  MOCK_METHOD(awaitable<Error>, Open, (), (override));
+  MOCK_METHOD(awaitable<error_code>, Open, (), (override));
   MOCK_METHOD(awaitable<void>, Close, (), (override));
 
-  MOCK_METHOD(awaitable<ErrorOr<size_t>>,
+  MOCK_METHOD(awaitable<expected<size_t>>,
               SendTo,
               (Endpoint endpoint, std::span<const char> datagram),
               (override));

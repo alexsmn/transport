@@ -15,15 +15,15 @@ class DeferredTransport final : public Transport {
   ~DeferredTransport();
 
   // Refactor so it's not needed. Or document.
-  using CloseHandler = std::function<void(Error error)>;
+  using CloseHandler = std::function<void(error_code error)>;
   void set_additional_close_handler(CloseHandler handler);
 
   // Transport
-  virtual awaitable<Error> open() override;
-  virtual awaitable<Error> close() override;
-  virtual awaitable<ErrorOr<any_transport>> accept() override;
-  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
-  virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual awaitable<error_code> open() override;
+  virtual awaitable<error_code> close() override;
+  virtual awaitable<expected<any_transport>> accept() override;
+  virtual awaitable<expected<size_t>> read(std::span<char> data) override;
+  virtual awaitable<expected<size_t>> write(std::span<const char> data) override;
   virtual std::string name() const override;
   virtual bool message_oriented() const override;
   virtual bool connected() const override;

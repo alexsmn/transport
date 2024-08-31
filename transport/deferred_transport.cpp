@@ -23,10 +23,10 @@ struct DeferredTransport::Core : std::enable_shared_from_this<Core> {
 
   ~Core();
 
-  [[nodiscard]] awaitable<Error> Open();
-  [[nodiscard]] awaitable<Error> Close();
+  [[nodiscard]] awaitable<error_code> Open();
+  [[nodiscard]] awaitable<error_code> Close();
 
-  void OnClosed(Error error);
+  void OnClosed(error_code error);
 
   Executor executor_;
   any_transport underlying_transport_;
@@ -58,11 +58,11 @@ bool DeferredTransport::connected() const {
   return core_->underlying_transport_.connected();
 }
 
-awaitable<Error> DeferredTransport::open() {
+awaitable<error_code> DeferredTransport::open() {
   return core_->Open();
 }
 
-awaitable<Error> DeferredTransport::Core::Open() {
+awaitable<error_code> DeferredTransport::Core::Open() {
   auto weak_ref = weak_from_this();
   auto open_result = co_await underlying_transport_.open();
 
@@ -78,18 +78,18 @@ awaitable<Error> DeferredTransport::Core::Open() {
   co_return OK;
 }
 
-void DeferredTransport::Core::OnClosed(Error error) {
+void DeferredTransport::Core::OnClosed(error_code error) {
   // WARNING: The object may be deleted from the handler.
   if (additional_close_handler_) {
     additional_close_handler_(error);
   }
 }
 
-awaitable<Error> DeferredTransport::close() {
+awaitable<error_code> DeferredTransport::close() {
   co_return co_await core_->Close();
 }
 
-awaitable<Error> DeferredTransport::Core::Close() {
+awaitable<error_code> DeferredTransport::Core::Close() {
   co_await boost::asio::post(executor_, boost::asio::use_awaitable);
 
   auto additional_close_handler =
@@ -104,11 +104,11 @@ awaitable<Error> DeferredTransport::Core::Close() {
   co_return result;
 }
 
-awaitable<ErrorOr<any_transport>> DeferredTransport::accept() {
+awaitable<expected<any_transport>> DeferredTransport::accept() {
   co_return co_await core_->underlying_transport_.accept();
 }
 
-awaitable<ErrorOr<size_t>> DeferredTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> DeferredTransport::read(std::span<char> data) {
   NET_ASSIGN_OR_CO_RETURN(auto bytes_transferred,
                           co_await core_->underlying_transport_.read(data));
 
@@ -119,7 +119,7 @@ awaitable<ErrorOr<size_t>> DeferredTransport::read(std::span<char> data) {
   co_return bytes_transferred;
 }
 
-awaitable<ErrorOr<size_t>> DeferredTransport::write(
+awaitable<expected<size_t>> DeferredTransport::write(
     std::span<const char> data) {
   co_return co_await core_->underlying_transport_.write(data);
 }

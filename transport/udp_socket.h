@@ -11,15 +11,15 @@ class UdpSocket {
   using Resolver = boost::asio::ip::udp::resolver;
   using Endpoint = Socket::endpoint_type;
   using Datagram = std::vector<char>;
-  using Error = boost::system::error_code;
+  using error_code = boost::system::error_code;
 
   virtual ~UdpSocket() = default;
 
-  [[nodiscard]] virtual awaitable<Error> Open() = 0;
+  [[nodiscard]] virtual awaitable<error_code> Open() = 0;
   [[nodiscard]] virtual awaitable<void> Close() = 0;
 
   // Caller must remain the datagram until the operation completes.
-  [[nodiscard]] virtual awaitable<ErrorOr<size_t>> SendTo(
+  [[nodiscard]] virtual awaitable<expected<size_t>> SendTo(
       Endpoint endpoint,
       std::span<const char> datagram) = 0;
 
@@ -39,7 +39,7 @@ struct UdpSocketContext {
                                             UdpSocket::Datagram&& datagram)>;
   const MessageHandler message_handler_;
 
-  using ErrorHandler = std::function<void(const UdpSocket::Error& error)>;
+  using ErrorHandler = std::function<void(const UdpSocket::error_code& error)>;
   const ErrorHandler error_handler_;
 };
 

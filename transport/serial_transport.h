@@ -25,8 +25,8 @@ class SerialTransport final : public AsioTransport<boost::asio::serial_port> {
   const std::string& device() const { return device_; }
 
   // Transport overrides
-  [[nodiscard]] virtual awaitable<Error> open() override;
-  [[nodiscard]] virtual awaitable<ErrorOr<any_transport>> accept() override;
+  [[nodiscard]] virtual awaitable<error_code> open() override;
+  [[nodiscard]] virtual awaitable<expected<any_transport>> accept() override;
   [[nodiscard]] virtual std::string name() const override;
   [[nodiscard]] virtual bool active() const override { return true; }
 

@@ -16,7 +16,7 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   active_ = true;
 }
 
-[[nodiscard]] awaitable<Error> QueueTransport::open() {
+[[nodiscard]] awaitable<error_code> QueueTransport::open() {
   if (active_) {
     assert(peer_);
     peer_->OnAccept(*this);
@@ -29,23 +29,23 @@ void QueueTransport::SetActive(QueueTransport& peer) {
   co_return OK;
 }
 
-awaitable<Error> QueueTransport::close() {
+awaitable<error_code> QueueTransport::close() {
   connected_ = false;
   timer_.Stop();
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> QueueTransport::accept() {
+awaitable<expected<any_transport>> QueueTransport::accept() {
   assert(false);
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> QueueTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> QueueTransport::read(std::span<char> data) {
   assert(false);
   co_return ERR_FAILED;
 }
 
-awaitable<ErrorOr<size_t>> QueueTransport::write(std::span<const char> data) {
+awaitable<expected<size_t>> QueueTransport::write(std::span<const char> data) {
   if (data.empty()) {
     co_return ERR_INVALID_ARGUMENT;
   }

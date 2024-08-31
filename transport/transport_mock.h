@@ -16,10 +16,10 @@ class TransportMock : public Transport {
     ON_CALL(*this, close()).WillByDefault(CoReturn(ERR_FAILED));
 
     ON_CALL(*this, read(/*buffer=*/_))
-        .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
+        .WillByDefault(CoReturn(expected<size_t>{ERR_ABORTED}));
 
     ON_CALL(*this, write(/*buffer=*/_))
-        .WillByDefault(CoReturn(ErrorOr<size_t>{ERR_ABORTED}));
+        .WillByDefault(CoReturn(expected<size_t>{ERR_ABORTED}));
 
     ON_CALL(*this, get_executor())
         .WillByDefault(Return(boost::asio::system_executor{}));
@@ -29,16 +29,16 @@ class TransportMock : public Transport {
 
   MOCK_METHOD(void, Destroy, ());
 
-  MOCK_METHOD(awaitable<Error>, open, (), (override));
-  MOCK_METHOD(awaitable<Error>, close, (), (override));
-  MOCK_METHOD(awaitable<ErrorOr<any_transport>>, accept, (), (override));
+  MOCK_METHOD(awaitable<error_code>, open, (), (override));
+  MOCK_METHOD(awaitable<error_code>, close, (), (override));
+  MOCK_METHOD(awaitable<expected<any_transport>>, accept, (), (override));
 
-  MOCK_METHOD(awaitable<ErrorOr<size_t>>,
+  MOCK_METHOD(awaitable<expected<size_t>>,
               read,
               (std::span<char> buffer),
               (override));
 
-  MOCK_METHOD(awaitable<ErrorOr<size_t>>,
+  MOCK_METHOD(awaitable<expected<size_t>>,
               write,
               (std::span<const char> buffer),
               (override));

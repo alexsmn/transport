@@ -27,7 +27,7 @@ inline unsigned short SwapBytesInWord(unsigned short value) {
 }
 
 // Empty result buffer means connection is closed.
-inline awaitable<Error> ReadMessage(any_transport& transport,
+inline awaitable<error_code> ReadMessage(any_transport& transport,
                                     size_t max_size,
                                     std::vector<char>& buffer) {
   buffer.resize(max_size);

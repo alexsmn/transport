@@ -49,11 +49,11 @@ std::string ActiveTcpTransport::name() const {
   }
 }
 
-awaitable<ErrorOr<any_transport>> ActiveTcpTransport::accept() {
+awaitable<expected<any_transport>> ActiveTcpTransport::accept() {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<Error> ActiveTcpTransport::open() {
+awaitable<error_code> ActiveTcpTransport::open() {
   if (connected_) {
     co_return OK;
   }
@@ -63,7 +63,7 @@ awaitable<Error> ActiveTcpTransport::open() {
   co_return co_await ResolveAndConnect();
 }
 
-awaitable<Error> ActiveTcpTransport::ResolveAndConnect() {
+awaitable<error_code> ActiveTcpTransport::ResolveAndConnect() {
   log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
               host_.c_str(), service_.c_str());
 
@@ -87,7 +87,7 @@ awaitable<Error> ActiveTcpTransport::ResolveAndConnect() {
   co_return co_await Connect(std::move(iterator));
 }
 
-awaitable<Error> ActiveTcpTransport::Connect(Resolver::iterator iterator) {
+awaitable<error_code> ActiveTcpTransport::Connect(Resolver::iterator iterator) {
   auto [error, connected_iterator] = co_await boost::asio::async_connect(
       io_object_, iterator, boost::asio::as_tuple(boost::asio::use_awaitable));
 
@@ -159,13 +159,13 @@ int PassiveTcpTransport::GetLocalPort() const {
   return acceptor_.local_endpoint().port();
 }
 
-awaitable<Error> PassiveTcpTransport::open() {
+awaitable<error_code> PassiveTcpTransport::open() {
   log_.writef(LogSeverity::Normal, "Open");
 
   return ResolveAndBind();
 }
 
-awaitable<Error> PassiveTcpTransport::ResolveAndBind() {
+awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
   log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
               host_.c_str(), service_.c_str());
 
@@ -227,7 +227,7 @@ boost::system::error_code PassiveTcpTransport::Bind(
   return ec;
 }
 
-awaitable<Error> PassiveTcpTransport::close() {
+awaitable<error_code> PassiveTcpTransport::close() {
   co_await boost::asio::dispatch(acceptor_.get_executor(),
                                  boost::asio::use_awaitable);
 
@@ -244,7 +244,7 @@ awaitable<Error> PassiveTcpTransport::close() {
   co_return OK;
 }
 
-awaitable<ErrorOr<any_transport>> PassiveTcpTransport::accept() {
+awaitable<expected<any_transport>> PassiveTcpTransport::accept() {
   // TODO: Use different executor.
   auto [error, peer] = co_await acceptor_.async_accept(
       boost::asio::as_tuple(boost::asio::use_awaitable));
@@ -270,11 +270,11 @@ awaitable<ErrorOr<any_transport>> PassiveTcpTransport::accept() {
       std::move(peer), log_, BOOST_CURRENT_LOCATION)};
 }
 
-awaitable<ErrorOr<size_t>> PassiveTcpTransport::read(std::span<char> data) {
+awaitable<expected<size_t>> PassiveTcpTransport::read(std::span<char> data) {
   co_return ERR_ACCESS_DENIED;
 }
 
-awaitable<ErrorOr<size_t>> PassiveTcpTransport::write(
+awaitable<expected<size_t>> PassiveTcpTransport::write(
     std::span<const char> data) {
   co_return ERR_ACCESS_DENIED;
 }
@@ -285,7 +285,7 @@ void PassiveTcpTransport::ProcessError(const boost::system::error_code& ec) {
   }
 
   if (ec != OK) {
-    log_.writef(LogSeverity::Warning, "Error: %s",
+    log_.writef(LogSeverity::Warning, "error_code: %s",
                 ErrorToShortString(ec).c_str());
   } else {
     log_.writef(LogSeverity::Normal, "Graceful close");

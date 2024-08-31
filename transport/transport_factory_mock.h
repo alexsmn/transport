@@ -8,7 +8,7 @@ namespace transport {
 
 class MockTransportFactory : public TransportFactory {
  public:
-  MOCK_METHOD(ErrorOr<any_transport>,
+  MOCK_METHOD(expected<any_transport>,
               CreateTransport,
               (const TransportString& transport_string,
                const Executor& executor,

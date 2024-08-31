@@ -7,11 +7,12 @@ namespace transport {
 class DummyTransport : public Transport {
  public:
   // Transport
-  virtual awaitable<Error> open() override;
-  virtual awaitable<Error> close() override;
-  virtual awaitable<ErrorOr<any_transport>> accept() override;
-  virtual awaitable<ErrorOr<size_t>> read(std::span<char> data) override;
-  virtual awaitable<ErrorOr<size_t>> write(std::span<const char> data) override;
+  virtual awaitable<error_code> open() override;
+  virtual awaitable<error_code> close() override;
+  virtual awaitable<expected<any_transport>> accept() override;
+  virtual awaitable<expected<size_t>> read(std::span<char> data) override;
+  virtual awaitable<expected<size_t>> write(
+      std::span<const char> data) override;
   virtual std::string name() const override;
   virtual bool message_oriented() const override;
   virtual bool connected() const override;
@@ -23,29 +24,29 @@ class DummyTransport : public Transport {
   bool connected_ = false;
 };
 
-inline awaitable<Error> DummyTransport::open() {
+inline awaitable<error_code> DummyTransport::open() {
   opened_ = true;
 
   co_return OK;
 }
 
-inline awaitable<Error> DummyTransport::close() {
+inline awaitable<error_code> DummyTransport::close() {
   opened_ = false;
   connected_ = false;
 
   co_return OK;
 }
 
-inline awaitable<ErrorOr<any_transport>> DummyTransport::accept() {
+inline awaitable<expected<any_transport>> DummyTransport::accept() {
   co_return ERR_NOT_IMPLEMENTED;
 }
 
-inline awaitable<ErrorOr<size_t>> DummyTransport::read(std::span<char> data) {
+inline awaitable<expected<size_t>> DummyTransport::read(std::span<char> data) {
   std::ranges::fill(data, 0);
   co_return static_cast<int>(data.size());
 }
 
-inline awaitable<ErrorOr<size_t>> DummyTransport::write(
+inline awaitable<expected<size_t>> DummyTransport::write(
     std::span<const char> data) {
   co_return data.size();
 }

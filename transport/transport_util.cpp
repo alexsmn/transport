@@ -4,8 +4,8 @@
 
 namespace transport {
 
-awaitable<ErrorOr<size_t>> Read(any_transport& transport,
-                                std::span<char> data) {
+awaitable<expected<size_t>> Read(any_transport& transport,
+                                 std::span<char> data) {
   assert(!transport.message_oriented());
 
   size_t bytes_read = 0;
