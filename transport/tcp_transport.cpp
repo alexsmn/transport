@@ -1,5 +1,6 @@
 #include "transport/tcp_transport.h"
 
+#include "transport/any_transport.h"
 #include "transport/log.h"
 
 #include <boost/asio/connect.hpp>

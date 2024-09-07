@@ -4,9 +4,6 @@
 
 namespace transport {
 
-any_transport::any_transport(std::unique_ptr<Transport> transport)
-    : transport_{std::move(transport)} {}
-
 any_transport::~any_transport() = default;
 
 any_transport::any_transport(any_transport&&) = default;

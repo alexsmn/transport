@@ -1,6 +1,7 @@
 #pragma once
 
 #include "transport/awaitable.h"
+#include "transport/detail/wrapped_transport.h"
 #include "transport/error.h"
 #include "transport/executor.h"
 
@@ -14,7 +15,16 @@ class Transport;
 class any_transport {
  public:
   any_transport() = default;
-  explicit any_transport(std::unique_ptr<Transport> transport);
+
+  template <std::derived_from<Transport> T>
+  explicit any_transport(std::unique_ptr<T> transport)
+      : transport_{std::move(transport)} {}
+
+  template <typename T>
+  explicit any_transport(T&& transport)
+      : transport_{std::make_unique<detail::WrappedTransport<T>>(
+            std::forward<T>(transport))} {}
+
   ~any_transport();
 
   any_transport(any_transport&&);

@@ -7,6 +7,8 @@
 #include <boost/beast/websocket.hpp>
 #include <queue>
 
+#include "transport/any_transport.h"
+
 namespace transport {
 
 class WebSocketTransport::ConnectionCore
