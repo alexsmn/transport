@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transport/any_transport.h"
 #include "transport/error.h"
 #include "transport/log.h"
 #include "transport/session/session_info.h"

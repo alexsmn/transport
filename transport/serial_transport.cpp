@@ -1,5 +1,6 @@
 #include "transport/serial_transport.h"
 
+#include "transport/any_transport.h"
 #include "transport/error.h"
 
 #include <boost/asio/serial_port.hpp>

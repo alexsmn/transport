@@ -1,5 +1,6 @@
 #include "transport/pipe_transport.h"
 
+#include "transport/any_transport.h"
 #include "transport/error.h"
 
 #include <Windows.h>

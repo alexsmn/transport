@@ -1,6 +1,5 @@
 #pragma once
 
-#include "transport/any_transport.h"
 #include "transport/awaitable.h"
 #include "transport/error.h"
 #include "transport/executor.h"
@@ -13,6 +12,8 @@
 #include <string>
 
 namespace transport {
+
+class any_transport;
 
 class Connector {
  public:
