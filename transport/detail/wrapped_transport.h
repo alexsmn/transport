@@ -33,7 +33,7 @@ class WrappedTransport final : public Transport {
     co_return co_await impl_.write(data);
   }
 
-  awaitable<expected<any_transport*>> accept() override {
+  awaitable<expected<any_transport>> accept() override {
     return impl_.accept();
   }
 
