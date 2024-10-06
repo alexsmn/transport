@@ -1,6 +1,5 @@
 #pragma once
 
-#include "transport/auto_reset.h"
 #include "transport/executor.h"
 #include "transport/log.h"
 #include "transport/transport.h"
@@ -13,8 +12,6 @@
 #include <memory>
 
 namespace transport {
-
-class Logger;
 
 template <class IoObject>
 class AsioTransport : public Transport {
@@ -51,10 +48,6 @@ class AsioTransport : public Transport {
 
   bool closed_ = false;
   bool connected_ = false;
-
- private:
-  bool reading_ = false;
-  bool writing_ = false;
 };
 
 template <class IoObject>
@@ -90,12 +83,6 @@ inline awaitable<expected<size_t>> AsioTransport<IoObject>::read(
     co_return ERR_CONNECTION_CLOSED;
   }
 
-  if (reading_) {
-    co_return ERR_IO_PENDING;
-  }
-
-  AutoReset reading{reading_, true};
-
   auto [ec, bytes_transferred] = co_await io_object_.async_read_some(
       boost::asio::buffer(data),
       boost::asio::as_tuple(boost::asio::use_awaitable));
@@ -113,12 +100,6 @@ inline awaitable<expected<size_t>> AsioTransport<IoObject>::write(
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
   }
-
-  if (writing_) {
-    co_return ERR_IO_PENDING;
-  }
-
-  AutoReset writing{writing_, true};
 
   auto [ec, bytes_transferred] = co_await boost::asio::async_write(
       io_object_, boost::asio::buffer(data),
