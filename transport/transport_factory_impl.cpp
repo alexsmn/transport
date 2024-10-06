@@ -64,7 +64,7 @@ boost::asio::serial_port::flow_control::type ParseFlowControl(
 std::shared_ptr<TransportFactory> CreateTransportFactory() {
   struct Holder {
     boost::asio::io_context io_context;
-    TransportFactoryImpl transport_factory{io_context};
+    TransportFactoryImpl transport_factory;
     std::jthread thread{[this] { io_context.run(); }};
     std::optional<boost::asio::io_context::work> work{io_context};
   };
@@ -75,8 +75,7 @@ std::shared_ptr<TransportFactory> CreateTransportFactory() {
 
 // TransportFactoryImpl
 
-TransportFactoryImpl::TransportFactoryImpl(boost::asio::io_context& io_context)
-    : io_context_{io_context} {
+TransportFactoryImpl::TransportFactoryImpl() {
   udp_socket_factory_ =
       [](UdpSocketContext&& context) -> std::shared_ptr<UdpSocket> {
     return std::make_shared<UdpSocketImpl>(std::move(context));
