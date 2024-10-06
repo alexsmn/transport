@@ -5,17 +5,13 @@
 #include "transport/transport_factory.h"
 #include "transport/udp_socket_factory.h"
 
-namespace boost::asio {
-class io_context;
-}
-
 namespace transport {
 
 class InprocessTransportHost;
 
 class TransportFactoryImpl : public TransportFactory {
  public:
-  explicit TransportFactoryImpl(boost::asio::io_context& io_context);
+  TransportFactoryImpl();
   ~TransportFactoryImpl();
 
   // Returns nullptr if parameters are invalid.
@@ -25,7 +21,6 @@ class TransportFactoryImpl : public TransportFactory {
       const log_source& log = {}) override;
 
  private:
-  boost::asio::io_context& io_context_;
   UdpSocketFactory udp_socket_factory_;
   std::unique_ptr<InprocessTransportHost> inprocess_transport_host_;
 };

@@ -39,7 +39,7 @@ class TransportTest : public TestWithParam<TestParams> {
 
   boost::asio::io_context io_context_{GetParam().thread_count};
 
-  TransportFactoryImpl transport_factory_{io_context_};
+  TransportFactoryImpl transport_factory_;
 
   static inline log_source kLog{std::make_shared<TestLogSink>()};
 
