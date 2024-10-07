@@ -13,4 +13,8 @@ class any_transport;
 [[nodiscard]] awaitable<expected<size_t>> Read(any_transport& transport,
                                                std::span<char> data);
 
+// Writes full data buffer.
+[[nodiscard]] awaitable<error_code> Write(any_transport& transport,
+                                          std::span<char> data);
+
 }  // namespace transport
