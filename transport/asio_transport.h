@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transport/cancelation.h"
 #include "transport/executor.h"
 #include "transport/log.h"
 #include "transport/transport.h"
@@ -48,6 +49,7 @@ class AsioTransport : public Transport {
 
   bool closed_ = false;
   bool connected_ = false;
+  cancelation cancelation_;
 };
 
 template <class IoObject>
