@@ -68,10 +68,12 @@ awaitable<error_code> ActiveTcpTransport::ResolveAndConnect() {
   log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
               host_.c_str(), service_.c_str());
 
+  cancelation_state cancelation = cancelation_.get_state();
+
   auto [error, iterator] = co_await resolver_.async_resolve(
       host_, service_, boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  if (closed_) {
+  if (cancelation.canceled() || closed_) {
     co_return ERR_ABORTED;
   }
 
@@ -89,10 +91,12 @@ awaitable<error_code> ActiveTcpTransport::ResolveAndConnect() {
 }
 
 awaitable<error_code> ActiveTcpTransport::Connect(Resolver::iterator iterator) {
+  cancelation_state cancelation = cancelation_.get_state();
+
   auto [error, connected_iterator] = co_await boost::asio::async_connect(
       io_object_, iterator, boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  if (closed_) {
+  if (cancelation.canceled() || closed_) {
     co_return ERR_ABORTED;
   }
 
@@ -170,11 +174,13 @@ awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
   log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
               host_.c_str(), service_.c_str());
 
+  cancelation_state cancelation = cancelation_.get_state();
+
   auto [error, iterator] = co_await resolver_.async_resolve(
       /*query=*/{host_, service_},
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  if (closed_) {
+  if (cancelation.canceled() || closed_) {
     co_return ERR_ABORTED;
   }
 
@@ -229,9 +235,6 @@ boost::system::error_code PassiveTcpTransport::Bind(
 }
 
 awaitable<error_code> PassiveTcpTransport::close() {
-  co_await boost::asio::dispatch(acceptor_.get_executor(),
-                                 boost::asio::use_awaitable);
-
   if (closed_) {
     co_return ERR_CONNECTION_CLOSED;
   }
@@ -246,11 +249,13 @@ awaitable<error_code> PassiveTcpTransport::close() {
 }
 
 awaitable<expected<any_transport>> PassiveTcpTransport::accept() {
+  cancelation_state cancelation = cancelation_.get_state();
+
   // TODO: Use different executor.
   auto [error, peer] = co_await acceptor_.async_accept(
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
-  if (closed_) {
+  if (cancelation.canceled() || closed_) {
     co_return ERR_ABORTED;
   }
 

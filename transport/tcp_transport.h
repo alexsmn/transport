@@ -103,9 +103,6 @@ class PassiveTcpTransport final
 
   Resolver resolver_;
   boost::asio::ip::tcp::acceptor acceptor_;
-
-  bool connected_ = false;
-  bool closed_ = false;
 };
 
 }  // namespace transport
