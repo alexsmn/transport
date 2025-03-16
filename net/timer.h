@@ -46,7 +46,7 @@ class Timer {
     ~CoreImpl() { timer_.cancel(); }
 
     virtual void Start() override {
-      timer_.expires_from_now(period_);
+      timer_.expires_after(period_);
       timer_.async_wait(
           [weak_core = this->weak_from_this()](boost::system::error_code ec) {
             if (ec == boost::asio::error::operation_aborted)

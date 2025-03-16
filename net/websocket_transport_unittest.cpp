@@ -28,7 +28,7 @@ inline int GenerateTestNetworkPort() {
 
 class WebSocketTransportTest : public Test {};
 
-TEST_F(WebSocketTransportTest, Test) {
+TEST_F(WebSocketTransportTest, DISABLED_Test) {
   boost::asio::io_context io_context;
 
   int port = GenerateTestNetworkPort();

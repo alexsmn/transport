@@ -48,49 +48,53 @@ inline UdpSocketImpl::UdpSocketImpl(UdpSocketContext&& context)
     : UdpSocketContext{std::move(context)}, read_buffer_(1024 * 1024) {}
 
 inline void UdpSocketImpl::Open() {
-  Resolver::query query{host_, service_};
-  resolver_.async_resolve(query, [this, ref = shared_from_this()](
-                                     const boost::system::error_code& error,
-                                     Resolver::iterator iterator) {
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  resolver_.async_resolve(
+      host_, service_,
+      [this, ref = shared_from_this()](const boost::system::error_code& error,
+                                       Resolver::results_type results) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-    if (closed_)
-      return;
+        if (closed_)
+          return;
 
-    if (error) {
-      if (error != boost::asio::error::operation_aborted)
-        ProcessError(error);
-      return;
-    }
+        if (error) {
+          if (error != boost::asio::error::operation_aborted)
+            ProcessError(error);
+          return;
+        }
 
-    boost::system::error_code ec = boost::asio::error::fault;
-    for (Resolver::iterator end; iterator != end; ++iterator) {
-      socket_.open(iterator->endpoint().protocol(), ec);
-      if (ec)
-        continue;
+        boost::system::error_code ec = boost::asio::error::fault;
+        Resolver::endpoint_type endpoint;
+        for (const auto& entry : results) {
+          endpoint = entry.endpoint();
 
-      if (active_)
-        break;
+          socket_.open(endpoint.protocol(), ec);
+          if (ec)
+            continue;
 
-      socket_.set_option(Socket::reuse_address{true}, ec);
-      socket_.bind(iterator->endpoint(), ec);
-      if (!ec)
-        break;
+          if (active_)
+            break;
 
-      socket_.close();
-    }
+          socket_.set_option(Socket::reuse_address{true}, ec);
+          socket_.bind(entry.endpoint(), ec);
+          if (!ec) {
+            break;
+          }
 
-    if (ec) {
-      ProcessError(ec);
-      return;
-    }
+          socket_.close();
+        }
 
-    connected_ = true;
-    open_handler_(iterator->endpoint());
+        if (ec) {
+          ProcessError(ec);
+          return;
+        }
 
-    if (!active_)
-      StartReading();
-  });
+        connected_ = true;
+        open_handler_(endpoint);
+
+        if (!active_)
+          StartReading();
+      });
 }
 
 inline void UdpSocketImpl::Close() {
