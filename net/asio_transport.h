@@ -4,7 +4,7 @@
 #include "net/logger.h"
 #include "net/transport.h"
 
-#include <base/threading/thread_collision_warner.h>
+#include "net/base/threading/thread_collision_warner.h"
 #include <boost/asio.hpp>
 #include <boost/circular_buffer.hpp>
 #include <memory>

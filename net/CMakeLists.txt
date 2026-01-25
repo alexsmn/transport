@@ -65,9 +65,6 @@ target_link_libraries(net PRIVATE
   Boost::boost
 )
 
-find_package(ChromiumBase REQUIRED)
-target_link_libraries(net PRIVATE ChromiumBase::base)
-
 find_package(PromiseHpp)
 target_link_libraries(net PUBLIC promise.hpp)
 
@@ -76,7 +73,6 @@ target_link_libraries(net PUBLIC promise.hpp)
 add_executable(net_unittests ${SOURCES_UT})
 
 target_link_libraries(net_unittests PRIVATE
-  ChromiumBase::base
   GTest::gmock_main
   net
 )

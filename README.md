@@ -107,7 +107,37 @@ struct Handlers {
 };
 ```
 
-## Dependencies
+## Prerequisites
 
-- Boost (Asio, Beast for WebSocket)
-- C++20
+- **C++20** compiler (MSVC 2022+, GCC 11+, Clang 14+)
+- **CMake** 3.25+
+- **Ninja** (recommended) or Visual Studio
+
+### Required Libraries (via vcpkg)
+
+```bash
+vcpkg install boost-asio boost-beast boost-algorithm boost-circular-buffer boost-random boost-locale boost-uuid gtest
+```
+
+| Package | Purpose |
+|---------|---------|
+| boost-asio | Async I/O |
+| boost-beast | WebSocket |
+| boost-algorithm | String utilities |
+| boost-circular-buffer | Buffer management |
+| boost-random | Session ID generation |
+| boost-locale | UTF encoding |
+| boost-uuid | UUID generation |
+| gtest | Unit tests |
+
+### External Dependencies (fetched via CMake)
+
+- [promise.hpp](https://github.com/alexsmn/promise.hpp) - Promise-based async
+
+## Building
+
+```bash
+cmake --preset windows-x64    # or linux-x64
+cmake --build --preset windows-x64
+ctest --preset windows-x64
+```

@@ -92,3 +92,7 @@ Files are filtered by suffix:
 - `*_win*`, `winsock*`, `win/*` - Windows only
 - `*_posix*`, `*_linux*` - Linux only
 - `pipe_transport.*` - Windows only
+
+## Workflow
+
+- Do not commit after each change. Wait for explicit user request to commit.
