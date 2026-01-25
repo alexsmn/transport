@@ -24,10 +24,9 @@ else()
 
   FetchContent_Declare(
     promise_hpp
-    GIT_REPOSITORY https://github.com/alexsmn/promise.hpp.git
+    GIT_REPOSITORY https://github.com/BlackMATov/promise.hpp.git
     GIT_TAG        origin/main
     GIT_SHALLOW    TRUE
-    GIT_SUBMODULES ""
   )
 
   FetchContent_GetProperties(promise_hpp)

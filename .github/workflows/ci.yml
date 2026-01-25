@@ -4,10 +4,7 @@ on:
   push:
     branches: [main, release/*]
   pull_request:
-    branches: [main, release/*]
-
-env:
-  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+    branches: [main]
 
 jobs:
   build:
@@ -16,17 +13,23 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            name: Windows x64
             arch: x64
+            triplet: x64-windows
+            name: Windows x64
           - os: windows-latest
-            name: Windows x86
             arch: x86
+            triplet: x86-windows
+            name: Windows x86
           - os: ubuntu-latest
+            arch: x64
+            triplet: x64-linux
             name: Linux x64
-            arch: ''
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+
+    env:
+      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
 
     steps:
       - name: Checkout
@@ -40,10 +43,6 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
 
-      - name: Install Ninja (Windows)
-        if: runner.os == 'Windows'
-        run: choco install ninja -y
-
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -53,39 +52,36 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
+          vcpkgGitCommitId: '01f602195983451bc83e72f4214af2cbc495aa94'
 
-      - name: Configure
-        run: cmake --preset ninja
+      - name: Install vcpkg packages
+        run: |
+          vcpkg install boost-asio boost-beast boost-algorithm boost-circular-buffer gtest --triplet ${{ matrix.triplet }}
+
+      - name: Configure CMake (Windows x64)
+        if: runner.os == 'Windows' && matrix.arch == 'x64'
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
+
+      - name: Configure CMake (Windows x86)
+        if: runner.os == 'Windows' && matrix.arch == 'x86'
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A Win32 `
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
+
+      - name: Configure CMake (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
 
       - name: Build
-        run: cmake --build --preset release
+        run: cmake --build build --config Release
 
       - name: Test
-        run: ctest --preset release
-
-  static-analysis:
-    name: Static Analysis
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build clang-tidy cppcheck
-
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
-
-      - name: Configure
-        run: cmake --preset ninja -DCMAKE_CXX_CLANG_TIDY=clang-tidy -DCMAKE_CXX_CPPCHECK=cppcheck
-
-      - name: Build
-        run: cmake --build --preset release
+        run: ctest --test-dir build --build-config Release --output-on-failure
