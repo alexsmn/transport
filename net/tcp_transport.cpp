@@ -112,8 +112,9 @@ void AsioTcpTransport::ActiveCore::StartConnecting(
     Resolver::results_type results) {
   boost::asio::async_connect(
       io_object_, results,
-      [this, ref = shared_from_this()](const boost::system::error_code& error,
-                                       const boost::asio::ip::tcp::endpoint& endpoint) {
+      [this, ref = shared_from_this()](
+          const boost::system::error_code& error,
+          const boost::asio::ip::tcp::endpoint& endpoint) {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
         if (closed_)
@@ -241,39 +242,40 @@ void AsioTcpTransport::PassiveCore::StartResolving() {
   logger_->WriteF(LogSeverity::Normal, "Start DNS resolution to %s:%s",
                   host_.c_str(), service_.c_str());
 
-  resolver_.async_resolve(host_, service_, [this, ref = shared_from_this()](
-                                     const boost::system::error_code& error,
-                                     Resolver::results_type results) {
-    DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
+  resolver_.async_resolve(
+      host_, service_,
+      [this, ref = shared_from_this()](const boost::system::error_code& error,
+                                       Resolver::results_type results) {
+        DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-    if (closed_) {
-      return;
-    }
+        if (closed_) {
+          return;
+        }
 
-    if (error) {
-      if (error != boost::asio::error::operation_aborted) {
-        logger_->Write(LogSeverity::Warning, "DNS resolution error");
-        ProcessError(error);
-      }
-      return;
-    }
+        if (error) {
+          if (error != boost::asio::error::operation_aborted) {
+            logger_->Write(LogSeverity::Warning, "DNS resolution error");
+            ProcessError(error);
+          }
+          return;
+        }
 
-    logger_->Write(LogSeverity::Normal, "DNS resolution completed");
+        logger_->Write(LogSeverity::Normal, "DNS resolution completed");
 
-    if (auto ec = Bind(std::move(results)); ec) {
-      logger_->Write(LogSeverity::Warning, "Bind error");
-      ProcessError(ec);
-      return;
-    }
+        if (auto ec = Bind(std::move(results)); ec) {
+          logger_->Write(LogSeverity::Warning, "Bind error");
+          ProcessError(ec);
+          return;
+        }
 
-    logger_->Write(LogSeverity::Normal, "Bind completed");
+        logger_->Write(LogSeverity::Normal, "Bind completed");
 
-    connected_ = true;
-    if (handlers_.on_open)
-      handlers_.on_open();
+        connected_ = true;
+        if (handlers_.on_open)
+          handlers_.on_open();
 
-    StartAccepting();
-  });
+        StartAccepting();
+      });
 }
 
 boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
