@@ -18,7 +18,7 @@ Checks: >
 
 WarningsAsErrors: ''
 
-HeaderFilterRegex: 'net/.*\.h$'
+HeaderFilterRegex: '.*\\bnet/.*\\.h$'
 
 CheckOptions:
   - key: readability-identifier-naming.ClassCase

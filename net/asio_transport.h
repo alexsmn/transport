@@ -159,14 +159,16 @@ template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartReading() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  if (closed_ || reading_)
+  if (closed_ || reading_) {
     return;
+  }
 
   assert(reading_buffer_.empty());
 
   reading_buffer_.resize(read_buffer_.capacity() - read_buffer_.size());
-  if (reading_buffer_.empty())
+  if (reading_buffer_.empty()) {
     return;
+  }
 
   reading_ = true;
   boost::asio::async_read(
@@ -176,15 +178,17 @@ inline void AsioTransport::IoCore<IoObject>::StartReading() {
                                        std::size_t bytes_transferred) {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
+        if (closed_) {
           return;
+        }
 
         assert(reading_);
         reading_ = false;
 
         if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
+          if (ec != boost::asio::error::operation_aborted) {
             ProcessError(MapSystemError(ec.value()));
+          }
           return;
         }
 
@@ -211,13 +215,15 @@ template <class IoObject>
 inline void AsioTransport::IoCore<IoObject>::StartWriting() {
   DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-  if (closed_ || writing_)
+  if (closed_ || writing_) {
     return;
+  }
 
   assert(writing_buffer_.empty());
 
-  if (write_buffer_.empty())
+  if (write_buffer_.empty()) {
     return;
+  }
 
   writing_ = true;
   writing_buffer_.swap(write_buffer_);
@@ -228,15 +234,17 @@ inline void AsioTransport::IoCore<IoObject>::StartWriting() {
                                        std::size_t bytes_transferred) {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
+        if (closed_) {
           return;
+        }
 
         assert(writing_);
         writing_ = false;
 
         if (ec) {
-          if (ec != boost::asio::error::operation_aborted)
+          if (ec != boost::asio::error::operation_aborted) {
             ProcessError(MapSystemError(ec.value()));
+          }
           return;
         }
 
@@ -268,8 +276,9 @@ inline void AsioTransport::IoCore<IoObject>::ProcessError(Error error) {
 
         Cleanup();
 
-        if (on_close)
+        if (on_close) {
           on_close(error);
+        }
       });
 }
 

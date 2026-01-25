@@ -13,8 +13,9 @@ namespace {
 template <class T>
 inline bool SetOption(boost::asio::serial_port& serial_port,
                       const std::optional<T>& option) {
-  if (!option.has_value())
+  if (!option.has_value()) {
     return true;
+  }
 
   boost::system::error_code ec;
   serial_port.set_option(*option, ec);

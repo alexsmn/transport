@@ -53,22 +53,22 @@
       }
     },
     {
-      "name": "windows-x64-clang-tidy",
-      "displayName": "Windows x64 with clang-tidy",
-      "inherits": "vcpkg-base",
-      "generator": "Ninja Multi-Config",
+      "name": "windows-x64-full-analysis",
+      "displayName": "Windows x64 with clang-tidy and cppcheck",
+      "inherits": "windows-x64",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "CMAKE_CXX_CLANG_TIDY": "$env{VCToolsInstallDir}/bin/HostX64/x64/clang-tidy.exe",
+        "CMAKE_CXX_CLANG_TIDY": "clang-tidy",
+        "CMAKE_CXX_CPPCHECK": "cppcheck;--enable=warning,performance,portability;--inline-suppr",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
     {
-      "name": "linux-x64-clang-tidy",
-      "displayName": "Linux x64 with clang-tidy",
+      "name": "linux-x64-full-analysis",
+      "displayName": "Linux x64 with clang-tidy and cppcheck",
       "inherits": "linux-x64",
       "cacheVariables": {
         "CMAKE_CXX_CLANG_TIDY": "clang-tidy",
+        "CMAKE_CXX_CPPCHECK": "cppcheck;--enable=warning,performance,portability;--inline-suppr",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     }
@@ -90,13 +90,13 @@
       "configuration": "Release"
     },
     {
-      "name": "windows-x64-clang-tidy",
-      "configurePreset": "windows-x64-clang-tidy",
+      "name": "windows-x64-full-analysis",
+      "configurePreset": "windows-x64-full-analysis",
       "configuration": "Release"
     },
     {
-      "name": "linux-x64-clang-tidy",
-      "configurePreset": "linux-x64-clang-tidy",
+      "name": "linux-x64-full-analysis",
+      "configurePreset": "linux-x64-full-analysis",
       "configuration": "Release"
     }
   ],

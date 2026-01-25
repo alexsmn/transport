@@ -62,8 +62,8 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
-  clang-tidy:
-    name: Clang-Tidy
+  static-analysis:
+    name: Static Analysis
     runs-on: windows-latest
 
     steps:
@@ -78,15 +78,18 @@ jobs:
       - name: Install Ninja
         run: choco install ninja -y
 
+      - name: Install cppcheck and clang-tidy
+        run: choco install cppcheck llvm -y
+
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
 
-      - name: Configure with clang-tidy
-        run: cmake --preset windows-x64-clang-tidy
+      - name: Configure with static analysis
+        run: cmake --preset windows-x64-full-analysis
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
-      - name: Build with clang-tidy
-        run: cmake --build --preset windows-x64-clang-tidy
+      - name: Build with static analysis
+        run: cmake --build --preset windows-x64-full-analysis

@@ -15,10 +15,11 @@ std::string ErrorToString(int error) {
 }
 
 std::string ErrorToShortString(int error) {
-  if (error == 0)
+  if (error == 0) {
     return "OK";
+  }
 
-  const char* error_string;
+  const char* error_string = nullptr;
   switch (error) {
 #define NET_ERROR(label, value) \
   case ERR_##label:             \

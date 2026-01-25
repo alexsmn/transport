@@ -91,8 +91,9 @@ void AsioTcpTransport::ActiveCore::StartResolving() {
                                        Resolver::results_type results) {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
+        if (closed_) {
           return;
+        }
 
         if (error) {
           if (error != boost::asio::error::operation_aborted) {
@@ -117,8 +118,9 @@ void AsioTcpTransport::ActiveCore::StartConnecting(
           const boost::asio::ip::tcp::endpoint& endpoint) {
         DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
-        if (closed_)
+        if (closed_) {
           return;
+        }
 
         if (error) {
           if (error != boost::asio::error::operation_aborted) {
@@ -271,8 +273,9 @@ void AsioTcpTransport::PassiveCore::StartResolving() {
         logger_->Write(LogSeverity::Normal, "Bind completed");
 
         connected_ = true;
-        if (handlers_.on_open)
+        if (handlers_.on_open) {
           handlers_.on_open();
+        }
 
         StartAccepting();
       });
@@ -288,18 +291,21 @@ boost::system::error_code AsioTcpTransport::PassiveCore::Bind(
 
   for (const auto& entry : results) {
     acceptor_.open(entry.endpoint().protocol(), ec);
-    if (ec)
+    if (ec) {
       continue;
+    }
 
     acceptor_.set_option(Socket::reuse_address{true}, ec);
     // TODO: Log endpoint.
     acceptor_.bind(entry.endpoint(), ec);
 
-    if (!ec)
+    if (!ec) {
       acceptor_.listen(Socket::max_listen_connections, ec);
+    }
 
-    if (!ec)
+    if (!ec) {
       break;
+    }
 
     acceptor_.close();
   }
