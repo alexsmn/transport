@@ -25,7 +25,7 @@ struct PromiseHandlers : std::enable_shared_from_this<PromiseHandlers> {
 
     if (!promise_set) {
       promise_set = true;
-      promise.resolve();
+      open_promise.resolve();
     }
   }
 
@@ -40,7 +40,7 @@ struct PromiseHandlers : std::enable_shared_from_this<PromiseHandlers> {
 
     if (!promise_set) {
       promise_set = true;
-      promise.reject(net_exception{error});
+      open_promise.reject(net_exception{error});
     }
   }
 
@@ -48,7 +48,7 @@ struct PromiseHandlers : std::enable_shared_from_this<PromiseHandlers> {
   Transport::CloseHandler on_close;
 
   bool promise_set = false;
-  promise<void> promise;
+  promise<void> open_promise;
 };
 
 }  // namespace internal
@@ -64,7 +64,7 @@ inline std::pair<promise<void>, Connector::Handlers> MakePromiseHandlers(
   promise_handlers.on_close =
       std::bind_front(&internal::PromiseHandlers::OnClose, state);
 
-  return {state->promise, std::move(promise_handlers)};
+  return {state->open_promise, std::move(promise_handlers)};
 }
 
 template <typename E, typename F>
