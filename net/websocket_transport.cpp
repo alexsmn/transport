@@ -3,6 +3,7 @@
 #include "net/transport_util.h"
 
 #include <boost/asio/spawn.hpp>
+#include <boost/coroutine/attributes.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <queue>
@@ -84,12 +85,14 @@ promise<size_t> WebSocketTransport::ConnectionCore::Write(const void* data,
 
   if (!writing_) {
     writing_ = true;
-    boost::asio::spawn(ws.get_executor(),
-                       [this, ref = shared_from_this()](
-                           boost::asio::yield_context yield) mutable {
-                         StartWriting(std::move(yield));
-                         writing_ = false;
-                       });
+    boost::asio::spawn(
+        ws.get_executor(),
+        [this, ref = shared_from_this()](
+            boost::asio::yield_context yield) mutable {
+          StartWriting(std::move(yield));
+          writing_ = false;
+        },
+        boost::coroutines::attributes{});
   }
 
   // TODO: Proper async.
@@ -191,7 +194,8 @@ void WebSocketTransport::Core::Open(const Handlers& handlers) {
   handlers_ = handlers;
 
   boost::asio::spawn(io_context_,
-                     std::bind_front(&Core::Listen, shared_from_this()));
+                     std::bind_front(&Core::Listen, shared_from_this()),
+                     boost::coroutines::attributes{});
 }
 
 void WebSocketTransport::Core::Close() {
@@ -244,7 +248,8 @@ void WebSocketTransport::Core::Listen(boost::asio::yield_context yield) {
                 boost::beast::websocket::stream<boost::beast::tcp_stream>{
                     std::move(socket)},
                 std::move(yield));
-          });
+          },
+          boost::coroutines::attributes{});
   }
 }
 

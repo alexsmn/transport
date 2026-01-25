@@ -113,24 +113,11 @@ struct Handlers {
 - **CMake** 3.25+
 - **Ninja** (recommended) or Visual Studio
 
-### Required Libraries (via vcpkg)
+### Dependencies
 
-```bash
-vcpkg install boost-asio boost-beast boost-algorithm boost-circular-buffer boost-random boost-locale boost-uuid gtest
-```
+Dependencies are managed via `vcpkg.json` manifest and installed automatically during CMake configure.
 
-| Package | Purpose |
-|---------|---------|
-| boost-asio | Async I/O |
-| boost-beast | WebSocket |
-| boost-algorithm | String utilities |
-| boost-circular-buffer | Buffer management |
-| boost-random | Session ID generation |
-| boost-locale | UTF encoding |
-| boost-uuid | UUID generation |
-| gtest | Unit tests |
-
-### External Dependencies (fetched via CMake)
+External dependency fetched via CMake:
 
 - [promise.hpp](https://github.com/alexsmn/promise.hpp) - Promise-based async
 

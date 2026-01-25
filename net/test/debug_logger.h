@@ -16,7 +16,7 @@ class DebugLogger : public Logger {
 
   virtual void WriteV(LogSeverity severity,
                       const char* format,
-                      va_list args) const PRINTF_FORMAT(3, 0) override {
+                      va_list args) const override PRINTF_FORMAT(3, 0) {
     char message[1024];
     std::vsnprintf(message, sizeof(message), format, args);
     Write(severity, message);
@@ -24,7 +24,7 @@ class DebugLogger : public Logger {
 
   virtual void WriteF(LogSeverity severity,
                       _Printf_format_string_ const char* format,
-                      ...) const PRINTF_FORMAT(3, 4) override {
+                      ...) const override PRINTF_FORMAT(3, 4) {
     va_list args;
     va_start(args, format);
     WriteV(severity, format, args);
