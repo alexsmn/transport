@@ -6,6 +6,7 @@
     "boost-beast",
     "boost-circular-buffer",
     "boost-random",
+    "boost-uuid",
     "gtest"
   ]
 }
