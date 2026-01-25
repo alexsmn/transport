@@ -1,3 +1,4 @@
 /build
 CMakeUserPresets.json
 nul
+.claude/settings.local.json
