@@ -124,7 +124,7 @@ External dependency fetched via CMake:
 ## Building
 
 ```bash
-cmake --preset windows-x64    # or linux-x64
-cmake --build --preset windows-x64
-ctest --preset windows-x64
+cmake --preset ninja
+cmake --build --preset release
+ctest --preset release
 ```
