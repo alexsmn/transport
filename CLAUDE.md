@@ -97,3 +97,4 @@ Files are filtered by suffix:
 
 - Do not commit after each change. Wait for explicit user request to commit.
 - Do not commit directly to the current branch. Create a separate feature branch for changes and submit a PR.
+- Consult README.md when making changes. Keep README.md consistent with code changes (dependencies, API, examples).
