@@ -1,4 +1,4 @@
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS context)
 find_package(GTest REQUIRED)
 
 file(GLOB_RECURSE sources RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
@@ -63,6 +63,7 @@ target_include_directories(net PUBLIC "..")
 
 target_link_libraries(net PRIVATE
   Boost::boost
+  Boost::context
 )
 
 find_package(PromiseHpp)

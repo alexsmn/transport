@@ -2,8 +2,8 @@
 
 #include "net/transport_util.h"
 
+#include <boost/asio/detached.hpp>
 #include <boost/asio/spawn.hpp>
-#include <boost/coroutine/attributes.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <queue>
@@ -92,7 +92,7 @@ promise<size_t> WebSocketTransport::ConnectionCore::Write(const void* data,
           StartWriting(std::move(yield));
           writing_ = false;
         },
-        boost::coroutines::attributes{});
+        boost::asio::detached);
   }
 
   // TODO: Proper async.
@@ -195,7 +195,7 @@ void WebSocketTransport::Core::Open(const Handlers& handlers) {
 
   boost::asio::spawn(io_context_,
                      std::bind_front(&Core::Listen, shared_from_this()),
-                     boost::coroutines::attributes{});
+                     boost::asio::detached);
 }
 
 void WebSocketTransport::Core::Close() {
@@ -249,7 +249,7 @@ void WebSocketTransport::Core::Listen(boost::asio::yield_context yield) {
                     std::move(socket)},
                 std::move(yield));
           },
-          boost::coroutines::attributes{});
+          boost::asio::detached);
   }
 }
 
