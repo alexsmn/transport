@@ -124,6 +124,22 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "windows-x64-full-analysis",
+      "configurePreset": "windows-x64-full-analysis",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-x64-full-analysis",
+      "configurePreset": "linux-x64-full-analysis",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

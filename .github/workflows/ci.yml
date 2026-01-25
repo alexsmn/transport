@@ -93,3 +93,6 @@ jobs:
 
       - name: Build with static analysis
         run: cmake --build --preset windows-x64-full-analysis
+
+      - name: Test
+        run: ctest --preset windows-x64-full-analysis
