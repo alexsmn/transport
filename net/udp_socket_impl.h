@@ -48,10 +48,9 @@ inline UdpSocketImpl::UdpSocketImpl(UdpSocketContext&& context)
     : UdpSocketContext{std::move(context)}, read_buffer_(1024 * 1024) {}
 
 inline void UdpSocketImpl::Open() {
-  Resolver::query query{host_, service_};
-  resolver_.async_resolve(query, [this, ref = shared_from_this()](
+  resolver_.async_resolve(host_, service_, [this, ref = shared_from_this()](
                                      const boost::system::error_code& error,
-                                     Resolver::iterator iterator) {
+                                     Resolver::results_type results) {
     DFAKE_SCOPED_RECURSIVE_LOCK(mutex_);
 
     if (closed_)
@@ -64,16 +63,19 @@ inline void UdpSocketImpl::Open() {
     }
 
     boost::system::error_code ec = boost::asio::error::fault;
-    for (Resolver::iterator end; iterator != end; ++iterator) {
-      socket_.open(iterator->endpoint().protocol(), ec);
+    Resolver::results_type::iterator last_endpoint = results.end();
+    for (auto it = results.begin(); it != results.end(); ++it) {
+      socket_.open(it->endpoint().protocol(), ec);
       if (ec)
         continue;
+
+      last_endpoint = it;
 
       if (active_)
         break;
 
       socket_.set_option(Socket::reuse_address{true}, ec);
-      socket_.bind(iterator->endpoint(), ec);
+      socket_.bind(it->endpoint(), ec);
       if (!ec)
         break;
 
@@ -86,7 +88,7 @@ inline void UdpSocketImpl::Open() {
     }
 
     connected_ = true;
-    open_handler_(iterator->endpoint());
+    open_handler_(last_endpoint->endpoint());
 
     if (!active_)
       StartReading();

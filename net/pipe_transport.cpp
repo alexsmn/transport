@@ -4,6 +4,7 @@
 
 #include <boost/locale/encoding_utf.hpp>
 #include <cassert>
+#include <chrono>
 #include <windows.h>
 
 using namespace std::chrono_literals;

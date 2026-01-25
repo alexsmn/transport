@@ -65,7 +65,8 @@ std::shared_ptr<TransportFactory> CreateTransportFactory() {
     boost::asio::io_context io_context;
     TransportFactoryImpl transport_factory{io_context};
     std::jthread thread{[this] { io_context.run(); }};
-    std::optional<boost::asio::io_context::work> work{io_context};
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
+        work{io_context.get_executor()};
   };
 
   auto holder = std::make_shared<Holder>();

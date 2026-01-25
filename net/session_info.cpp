@@ -6,7 +6,7 @@
 namespace net {
 
 SessionID CreateSessionID() {
-  boost::uuids::basic_random_generator<boost::mt19937> gen;
+  boost::uuids::random_generator gen;
   boost::uuids::uuid u = gen();
   return boost::uuids::to_string(u);
 }
