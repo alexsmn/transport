@@ -87,12 +87,14 @@ jobs:
         run: choco install llvm -y
 
       - name: Install cppcheck
+        shell: pwsh
         run: |
           $version = "2.16.2"
           $url = "https://github.com/danmar/cppcheck/releases/download/$version/cppcheck-$version-x64-Setup.msi"
-          Invoke-WebRequest -Uri $url -OutFile cppcheck.msi
-          Start-Process msiexec.exe -Wait -ArgumentList '/i cppcheck.msi /quiet /norestart'
-          echo "C:\Program Files\Cppcheck" >> $env:GITHUB_PATH
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri $url -OutFile cppcheck.msi -UseBasicParsing
+          Start-Process msiexec.exe -Wait -ArgumentList '/i', 'cppcheck.msi', '/quiet', '/norestart'
+          "C:\Program Files\Cppcheck" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
