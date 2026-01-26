@@ -2,20 +2,20 @@
 
 #include "net/transport_util.h"
 
-#include <boost/asio/detached.hpp>
-#include <boost/asio/spawn.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <queue>
 
 namespace net {
 
+// WebSocketTransport::ConnectionCore
+
 class WebSocketTransport::ConnectionCore
     : public std::enable_shared_from_this<ConnectionCore> {
  public:
-  ConnectionCore(boost::beast::websocket::stream<boost::beast::tcp_stream> ws,
-                 boost::asio::yield_context yield)
-      : ws{std::move(ws)}, yield{std::move(yield)} {}
+  explicit ConnectionCore(
+      boost::beast::websocket::stream<boost::beast::tcp_stream> ws)
+      : ws_{std::move(ws)} {}
 
   void Open(const Handlers& handlers);
   void Close();
@@ -23,59 +23,65 @@ class WebSocketTransport::ConnectionCore
   promise<size_t> Write(const void* data, size_t len);
 
  private:
-  void StartWriting(boost::asio::yield_context yield);
+  void StartReading();
+  void StartWriting();
 
-  boost::beast::websocket::stream<boost::beast::tcp_stream> ws;
-  boost::asio::yield_context yield;
+  boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
+  boost::beast::flat_buffer read_buffer_;
 
   Handlers handlers_;
+  bool closed_ = false;
 
   std::queue<std::vector<char>> write_queue_;
   bool writing_ = false;
 };
 
-void Fail(boost::beast::error_code ec, char const* what) {
-  // std::cerr << what << ": " << ec.message() << "\n";
+void WebSocketTransport::ConnectionCore::Open(const Handlers& handlers) {
+  handlers_ = handlers;
+  StartReading();
 }
 
-void WebSocketTransport::ConnectionCore::Open(const Handlers& handlers) {
-  auto ref = shared_from_this();
-
-  handlers_ = handlers;
+void WebSocketTransport::ConnectionCore::Close() {
+  if (closed_) {
+    return;
+  }
+  closed_ = true;
+  handlers_ = {};
 
   boost::beast::error_code ec;
+  ws_.close(boost::beast::websocket::close_code::normal, ec);
+}
 
-  for (;;) {
-    boost::beast::flat_buffer buffer;
+void WebSocketTransport::ConnectionCore::StartReading() {
+  ws_.async_read(read_buffer_, [this, ref = shared_from_this()](
+                                   boost::beast::error_code ec,
+                                   std::size_t bytes_transferred) {
+    if (closed_) {
+      return;
+    }
 
-    // Read a message
-    ws.async_read(buffer, yield[ec]);
-
-    // This indicates that the session was closed
-    if (ec == boost::beast::websocket::error::closed)
-      break;
+    if (ec == boost::beast::websocket::error::closed) {
+      if (handlers_.on_close) {
+        handlers_.on_close(net::OK);
+      }
+      return;
+    }
 
     if (ec) {
-      if (handlers_.on_close)
+      if (handlers_.on_close) {
         handlers_.on_close(net::ERR_ABORTED);
+      }
       return;
     }
 
     if (handlers_.on_message) {
-      handlers_.on_message({static_cast<const char*>(buffer.data().data()),
-                            buffer.data().size()});
+      handlers_.on_message({static_cast<const char*>(read_buffer_.data().data()),
+                            read_buffer_.data().size()});
     }
-  }
 
-  if (handlers_.on_close)
-    handlers_.on_close(net::OK);
-}
-
-void WebSocketTransport::ConnectionCore::Close() {
-  handlers_ = {};
-
-  boost::beast::error_code ec;
-  ws.close(boost::beast::websocket::close_code::normal, ec);
+    read_buffer_.consume(bytes_transferred);
+    StartReading();
+  });
 }
 
 promise<size_t> WebSocketTransport::ConnectionCore::Write(const void* data,
@@ -84,35 +90,41 @@ promise<size_t> WebSocketTransport::ConnectionCore::Write(const void* data,
                        static_cast<const char*>(data) + len);
 
   if (!writing_) {
-    writing_ = true;
-    boost::asio::spawn(
-        ws.get_executor(),
-        [this, ref = shared_from_this()](
-            boost::asio::yield_context yield) mutable {
-          StartWriting(std::move(yield));
-          writing_ = false;
-        },
-        boost::asio::detached);
+    StartWriting();
   }
 
   // TODO: Proper async.
   return make_resolved_promise(len);
 }
 
-void WebSocketTransport::ConnectionCore::StartWriting(
-    boost::asio::yield_context yield) {
-  while (!write_queue_.empty()) {
-    auto message = std::move(write_queue_.front());
-    write_queue_.pop();
-
-    boost::beast::error_code ec;
-    ws.async_write(boost::asio::buffer(message), yield[ec]);
-    if (ec) {
-      if (handlers_.on_close)
-        handlers_.on_close(net::ERR_ABORTED);
-      return;
-    }
+void WebSocketTransport::ConnectionCore::StartWriting() {
+  if (closed_ || write_queue_.empty()) {
+    writing_ = false;
+    return;
   }
+
+  writing_ = true;
+  auto& message = write_queue_.front();
+
+  ws_.async_write(
+      boost::asio::buffer(message),
+      [this, ref = shared_from_this()](boost::beast::error_code ec,
+                                       std::size_t /*bytes_transferred*/) {
+        if (closed_) {
+          return;
+        }
+
+        write_queue_.pop();
+
+        if (ec) {
+          if (handlers_.on_close) {
+            handlers_.on_close(net::ERR_ABORTED);
+          }
+          return;
+        }
+
+        StartWriting();
+      });
 }
 
 // WebSocketTransport::Connection
@@ -139,8 +151,9 @@ class WebSocketTransport::Connection : public Transport {
 };
 
 WebSocketTransport::Connection::~Connection() {
-  if (opened_)
+  if (opened_) {
     core_->Close();
+  }
 }
 
 promise<void> WebSocketTransport::Connection::Open(const Handlers& handlers) {
@@ -150,7 +163,12 @@ promise<void> WebSocketTransport::Connection::Open(const Handlers& handlers) {
 
   auto [p, promise_handlers] = MakePromiseHandlers(handlers);
   core_->Open(promise_handlers);
-  return p;
+
+  // Resolve immediately since connection is already established
+  if (handlers.on_open) {
+    handlers.on_open();
+  }
+  return make_resolved_promise();
 }
 
 void WebSocketTransport::Connection::Close() {
@@ -173,16 +191,19 @@ class WebSocketTransport::Core : public std::enable_shared_from_this<Core> {
   void Open(const Handlers& handlers);
   void Close();
 
-  void Listen(boost::asio::yield_context yield);
-  void DoSession(boost::beast::websocket::stream<boost::beast::tcp_stream> ws,
-                 boost::asio::yield_context yield);
-
  private:
+  void StartAccepting();
+  void OnAccept(boost::beast::error_code ec,
+                boost::asio::ip::tcp::socket socket);
+  void DoHandshake(boost::beast::websocket::stream<boost::beast::tcp_stream> ws);
+
   boost::asio::io_context& io_context_;
   const std::string host_;
   const int port_;
 
+  std::unique_ptr<boost::asio::ip::tcp::acceptor> acceptor_;
   Handlers handlers_;
+  bool closed_ = false;
 };
 
 WebSocketTransport::Core::Core(boost::asio::io_context& io_context,
@@ -193,95 +214,128 @@ WebSocketTransport::Core::Core(boost::asio::io_context& io_context,
 void WebSocketTransport::Core::Open(const Handlers& handlers) {
   handlers_ = handlers;
 
-  boost::asio::spawn(io_context_,
-                     std::bind_front(&Core::Listen, shared_from_this()),
-                     boost::asio::detached);
-}
-
-void WebSocketTransport::Core::Close() {
-  handlers_ = {};
-}
-
-void WebSocketTransport::Core::Listen(boost::asio::yield_context yield) {
   auto const address = boost::asio::ip::make_address(host_);
   auto const port = static_cast<unsigned short>(port_);
   const boost::asio::ip::tcp::endpoint endpoint{address, port};
 
   boost::beast::error_code ec;
 
-  // Open the acceptor
-  boost::asio::ip::tcp::acceptor acceptor(io_context_);
-  acceptor.open(endpoint.protocol(), ec);
-  if (ec)
-    return Fail(ec, "open");
+  acceptor_ = std::make_unique<boost::asio::ip::tcp::acceptor>(io_context_);
 
-  // Allow address reuse
-  acceptor.set_option(boost::asio::socket_base::reuse_address(true), ec);
-  if (ec)
-    return Fail(ec, "set_option");
-
-  // Bind to the server address
-  acceptor.bind(endpoint, ec);
-  if (ec)
-    return Fail(ec, "bind");
-
-  // Start listening for connections
-  acceptor.listen(boost::asio::socket_base::max_listen_connections, ec);
-  if (ec)
-    return Fail(ec, "listen");
-
-  if (auto on_open = std::move(handlers_.on_open)) {
-    on_open();
+  acceptor_->open(endpoint.protocol(), ec);
+  if (ec) {
+    if (handlers_.on_close) {
+      handlers_.on_close(net::ERR_FAILED);
+    }
+    return;
   }
 
-  for (;;) {
-    boost::asio::ip::tcp::socket socket(io_context_);
-    acceptor.async_accept(socket, yield[ec]);
-    if (ec)
-      Fail(ec, "accept");
-    else
-      boost::asio::spawn(
-          acceptor.get_executor(),
-          [this, ref = shared_from_this(), socket = std::move(socket)](
-              boost::asio::yield_context yield) mutable {
-            DoSession(
-                boost::beast::websocket::stream<boost::beast::tcp_stream>{
-                    std::move(socket)},
-                std::move(yield));
-          },
-          boost::asio::detached);
+  acceptor_->set_option(boost::asio::socket_base::reuse_address(true), ec);
+  if (ec) {
+    if (handlers_.on_close) {
+      handlers_.on_close(net::ERR_FAILED);
+    }
+    return;
+  }
+
+  acceptor_->bind(endpoint, ec);
+  if (ec) {
+    if (handlers_.on_close) {
+      handlers_.on_close(net::ERR_FAILED);
+    }
+    return;
+  }
+
+  acceptor_->listen(boost::asio::socket_base::max_listen_connections, ec);
+  if (ec) {
+    if (handlers_.on_close) {
+      handlers_.on_close(net::ERR_FAILED);
+    }
+    return;
+  }
+
+  if (handlers_.on_open) {
+    handlers_.on_open();
+  }
+
+  StartAccepting();
+}
+
+void WebSocketTransport::Core::Close() {
+  if (closed_) {
+    return;
+  }
+  closed_ = true;
+  handlers_ = {};
+
+  if (acceptor_) {
+    boost::beast::error_code ec;
+    acceptor_->close(ec);
   }
 }
 
-void WebSocketTransport::Core::DoSession(
-    boost::beast::websocket::stream<boost::beast::tcp_stream> ws,
-    boost::asio::yield_context yield) {
-  boost::beast::error_code ec;
+void WebSocketTransport::Core::StartAccepting() {
+  if (closed_ || !acceptor_) {
+    return;
+  }
 
-  ws.binary(true);
+  acceptor_->async_accept(
+      [this, ref = shared_from_this()](boost::beast::error_code ec,
+                                       boost::asio::ip::tcp::socket socket) {
+        OnAccept(ec, std::move(socket));
+      });
+}
 
-  // Set suggested timeout settings for the websocket
-  ws.set_option(boost::beast::websocket::stream_base::timeout::suggested(
+void WebSocketTransport::Core::OnAccept(boost::beast::error_code ec,
+                                        boost::asio::ip::tcp::socket socket) {
+  if (closed_) {
+    return;
+  }
+
+  if (ec) {
+    // Continue accepting on error
+    StartAccepting();
+    return;
+  }
+
+  DoHandshake(boost::beast::websocket::stream<boost::beast::tcp_stream>{
+      std::move(socket)});
+  StartAccepting();
+}
+
+void WebSocketTransport::Core::DoHandshake(
+    boost::beast::websocket::stream<boost::beast::tcp_stream> ws) {
+  auto ws_ptr =
+      std::make_shared<boost::beast::websocket::stream<boost::beast::tcp_stream>>(
+          std::move(ws));
+
+  ws_ptr->binary(true);
+
+  ws_ptr->set_option(boost::beast::websocket::stream_base::timeout::suggested(
       boost::beast::role_type::server));
 
-  // Set a decorator to change the Server of the handshake
-  ws.set_option(boost::beast::websocket::stream_base::decorator(
+  ws_ptr->set_option(boost::beast::websocket::stream_base::decorator(
       [](boost::beast::websocket::response_type& res) {
-        res.set(
-            boost::beast::http::field::server,
-            std::string(BOOST_BEAST_VERSION_STRING) + " websocket-server-coro");
+        res.set(boost::beast::http::field::server,
+                std::string(BOOST_BEAST_VERSION_STRING) + " websocket-server");
       }));
 
-  // Accept the websocket handshake
-  ws.async_accept(yield[ec]);
-  if (ec)
-    return Fail(ec, "accept");
+  ws_ptr->async_accept(
+      [this, ref = shared_from_this(), ws_ptr](boost::beast::error_code ec) {
+        if (closed_) {
+          return;
+        }
 
-  if (handlers_.on_accept) {
-    auto connection_core =
-        std::make_shared<ConnectionCore>(std::move(ws), std::move(yield));
-    handlers_.on_accept(std::make_unique<Connection>(connection_core));
-  }
+        if (ec) {
+          return;
+        }
+
+        if (handlers_.on_accept) {
+          auto connection_core =
+              std::make_shared<ConnectionCore>(std::move(*ws_ptr));
+          handlers_.on_accept(std::make_unique<Connection>(connection_core));
+        }
+      });
 }
 
 // WebSocketTransport
@@ -292,8 +346,9 @@ WebSocketTransport::WebSocketTransport(boost::asio::io_context& io_context,
     : core_{std::make_shared<Core>(io_context, std::move(host), port)} {}
 
 WebSocketTransport::~WebSocketTransport() {
-  if (core_)
+  if (core_) {
     core_->Close();
+  }
 }
 
 promise<void> WebSocketTransport::Open(const Handlers& handlers) {

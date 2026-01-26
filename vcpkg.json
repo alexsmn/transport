@@ -6,7 +6,6 @@
     "boost-asio",
     "boost-beast",
     "boost-circular-buffer",
-    "boost-context",
     "boost-locale",
     "boost-random",
     "boost-uuid",
