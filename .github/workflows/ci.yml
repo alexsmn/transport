@@ -83,8 +83,16 @@ jobs:
       - name: Install Ninja
         run: choco install ninja -y
 
-      - name: Install cppcheck and clang-tidy
-        run: choco install cppcheck llvm -y
+      - name: Install clang-tidy
+        run: choco install llvm -y
+
+      - name: Install cppcheck
+        run: |
+          $version = "2.16.2"
+          $url = "https://github.com/danmar/cppcheck/releases/download/$version/cppcheck-$version-x64-Setup.msi"
+          Invoke-WebRequest -Uri $url -OutFile cppcheck.msi
+          Start-Process msiexec.exe -Wait -ArgumentList '/i cppcheck.msi /quiet /norestart'
+          echo "C:\Program Files\Cppcheck" >> $env:GITHUB_PATH
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
