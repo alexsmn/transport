@@ -18,12 +18,15 @@ jobs:
           - os: windows-latest
             preset: windows-x64
             name: Windows x64
+            arch: x64
           - os: windows-latest
             preset: windows-x86
             name: Windows x86
+            arch: x86
           - os: ubuntu-latest
             preset: linux-x64
             name: Linux x64
+            arch: ''
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -37,6 +40,8 @@ jobs:
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
 
       - name: Install Ninja (Windows)
         if: runner.os == 'Windows'
