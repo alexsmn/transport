@@ -25,37 +25,43 @@ namespace net {
 namespace {
 
 boost::asio::serial_port::parity::type ParseParity(std::string_view str) {
-  if (boost::iequals(str, "No"))
+  if (boost::iequals(str, "No")) {
     return boost::asio::serial_port::parity::none;
-  else if (boost::iequals(str, "Even"))
+  }
+  if (boost::iequals(str, "Even")) {
     return boost::asio::serial_port::parity::even;
-  else if (boost::iequals(str, "Odd"))
+  }
+  if (boost::iequals(str, "Odd")) {
     return boost::asio::serial_port::parity::odd;
-  else
-    throw std::invalid_argument{"Wrong parity string"};
+  }
+  throw std::invalid_argument{"Wrong parity string"};
 }
 
 boost::asio::serial_port::stop_bits::type ParseStopBits(std::string_view str) {
-  if (str == "1")
+  if (str == "1") {
     return boost::asio::serial_port::stop_bits::one;
-  else if (str == "1.5")
+  }
+  if (str == "1.5") {
     return boost::asio::serial_port::stop_bits::onepointfive;
-  else if (str == "2")
+  }
+  if (str == "2") {
     return boost::asio::serial_port::stop_bits::two;
-  else
-    throw std::invalid_argument{"Wrong stop bits string"};
+  }
+  throw std::invalid_argument{"Wrong stop bits string"};
 }
 
 boost::asio::serial_port::flow_control::type ParseFlowControl(
     std::string_view str) {
-  if (str == TransportString::kFlowControlNone)
+  if (str == TransportString::kFlowControlNone) {
     return boost::asio::serial_port::flow_control::none;
-  else if (str == TransportString::kFlowControlSoftware)
+  }
+  if (str == TransportString::kFlowControlSoftware) {
     return boost::asio::serial_port::flow_control::software;
-  else if (str == TransportString::kFlowControlHardware)
+  }
+  if (str == TransportString::kFlowControlHardware) {
     return boost::asio::serial_port::flow_control::hardware;
-  else
-    throw std::invalid_argument{"Wrong flow control string"};
+  }
+  throw std::invalid_argument{"Wrong flow control string"};
 }
 
 }  // namespace
@@ -89,8 +95,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     const TransportString& transport_string,
     const net::Executor& executor,
     std::shared_ptr<const Logger> logger) {
-  if (!logger)
+  if (!logger) {
     logger = NullLogger::GetInstance();
+  }
 
   logger->WriteF(LogSeverity::Normal, "Create transport: %s",
                  transport_string.ToString().c_str());
@@ -98,8 +105,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
   auto protocol = transport_string.GetProtocol();
   bool active = transport_string.IsActive();
 
-  if (protocol == TransportString::PROTOCOL_COUNT)
+  if (protocol == TransportString::PROTOCOL_COUNT) {
     protocol = TransportString::TCP;
+  }
 
   if (protocol == TransportString::TCP) {
     // TCP;Active;Host=localhost;Port=3000
@@ -114,8 +122,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     return std::make_unique<AsioTcpTransport>(executor, std::move(logger),
                                               std::string{host},
                                               std::to_string(port), active);
+  }
 
-  } else if (protocol == TransportString::UDP) {
+  if (protocol == TransportString::UDP) {
     // UDP;Passive;Host=0.0.0.0;Port=3000
     auto host = transport_string.GetParamStr(TransportString::kParamHost);
 
@@ -128,8 +137,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     return std::make_unique<AsioUdpTransport>(
         executor, std::move(logger), udp_socket_factory_, std::string{host},
         std::to_string(port), active);
+  }
 
-  } else if (protocol == TransportString::SERIAL) {
+  if (protocol == TransportString::SERIAL) {
     // SERIAL;Name=COM2
 
     const std::string_view device =
@@ -142,22 +152,26 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
     SerialTransport::Options options;
 
     try {
-      if (transport_string.HasParam(TransportString::kParamBaudRate))
+      if (transport_string.HasParam(TransportString::kParamBaudRate)) {
         options.baud_rate.emplace(
             transport_string.GetParamInt(TransportString::kParamBaudRate));
-      if (transport_string.HasParam(TransportString::kParamByteSize))
+      }
+      if (transport_string.HasParam(TransportString::kParamByteSize)) {
         options.character_size.emplace(
             transport_string.GetParamInt(TransportString::kParamByteSize));
-      if (transport_string.HasParam(TransportString::kParamParity))
+      }
+      if (transport_string.HasParam(TransportString::kParamParity)) {
         options.parity.emplace(ParseParity(
             transport_string.GetParamStr(TransportString::kParamParity)));
-      if (transport_string.HasParam(TransportString::kParamStopBits))
+      }
+      if (transport_string.HasParam(TransportString::kParamStopBits)) {
         options.stop_bits.emplace(ParseStopBits(
             transport_string.GetParamStr(TransportString::kParamStopBits)));
-      if (transport_string.HasParam(TransportString::kParamFlowControl))
+      }
+      if (transport_string.HasParam(TransportString::kParamFlowControl)) {
         options.flow_control.emplace(ParseFlowControl(
             transport_string.GetParamStr(TransportString::kParamFlowControl)));
-
+      }
     } catch (const std::runtime_error& e) {
       logger->WriteF(LogSeverity::Warning, "Error: %s", e.what());
       return nullptr;
@@ -165,8 +179,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     return std::make_unique<SerialTransport>(executor, std::move(logger),
                                              std::string{device}, options);
+  }
 
-  } else if (protocol == TransportString::PIPE) {
+  if (protocol == TransportString::PIPE) {
 #ifdef OS_WIN
     // Protocol=PIPE;Mode=Active;Name=mypipe
 
@@ -186,8 +201,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
                   "Pipes are supported only under Windows");
     return nullptr;
 #endif
+  }
 
-  } else if (protocol == TransportString::WEB_SOCKET) {
+  if (protocol == TransportString::WEB_SOCKET) {
     // WS;Passive;Host=0.0.0.0;Port=3000
     auto host = transport_string.GetParamStr(TransportString::kParamHost);
 
@@ -199,8 +215,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     return std::make_unique<WebSocketTransport>(io_context_, std::string{host},
                                                 port);
+  }
 
-  } else if (protocol == TransportString::INPROCESS) {
+  if (protocol == TransportString::INPROCESS) {
     if (!inprocess_transport_host_) {
       inprocess_transport_host_ = std::make_unique<InprocessTransportHost>();
     }
@@ -210,10 +227,9 @@ std::unique_ptr<Transport> TransportFactoryImpl::CreateTransport(
 
     return active ? inprocess_transport_host_->CreateClient(name)
                   : inprocess_transport_host_->CreateServer(name);
-
-  } else {
-    return nullptr;
   }
+
+  return nullptr;
 }
 
 }  // namespace net

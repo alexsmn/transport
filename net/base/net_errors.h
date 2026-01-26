@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef NET_BASE_NET_ERRORS_H__
-#define NET_BASE_NET_ERRORS_H__
+#ifndef NET_BASE_NET_ERRORS_H_
+#define NET_BASE_NET_ERRORS_H_
 
 #include <string>
 #include <vector>
@@ -16,6 +16,7 @@ namespace net {
 NET_EXPORT extern const char kErrorDomain[];
 
 // Error values are negative.
+// NOLINTBEGIN(readability-identifier-naming)
 enum Error {
   // No error.
   OK = 0,
@@ -27,6 +28,7 @@ enum Error {
   // The value of the first certificate error code.
   ERR_CERT_BEGIN = ERR_CERT_COMMON_NAME_INVALID,
 };
+// NOLINTEND(readability-identifier-naming)
 
 // Returns a textual representation of the error code for logging purposes.
 NET_EXPORT std::string ErrorToString(int error);
@@ -50,4 +52,4 @@ NET_EXPORT Error MapSystemError(int os_error);
 
 }  // namespace net
 
-#endif  // NET_BASE_NET_ERRORS_H__
+#endif  // NET_BASE_NET_ERRORS_H_

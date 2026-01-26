@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, release/*]
   pull_request:
-    branches: [main]
+    branches: [main, release/*]
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -18,12 +18,15 @@ jobs:
           - os: windows-latest
             preset: windows-x64
             name: Windows x64
+            arch: x64
           - os: windows-latest
             preset: windows-x86
             name: Windows x86
+            arch: x86
           - os: ubuntu-latest
             preset: linux-x64
             name: Linux x64
+            arch: ''
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -37,6 +40,8 @@ jobs:
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
 
       - name: Install Ninja (Windows)
         if: runner.os == 'Windows'
@@ -62,9 +67,9 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
-  clang-tidy:
-    name: Clang-Tidy
-    runs-on: windows-latest
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -72,21 +77,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install Ninja
-        run: choco install ninja -y
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang-tidy cppcheck
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
 
-      - name: Configure with clang-tidy
-        run: cmake --preset windows-x64-clang-tidy
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      - name: Configure
+        run: cmake --preset linux-x64-full-analysis
 
-      - name: Build with clang-tidy
-        run: cmake --build --preset windows-x64-clang-tidy
+      - name: Build
+        run: cmake --build --preset linux-x64-full-analysis
+
+      - name: Test
+        run: ctest --preset linux-x64-full-analysis

@@ -72,6 +72,10 @@ target_link_libraries(net PUBLIC promise.hpp)
 
 add_executable(net_unittests ${SOURCES_UT})
 
+if(WIN32)
+  target_compile_options(net_unittests PRIVATE /bigobj)
+endif()
+
 target_link_libraries(net_unittests PRIVATE
   GTest::gmock_main
   net

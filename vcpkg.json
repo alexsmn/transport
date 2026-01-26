@@ -1,0 +1,14 @@
+{
+  "name": "net",
+  "version-string": "2.5.0",
+  "dependencies": [
+    "boost-algorithm",
+    "boost-asio",
+    "boost-beast",
+    "boost-circular-buffer",
+    "boost-locale",
+    "boost-random",
+    "boost-uuid",
+    "gtest"
+  ]
+}
