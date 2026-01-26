@@ -57,8 +57,8 @@
       "displayName": "Windows x64 with clang-tidy and cppcheck",
       "inherits": "windows-x64",
       "cacheVariables": {
-        "CMAKE_CXX_CLANG_TIDY": "clang-tidy",
-        "CMAKE_CXX_CPPCHECK": "cppcheck;--enable=warning,performance,portability;--inline-suppr",
+        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;--header-filter=^(?!.*[\\\\/]build[\\\\/]).*$",
+        "CMAKE_CXX_CPPCHECK": "cppcheck;--enable=warning,performance,portability;--inline-suppr;-ibuild",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
@@ -67,8 +67,8 @@
       "displayName": "Linux x64 with clang-tidy and cppcheck",
       "inherits": "linux-x64",
       "cacheVariables": {
-        "CMAKE_CXX_CLANG_TIDY": "clang-tidy",
-        "CMAKE_CXX_CPPCHECK": "cppcheck;--enable=warning,performance,portability;--inline-suppr",
+        "CMAKE_CXX_CLANG_TIDY": "clang-tidy;--header-filter=^(?!.*/build/).*$",
+        "CMAKE_CXX_CPPCHECK": "cppcheck;--enable=warning,performance,portability;--inline-suppr;-ibuild",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     }
