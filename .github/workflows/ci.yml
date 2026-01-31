@@ -16,15 +16,12 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            preset: windows-x64
             name: Windows x64
             arch: x64
           - os: windows-latest
-            preset: windows-x86
             name: Windows x86
             arch: x86
           - os: ubuntu-latest
-            preset: linux-x64
             name: Linux x64
             arch: ''
 
@@ -59,13 +56,13 @@ jobs:
           vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
 
       - name: Configure
-        run: cmake --preset ${{ matrix.preset }}
+        run: cmake --preset ninja
 
       - name: Build
-        run: cmake --build --preset ${{ matrix.preset }}
+        run: cmake --build --preset release
 
       - name: Test
-        run: ctest --preset ${{ matrix.preset }}
+        run: ctest --preset release
 
   static-analysis:
     name: Static Analysis
@@ -88,10 +85,7 @@ jobs:
           vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
 
       - name: Configure
-        run: cmake --preset linux-x64-full-analysis
+        run: cmake --preset ninja -DCMAKE_CXX_CLANG_TIDY=clang-tidy -DCMAKE_CXX_CPPCHECK=cppcheck
 
       - name: Build
-        run: cmake --build --preset linux-x64-full-analysis
-
-      - name: Test
-        run: ctest --preset linux-x64-full-analysis
+        run: cmake --build --preset release
