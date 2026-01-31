@@ -123,8 +123,28 @@ External dependency fetched via CMake:
 
 ## Building
 
+### Windows
+
+Run from **Developer Command Prompt for VS 2022**, or set up the environment first:
+
+```batch
+"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+```
+
+Set `VCPKG_ROOT` to your vcpkg installation (e.g., `d:\vcpkg`):
+
+```batch
+set VCPKG_ROOT=d:\vcpkg
+
+cmake --preset ninja
+cmake --build --preset release
+ctest --preset release
+```
+
+### Linux
+
 ```bash
-cmake --preset windows-x64    # or linux-x64
-cmake --build --preset windows-x64
-ctest --preset windows-x64
+cmake --preset ninja
+cmake --build --preset release
+ctest --preset release
 ```

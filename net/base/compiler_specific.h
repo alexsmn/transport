@@ -13,7 +13,8 @@
 #endif
 
 // MSVC SAL annotation for printf format strings
-#ifndef _Printf_format_string_
+// On MSVC, let sal.h provide the real SAL annotation to avoid redefinition
+#if !defined(_Printf_format_string_) && !defined(_MSC_VER)
 #define _Printf_format_string_
 #endif
 
