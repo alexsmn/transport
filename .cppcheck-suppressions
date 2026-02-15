@@ -1,0 +1,29 @@
+// System include paths are not passed to cppcheck.
+missingIncludeSystem
+
+// Some suppressions only match in specific platform/configuration combos.
+unmatchedSuppression
+
+// Single translation unit analysis reports false positives for functions
+// used across translation units.
+unusedFunction
+
+// Conflicts with project's coding style.
+useStlAlgorithm
+
+// Skip all third-party code — we don't own it.
+*:*\third_party\*
+
+// Skip generated protobuf code in build directory.
+*:*\build\*\*.pb.cc
+*:*\build\*\*.pb.h
+preprocessorErrorDirective:*\build\*
+
+// cppcheck branch analysis limit info message.
+normalCheckLevelMaxBranches
+
+// Boost macros not recognized by cppcheck (BOOST_LOG_ATTRIBUTE_KEYWORD, etc.).
+unknownMacro
+
+// opc_client AddressView is a lightweight view passed by value by design.
+passedByValue:*\opc_client\*\address.h
