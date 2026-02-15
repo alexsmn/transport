@@ -6,6 +6,7 @@
 #include <Windows.h>
 #include <boost/locale/encoding_utf.hpp>
 #include <cassert>
+#include <chrono>
 
 using namespace std::chrono_literals;
 

@@ -70,7 +70,7 @@ awaitable<error_code> ActiveTcpTransport::ResolveAndConnect() {
 
   cancelation_state cancelation = cancelation_.get_state();
 
-  auto [error, iterator] = co_await resolver_.async_resolve(
+  auto [error, results] = co_await resolver_.async_resolve(
       host_, service_, boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (cancelation.canceled() || closed_) {
@@ -87,14 +87,15 @@ awaitable<error_code> ActiveTcpTransport::ResolveAndConnect() {
 
   log_.write(LogSeverity::Normal, "DNS resolution completed");
 
-  co_return co_await Connect(std::move(iterator));
+  co_return co_await Connect(std::move(results));
 }
 
-awaitable<error_code> ActiveTcpTransport::Connect(Resolver::iterator iterator) {
+awaitable<error_code> ActiveTcpTransport::Connect(
+    Resolver::results_type results) {
   cancelation_state cancelation = cancelation_.get_state();
 
-  auto [error, connected_iterator] = co_await boost::asio::async_connect(
-      io_object_, iterator, boost::asio::as_tuple(boost::asio::use_awaitable));
+  auto [error, endpoint] = co_await boost::asio::async_connect(
+      io_object_, results, boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (cancelation.canceled() || closed_) {
     co_return ERR_ABORTED;
@@ -108,8 +109,8 @@ awaitable<error_code> ActiveTcpTransport::Connect(Resolver::iterator iterator) {
     co_return error;
   }
 
-  log_.writef(LogSeverity::Normal, "Connected to %s",
-              connected_iterator->host_name().c_str());
+  log_.writef(LogSeverity::Normal, "Connected to %s:%d",
+              endpoint.address().to_string().c_str(), endpoint.port());
 
   connected_ = true;
 
@@ -176,8 +177,8 @@ awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
 
   cancelation_state cancelation = cancelation_.get_state();
 
-  auto [error, iterator] = co_await resolver_.async_resolve(
-      /*query=*/{host_, service_},
+  auto [error, results] = co_await resolver_.async_resolve(
+      host_, service_,
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (cancelation.canceled() || closed_) {
@@ -194,7 +195,7 @@ awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
 
   log_.write(LogSeverity::Normal, "DNS resolution completed");
 
-  if (auto ec = Bind(std::move(iterator)); ec) {
+  if (auto ec = Bind(std::move(results)); ec) {
     log_.write(LogSeverity::Warning, "Bind error");
     ProcessError(ec);
     co_return error;
@@ -208,19 +209,19 @@ awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
 }
 
 boost::system::error_code PassiveTcpTransport::Bind(
-    Resolver::iterator iterator) {
+    Resolver::results_type results) {
   log_.write(LogSeverity::Normal, "Bind");
 
   boost::system::error_code ec = boost::asio::error::fault;
 
-  for (Resolver::iterator end; iterator != end; ++iterator) {
-    acceptor_.open(iterator->endpoint().protocol(), ec);
+  for (const auto& entry : results) {
+    acceptor_.open(entry.endpoint().protocol(), ec);
     if (ec)
       continue;
 
     acceptor_.set_option(Socket::reuse_address{true}, ec);
     // TODO: Log endpoint.
-    acceptor_.bind(iterator->endpoint(), ec);
+    acceptor_.bind(entry.endpoint(), ec);
 
     if (!ec)
       acceptor_.listen(Socket::max_listen_connections, ec);

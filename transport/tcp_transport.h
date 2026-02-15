@@ -43,7 +43,7 @@ class ActiveTcpTransport final
   using Resolver = boost::asio::ip::tcp::resolver;
 
   [[nodiscard]] awaitable<error_code> ResolveAndConnect();
-  [[nodiscard]] awaitable<error_code> Connect(Resolver::iterator iterator);
+  [[nodiscard]] awaitable<error_code> Connect(Resolver::results_type results);
 
   std::string host_;
   std::string service_;
@@ -94,7 +94,7 @@ class PassiveTcpTransport final
   using Resolver = boost::asio::ip::tcp::resolver;
 
   [[nodiscard]] awaitable<error_code> ResolveAndBind();
-  [[nodiscard]] boost::system::error_code Bind(Resolver::iterator iterator);
+  [[nodiscard]] boost::system::error_code Bind(Resolver::results_type results);
 
   void ProcessError(const boost::system::error_code& ec);
 

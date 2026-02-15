@@ -56,8 +56,8 @@ inline void UdpSocketImpl::Shutdown() {
 inline awaitable<error_code> UdpSocketImpl::Open() {
   auto ref = shared_from_this();
 
-  auto [error, iterator] = co_await resolver_.async_resolve(
-      /*query=*/{host_, service_},
+  auto [error, results] = co_await resolver_.async_resolve(
+      host_, service_,
       boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (closed_) {
@@ -72,18 +72,21 @@ inline awaitable<error_code> UdpSocketImpl::Open() {
   }
 
   boost::system::error_code ec = boost::asio::error::fault;
-  for (Resolver::iterator end; iterator != end; ++iterator) {
-    socket_.open(iterator->endpoint().protocol(), ec);
+  Resolver::results_type::iterator last_endpoint = results.end();
+  for (auto it = results.begin(); it != results.end(); ++it) {
+    socket_.open(it->endpoint().protocol(), ec);
     if (ec) {
       continue;
     }
+
+    last_endpoint = it;
 
     if (active_) {
       break;
     }
 
     socket_.set_option(Socket::reuse_address{true}, ec);
-    socket_.bind(iterator->endpoint(), ec);
+    socket_.bind(it->endpoint(), ec);
     if (!ec) {
       break;
     }
@@ -97,7 +100,7 @@ inline awaitable<error_code> UdpSocketImpl::Open() {
   }
 
   connected_ = true;
-  open_handler_(iterator->endpoint());
+  open_handler_(last_endpoint->endpoint());
 
   if (!active_) {
     boost::asio::co_spawn(socket_.get_executor(), StartReading(),

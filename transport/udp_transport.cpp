@@ -4,7 +4,7 @@
 #include "transport/log.h"
 #include "transport/udp_socket_impl.h"
 
-#include <boost/asio/experimental/as_tuple.hpp>
+#include <boost/asio/as_tuple.hpp>
 #include <boost/asio/experimental/channel.hpp>
 #include <map>
 #include <ranges>
@@ -380,7 +380,7 @@ PassiveUdpTransport::UdpPassiveCore::accept() {
   auto ref = shared_from_this();
 
   auto [ec, accepted_core] = co_await accept_channel_.async_receive(
-      boost::asio::experimental::as_tuple(boost::asio::use_awaitable));
+      boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (ec) {
     co_return ec;
@@ -561,7 +561,7 @@ AcceptedUdpTransport::UdpAcceptedCore::accept() {
 awaitable<expected<size_t>> AcceptedUdpTransport::UdpAcceptedCore::read(
     std::span<char> data) {
   auto [ec, message] = co_await received_message_channel_.async_receive(
-      boost::asio::experimental::as_tuple(boost::asio::use_awaitable));
+      boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (ec) {
     co_return ec;
