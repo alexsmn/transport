@@ -196,8 +196,8 @@ void Session::Send(const void* data, size_t len, int priority) {
 }
 
 void Session::OnClosed(error_code error) {
-  log_.writef(LogSeverity::Warning, "Session fatal error %s",
-              ErrorToString(error).c_str());
+  log_.write(LogSeverity::Warning, "Session fatal error {}",
+              ErrorToString(error));
 
   Cleanup();
 
@@ -214,8 +214,8 @@ void Session::OnSessionRestored() {
 }
 
 void Session::OnTransportError(error_code error) {
-  log_.writef(LogSeverity::Warning, "Session transport error - %s",
-              ErrorToString(error).c_str());
+  log_.write(LogSeverity::Warning, "Session transport error - {}",
+              ErrorToString(error));
 
   cancelation_ = nullptr;
 
@@ -256,8 +256,8 @@ std::string Session::name() const {
 awaitable<error_code> Session::Connect() {
   assert(!cancelation_);
 
-  log_.writef(LogSeverity::Normal, "Connecting to %s",
-              transport_.name().c_str());
+  log_.write(LogSeverity::Normal, "Connecting to {}",
+              transport_.name());
 
   connect_start_ticks_ = Clock::now();
   connecting_ = true;
@@ -378,8 +378,8 @@ void Session::ProcessSessionMessage(uint16_t id,
 void Session::OnTransportOpened() {
   assert(connecting_);
 
-  log_.writef(LogSeverity::Normal, "Transport opened. Name is %s",
-              transport_.name().c_str());
+  log_.write(LogSeverity::Normal, "Transport opened. Name is {}",
+              transport_.name());
 
   connecting_ = false;
 
@@ -436,8 +436,8 @@ void Session::OnCreateResponse(const SessionID& session_id,
 }
 
 void Session::OnTransportClosed(error_code error) {
-  log_.writef(LogSeverity::Warning, "Transport closed with error %s",
-              ErrorToString(error).c_str());
+  log_.write(LogSeverity::Warning, "Transport closed with error {}",
+              ErrorToString(error));
 
   OnTransportError(error);
 }
@@ -489,8 +489,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       error_code error = boost::system::errc::make_error_code(
           static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
-      log_.writef(LogSeverity::Normal, "Create session response - %s",
-                  ErrorToString(error).c_str());
+      log_.write(LogSeverity::Normal, "Create session response - {}",
+                  ErrorToString(error));
 
       // Check login is failed and throw session failure.
       if (error != OK) {
@@ -511,8 +511,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
       error_code error = boost::system::errc::make_error_code(
           static_cast<boost::system::errc::errc_t>(msg.ReadLong()));
 
-      log_.writef(LogSeverity::Normal, "Restore session response - %s",
-                  ErrorToString(error).c_str());
+      log_.write(LogSeverity::Normal, "Restore session response - {}",
+                  ErrorToString(error));
 
       if (error != OK) {
         OnClosed(error);
@@ -548,8 +548,8 @@ void Session::OnMessageReceived(const void* data, size_t size) {
     }
 
     default:
-      log_.writef(LogSeverity::Error, "Unknown session message %d",
-                  static_cast<int>(fun));
+      log_.write(LogSeverity::Error, "Unknown session message {}",
+                  fun);
       OnClosed(ERR_FAILED);
       break;
   }
@@ -636,8 +636,8 @@ void Session::OnAccepted(any_transport transport) {
 }
 
 void Session::OnCreate(const CreateSessionInfo& create_info) {
-  log_.writef(LogSeverity::Normal, "Create Session request name=%s force=%d",
-              create_info.name.c_str(), create_info.force ? 1 : 0);
+  log_.write(LogSeverity::Normal, "Create Session request name={} force={}",
+              create_info.name, create_info.force ? 1 : 0);
 
   // process request
   SessionID session_id;

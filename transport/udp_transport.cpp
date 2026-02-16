@@ -352,7 +352,7 @@ void PassiveUdpTransport::UdpPassiveCore::shutdown() {
 }
 
 awaitable<error_code> PassiveUdpTransport::UdpPassiveCore::open() {
-  log_.writef(LogSeverity::Normal, "Open");
+  log_.write(LogSeverity::Normal, "Open");
 
   socket_ = udp_socket_factory_(MakeUdpSocketImplContext());
 
@@ -410,11 +410,11 @@ awaitable<expected<size_t>> PassiveUdpTransport::UdpPassiveCore::InternalWrite(
 void PassiveUdpTransport::UdpPassiveCore::RemoveAcceptedTransport(
     const UdpSocket::Endpoint& endpoint) {
   boost::asio::dispatch(executor_, [this, endpoint, ref = shared_from_this()] {
-    log_.writef(
+    log_.write(
         LogSeverity::Normal,
-        "Remove transport from endpoint %s. There are %d accepted transports",
-        ToString(endpoint).c_str(),
-        static_cast<int>(accepted_transports_.size()));
+        "Remove transport from endpoint {}. There are {} accepted transports",
+        ToString(endpoint),
+        accepted_transports_.size());
 
     assert(accepted_transports_.contains(endpoint));
 
@@ -431,11 +431,11 @@ void PassiveUdpTransport::UdpPassiveCore::OnSocketMessage(
       i != accepted_transports_.end()) {
     accepted_core = i->second;
   } else {
-    log_.writef(LogSeverity::Normal,
-                "Accept new transport from endpoint %s. There are %d accepted "
+    log_.write(LogSeverity::Normal,
+                "Accept new transport from endpoint {}. There are {} accepted "
                 "transports",
-                ToString(endpoint).c_str(),
-                static_cast<int>(accepted_transports_.size()));
+                ToString(endpoint),
+                accepted_transports_.size());
 
     accepted_core = std::make_shared<AcceptedUdpTransport::UdpAcceptedCore>(
         executor_, log_, shared_from_this(), endpoint);
@@ -460,9 +460,9 @@ void PassiveUdpTransport::UdpPassiveCore::OnSocketMessage(
 
 void PassiveUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(
     error_code error) {
-  log_.writef(LogSeverity::Normal, "Close %d accepted transports - %s",
-              static_cast<int>(accepted_transports_.size()),
-              ErrorToString(error).c_str());
+  log_.write(LogSeverity::Normal, "Close {} accepted transports - {}",
+              accepted_transports_.size(),
+              ErrorToString(error));
 
   std::vector<std::shared_ptr<AcceptedUdpTransport::UdpAcceptedCore>>
       accepted_cores;
@@ -479,15 +479,15 @@ void PassiveUdpTransport::UdpPassiveCore::CloseAllAcceptedTransports(
 
 void PassiveUdpTransport::UdpPassiveCore::OnSocketOpened(
     const UdpSocket::Endpoint& endpoint) {
-  log_.writef(LogSeverity::Normal, "Opened with endpoint %s",
-              ToString(endpoint).c_str());
+  log_.write(LogSeverity::Normal, "Opened with endpoint {}",
+              ToString(endpoint));
 
   connected_ = true;
 }
 
 void PassiveUdpTransport::UdpPassiveCore::OnSocketClosed(
     const UdpSocket::error_code& error) {
-  log_.writef(LogSeverity::Normal, "Closed - %s", error.message().c_str());
+  log_.write(LogSeverity::Normal, "Closed - {}", error.message());
 
   connected_ = false;
   CloseAllAcceptedTransports(error);

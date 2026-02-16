@@ -66,7 +66,7 @@ inline awaitable<error_code> AsioTransport<IoObject>::close() {
     co_return ERR_CONNECTION_CLOSED;
   }
 
-  log_.writef(LogSeverity::Normal, "Close");
+  log_.write(LogSeverity::Normal, "Close");
   closed_ = true;
   Cleanup();
 
@@ -123,10 +123,10 @@ inline void AsioTransport<IoObject>::ProcessError(error_code error) {
   assert(!closed_);
 
   if (error != OK) {
-    log_.writef(LogSeverity::Warning, "error_code: %s",
-                ErrorToShortString(error).c_str());
+    log_.write(LogSeverity::Warning, "error_code: {}",
+                ErrorToShortString(error));
   } else {
-    log_.writef(LogSeverity::Normal, "Graceful close");
+    log_.write(LogSeverity::Normal, "Graceful close");
   }
 
   closed_ = true;

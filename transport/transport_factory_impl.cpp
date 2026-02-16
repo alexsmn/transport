@@ -89,8 +89,8 @@ expected<any_transport> TransportFactoryImpl::CreateTransport(
     const TransportString& transport_string,
     const executor& executor,
     const log_source& log) {
-  log.writef(LogSeverity::Normal, "Create transport: %s",
-             transport_string.ToString().c_str());
+  log.write(LogSeverity::Normal, "Create transport: {}",
+             transport_string.ToString());
 
   auto protocol = transport_string.GetProtocol();
   bool active = transport_string.active();
@@ -161,7 +161,7 @@ expected<any_transport> TransportFactoryImpl::CreateTransport(
             transport_string.GetParamStr(TransportString::kParamFlowControl)));
 
     } catch (const std::runtime_error& e) {
-      log.writef(LogSeverity::Warning, "error_code: %s", e.what());
+      log.write(LogSeverity::Warning, "error_code: {}", e.what());
       return ERR_INVALID_ARGUMENT;
     }
 

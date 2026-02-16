@@ -59,14 +59,14 @@ awaitable<error_code> ActiveTcpTransport::open() {
     co_return OK;
   }
 
-  log_.writef(LogSeverity::Normal, "Open");
+  log_.write(LogSeverity::Normal, "Open");
 
   co_return co_await ResolveAndConnect();
 }
 
 awaitable<error_code> ActiveTcpTransport::ResolveAndConnect() {
-  log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
-              host_.c_str(), service_.c_str());
+  log_.write(LogSeverity::Normal, "Start DNS resolution to {}:{}",
+              host_, service_);
 
   cancelation_state cancelation = cancelation_.get_state();
 
@@ -109,8 +109,8 @@ awaitable<error_code> ActiveTcpTransport::Connect(
     co_return error;
   }
 
-  log_.writef(LogSeverity::Normal, "Connected to %s:%d",
-              endpoint.address().to_string().c_str(), endpoint.port());
+  log_.write(LogSeverity::Normal, "Connected to {}:{}",
+              endpoint.address().to_string(), endpoint.port());
 
   connected_ = true;
 
@@ -166,14 +166,14 @@ int PassiveTcpTransport::GetLocalPort() const {
 }
 
 awaitable<error_code> PassiveTcpTransport::open() {
-  log_.writef(LogSeverity::Normal, "Open");
+  log_.write(LogSeverity::Normal, "Open");
 
   return ResolveAndBind();
 }
 
 awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
-  log_.writef(LogSeverity::Normal, "Start DNS resolution to %s:%s",
-              host_.c_str(), service_.c_str());
+  log_.write(LogSeverity::Normal, "Start DNS resolution to {}:{}",
+              host_, service_);
 
   cancelation_state cancelation = cancelation_.get_state();
 
@@ -292,10 +292,10 @@ void PassiveTcpTransport::ProcessError(const boost::system::error_code& ec) {
   }
 
   if (ec != OK) {
-    log_.writef(LogSeverity::Warning, "error_code: %s",
-                ErrorToShortString(ec).c_str());
+    log_.write(LogSeverity::Warning, "error_code: {}",
+                ErrorToShortString(ec));
   } else {
-    log_.writef(LogSeverity::Normal, "Graceful close");
+    log_.write(LogSeverity::Normal, "Graceful close");
   }
 
   connected_ = false;
