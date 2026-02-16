@@ -14,9 +14,6 @@ class MessageReceiver {
   MessageReceiver(any_transport& transport, size_t max_message_size)
       : transport_{transport}, max_message_size_{max_message_size} {}
 
-  MessageReceiver(Transport& transport, size_t max_message_size)
-      : transport_{transport}, max_message_size_{max_message_size} {}
-
   MessageReceiver(const MessageReceiver&) = delete;
   MessageReceiver& operator=(const MessageReceiver&) = delete;
 
