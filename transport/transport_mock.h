@@ -3,6 +3,7 @@
 #include "transport/test/coroutine_util.h"
 #include "transport/transport.h"
 
+#include <boost/asio/system_executor.hpp>
 #include <gmock/gmock.h>
 
 namespace transport {

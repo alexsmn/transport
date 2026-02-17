@@ -2,6 +2,8 @@
 
 #include "transport/transport.h"
 
+#include <boost/asio/system_executor.hpp>
+
 namespace transport {
 
 class DummyTransport : public Transport {

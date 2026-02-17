@@ -5,6 +5,7 @@
 #include "transport/test/coroutine_util.h"
 #include "transport/udp_socket.h"
 
+#include <boost/asio/system_executor.hpp>
 #include <gmock/gmock.h>
 #include <optional>
 
