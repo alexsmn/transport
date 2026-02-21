@@ -12,7 +12,6 @@ This library is built as part of the parent SCADA project. From the parent direc
 
 ```batch
 # Windows
-generate.bat          # Configure CMake
 build.bat             # Build
 ```
 
