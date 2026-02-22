@@ -41,7 +41,13 @@ DeferredTransport::DeferredTransport(any_transport underlying_transport)
 DeferredTransport ::~DeferredTransport() {
   // Destroy the core under the executor.
   auto executor = core_->executor_;
-  boost::asio::dispatch(std::move(executor), [core = std::move(core_)] {});
+  boost::asio::dispatch(std::move(executor), [core = std::move(core_)] {
+    // Notify the close handler before the core is destroyed.
+    auto close_handler = std::exchange(core->additional_close_handler_, nullptr);
+    if (close_handler) {
+      close_handler(ERR_ABORTED);
+    }
+  });
   assert(!core_);
 }
 
@@ -80,8 +86,8 @@ awaitable<error_code> DeferredTransport::Core::Open() {
 
 void DeferredTransport::Core::OnClosed(error_code error) {
   // WARNING: The object may be deleted from the handler.
-  if (additional_close_handler_) {
-    additional_close_handler_(error);
+  if (auto handler = std::exchange(additional_close_handler_, nullptr)) {
+    handler(error);
   }
 }
 
