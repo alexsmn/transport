@@ -9,7 +9,7 @@
 #include "transport/udp_transport.h"
 #include "transport/websocket_transport.h"
 
-#if defined(OS_WIN)
+#if defined(_WIN32)
 #include "transport/pipe_transport.h"
 #endif
 
@@ -17,7 +17,7 @@
 #include <boost/locale/encoding_utf.hpp>
 #include <thread>
 
-#if defined(OS_WIN)
+#if defined(_WIN32)
 #include <Windows.h>
 #endif
 
@@ -169,19 +169,19 @@ expected<any_transport> TransportFactoryImpl::CreateTransport(
         executor, std::move(log), std::string{device}, options)};
 
   } else if (protocol == TransportString::PIPE) {
-#ifdef OS_WIN
+#ifdef _WIN32
     // Protocol=PIPE;Mode=Active;Name=mypipe
 
     const auto& name = boost::locale::conv::utf_to_utf<wchar_t>(
         std::string{transport_string.GetParamStr(TransportString::kParamName)});
     if (name.empty()) {
       log.write(LogSeverity::Warning, "Pipe name is not specified");
-      return nullptr;
+      return ERR_INVALID_ARGUMENT;
     }
 
     auto transport = std::make_unique<PipeTransport>(executor);
     transport->Init(LR"(\\.\pipe\)" + name, !active);
-    return transport;
+    return any_transport{std::move(transport)};
 
 #else
     log.write(LogSeverity::Warning, "Pipes are supported only under Windows");
