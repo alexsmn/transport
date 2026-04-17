@@ -13,21 +13,29 @@ class any_transport;
 
 class WriteQueue {
  public:
-  explicit WriteQueue(any_transport& transport) : transport_{transport} {}
+  explicit WriteQueue(any_transport& transport);
 
   void BlindWrite(std::span<const char> data);
 
   awaitable<expected<size_t>> Write(std::span<const char> data);
 
  private:
-  any_transport& transport_;
-
   using Channel =
       boost::asio::experimental::channel<void(boost::system::error_code)>;
 
-  std::shared_ptr<Channel> last_write_;
+  struct State {
+    explicit State(any_transport& transport) : transport{&transport} {}
 
-  std::shared_ptr<bool> cancelation_ = std::make_shared<bool>();
+    any_transport* transport;
+    std::shared_ptr<Channel> last_write;
+    std::shared_ptr<bool> cancelation = std::make_shared<bool>();
+  };
+
+  static awaitable<expected<size_t>> Write(
+      const std::shared_ptr<State>& state,
+      std::span<const char> data);
+
+  std::shared_ptr<State> state_;
 };
 
 }  // namespace transport
