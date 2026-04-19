@@ -53,10 +53,3 @@ arithOperationsOnVoidPointer:*\win_util2.cpp
 // cppcheck cannot parse GoogleTest TYPED_TEST_P macros.
 syntaxError:*\authenticator_unittest.h
 
-// cppcheck 2.14 does not recognise `co_return` as a return statement, so
-// a coroutine whose only exit is `co_return` is flagged as `missingReturn`.
-// Add per-file entries here rather than globally suppressing `missingReturn`,
-// which would hide the check for ordinary (non-coroutine) functions.
-missingReturn:*\file_manager_impl.cpp
-missingReturn:*\filesystem_commands.cpp
-missingReturn:*\event_view.cpp
