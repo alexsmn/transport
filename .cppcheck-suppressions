@@ -58,3 +58,5 @@ syntaxError:*\authenticator_unittest.h
 // Add per-file entries here rather than globally suppressing `missingReturn`,
 // which would hide the check for ordinary (non-coroutine) functions.
 missingReturn:*\file_manager_impl.cpp
+missingReturn:*\filesystem_commands.cpp
+missingReturn:*\event_view.cpp
