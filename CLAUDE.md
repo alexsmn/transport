@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an asynchronous transport library built on Boost.Asio, providing a unified abstraction over TCP, UDP, WebSocket, serial port, and named pipe transports. The library uses C++20 features and promise-based asynchronous operations.
+This is an asynchronous transport library built on Boost.Asio, providing a unified abstraction over TCP, UDP, WebSocket, serial port, named pipe, and in-process transports, plus shared Beast-based websocket connection adapters used by higher-level modules. The library uses C++20 features and promise-based asynchronous operations.
 
 ## Build Commands
 
@@ -41,7 +41,8 @@ ctest --build-config RelWithDebInfo --tests-regex net_unittests
 ### Transport String Format
 
 Semicolon-delimited parameters with optional `=value`:
-- **Protocols**: `TCP`, `UDP`, `SERIAL`, `PIPE`, `WS` (WebSocket), `INPROCESS`
+- **Protocols**: `TCP`, `UDP`, `SERIAL`, `PIPE`, `WS`, `INPROCESS`
+- `WS` transport strings are implemented via `WebSocketTransport`, which uses Beast websocket sessions directly for both client/server transport strings and accepted websocket connections handed in by higher-level modules.
 - **Direction**: `Active` (client) or `Passive` (server)
 - **Common params**: `Host`, `Port`, `Name`
 - **Serial params**: `BaudRate`, `ByteSize`, `Parity`, `StopBits`, `FlowControl`
@@ -58,7 +59,7 @@ The library uses `promise_hpp` for async operations:
 - **AsioTransport** (`asio_transport.h`) - Template base for Asio-based transports with shared read/write buffer management
 - **AsioTcpTransport** - TCP client/server
 - **UdpTransport** - UDP sockets
-- **WebSocketTransport** - WebSocket protocol
+- **WebSocketTransport** (`websocket_transport.h`) - Beast-based websocket transport used both for generic `WS;...` transport strings and for already-accepted websocket sessions from higher-level servers
 - **SerialTransport** - Serial ports
 - **PipeTransport** - Named pipes (Windows only)
 - **InprocessTransport** - In-memory transport for testing

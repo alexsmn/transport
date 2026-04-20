@@ -12,6 +12,7 @@
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/asio/system_executor.hpp>
 #include <gmock/gmock.h>
 #include <thread>
 
@@ -57,7 +58,9 @@ INSTANTIATE_TEST_SUITE_P(
     // TODO: Enable multi-threaded UDP tests.
     testing::Values(TestParams{.transport_string = "TCP;Port=4321"},
                     TestParams{.transport_string = "TCP;Port=4322"},
-                    TestParams{.transport_string = "UDP;Port=4323"}));
+                    TestParams{.transport_string = "UDP;Port=4323"},
+                    TestParams{.transport_string = "WS;Host=127.0.0.1;Port=4324",
+                               .thread_count = 4}));
 
 namespace {
 

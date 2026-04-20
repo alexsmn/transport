@@ -189,17 +189,16 @@ expected<any_transport> TransportFactoryImpl::CreateTransport(
 #endif
 
   } else if (protocol == TransportString::WEB_SOCKET) {
-    // WS;Passive;Host=0.0.0.0;Port=3000
     auto host = transport_string.GetParamStr(TransportString::kParamHost);
 
     int port = transport_string.GetParamInt(TransportString::kParamPort);
     if (port <= 0) {
-      log.write(LogSeverity::Warning, "UDP port is not specified");
+      log.write(LogSeverity::Warning, "WebSocket port is not specified");
       return ERR_INVALID_ARGUMENT;
     }
 
     return any_transport{std::make_unique<WebSocketTransport>(
-        executor, std::string{host}, port)};
+        executor, log, std::string{host}, std::to_string(port), active)};
 
   } else if (protocol == TransportString::INPROCESS) {
     if (!inprocess_transport_host_) {

@@ -56,7 +56,9 @@ endif()
 target_include_directories(transport PUBLIC "..")
 
 find_package(Boost REQUIRED)
+find_package(OpenSSL REQUIRED)
 target_link_libraries(transport PUBLIC Boost::boost)
+target_link_libraries(transport PRIVATE OpenSSL::SSL)
 
 # UTs
 
