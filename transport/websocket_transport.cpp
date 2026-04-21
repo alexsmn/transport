@@ -1,8 +1,10 @@
 #include "transport/websocket_transport.h"
 
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/ssl/context_base.hpp>
 #include <limits>
 
 namespace transport {
@@ -10,17 +12,54 @@ namespace {
 
 namespace websocket = boost::beast::websocket;
 
+error_code ConfigureServerTlsContext(
+    boost::asio::ssl::context& context,
+    const WebSocketServerTlsConfig& config) {
+  boost::system::error_code ec;
+
+  context.set_options(boost::asio::ssl::context::default_workarounds |
+                          boost::asio::ssl::context::no_sslv2 |
+                          boost::asio::ssl::context::no_sslv3 |
+                          boost::asio::ssl::context::single_dh_use,
+                      ec);
+  if (ec)
+    return ec;
+
+  if (!config.private_key_passphrase.empty()) {
+    context.set_password_callback(
+        [password = config.private_key_passphrase](
+            std::size_t,
+            boost::asio::ssl::context_base::password_purpose) {
+          return password;
+        });
+  }
+
+  context.use_certificate_chain(
+      boost::asio::buffer(config.certificate_chain_pem), ec);
+  if (ec)
+    return ec;
+
+  context.use_private_key(boost::asio::buffer(config.private_key_pem),
+                          boost::asio::ssl::context::file_format::pem, ec);
+  if (ec)
+    return ec;
+
+  return OK;
+}
+
 }  // namespace
 
 WebSocketTransport::WebSocketTransport(const executor& executor,
                                        const log_source& log,
                                        std::string host,
                                        std::string service,
-                                       bool active)
+                                       bool active,
+                                       WebSocketServerOptions server_options)
     : executor_{executor},
       log_{log},
       host_{std::move(host)},
       service_{std::move(service)},
+      server_options_{std::move(server_options)},
       mode_{active ? Mode::ACTIVE : Mode::PASSIVE},
       resolver_{executor},
       acceptor_{executor},
@@ -68,6 +107,14 @@ awaitable<error_code> WebSocketTransport::OpenActive() {
 }
 
 awaitable<error_code> WebSocketTransport::OpenPassive() {
+  if (server_options_.tls.has_value()) {
+    ssl_context_.emplace(boost::asio::ssl::context::tls_server);
+    const auto tls_error =
+        ConfigureServerTlsContext(*ssl_context_, *server_options_.tls);
+    if (tls_error != OK)
+      co_return tls_error;
+  }
+
   auto [resolve_error, results] = co_await resolver_.async_resolve(
       host_, service_,
       boost::asio::ip::tcp::resolver::passive,
@@ -124,18 +171,28 @@ awaitable<void> WebSocketTransport::AcceptLoop() {
       co_return;
     }
 
-    websocket::stream<boost::asio::ip::tcp::socket> websocket{
-        std::move(socket)};
-    auto [handshake_error] = co_await websocket.async_accept(
-        boost::asio::as_tuple(boost::asio::use_awaitable));
-    if (handshake_error) {
-      continue;
+    std::optional<any_transport> accepted;
+    if (ssl_context_.has_value()) {
+      boost::asio::ssl::stream<boost::asio::ip::tcp::socket> tls_stream{
+          std::move(socket), *ssl_context_};
+      auto [tls_error] = co_await tls_stream.async_handshake(
+          boost::asio::ssl::stream_base::server,
+          boost::asio::as_tuple(boost::asio::use_awaitable));
+      if (tls_error)
+        continue;
+
+      accepted = co_await AcceptUpgradedStream(
+          websocket::stream<
+              boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>{
+              std::move(tls_stream)});
+    } else {
+      accepted = co_await AcceptUpgradedStream(
+          websocket::stream<boost::asio::ip::tcp::socket>{std::move(socket)});
     }
+    if (!accepted.has_value())
+      continue;
 
-    any_transport accepted{
-        std::make_unique<WebSocketTransport>(std::move(websocket))};
-
-    accepted_.push(std::move(accepted));
+    accepted_.push(std::move(*accepted));
     if (!accept_channel_.try_send(boost::system::error_code{})) {
       log_.write(LogSeverity::Warning, "WebSocket accept queue is full");
       accepted_.pop();
