@@ -26,23 +26,6 @@ namespace {
 namespace http = boost::beast::http;
 namespace websocket = boost::beast::websocket;
 
-bool HeaderContainsToken(std::string_view header, std::string_view token) {
-  while (!header.empty()) {
-    const auto comma = header.find(',');
-    auto part = comma == std::string_view::npos ? header : header.substr(0, comma);
-    while (!part.empty() && std::isspace(static_cast<unsigned char>(part.front())))
-      part.remove_prefix(1);
-    while (!part.empty() && std::isspace(static_cast<unsigned char>(part.back())))
-      part.remove_suffix(1);
-    if (part == token)
-      return true;
-    if (comma == std::string_view::npos)
-      break;
-    header.remove_prefix(comma + 1);
-  }
-  return false;
-}
-
 constexpr auto kTestCertificatePem = R"(-----BEGIN CERTIFICATE-----
 MIIDCTCCAfGgAwIBAgIUQWAR+40WE34MoTuKigrGeiGT5ycwDQYJKoZIhvcNAQEL
 BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDQyMDE4NTczMloXDTM2MDQx
@@ -291,6 +274,29 @@ TEST(WebSocketTransportTest, AcceptedTransportIsMessageOrientedAndPassive) {
     EXPECT_FALSE(accepted.active());
     EXPECT_TRUE(accepted.message_oriented());
     EXPECT_TRUE(accepted.connected());
+
+    NET_EXPECT_OK(co_await server.close());
+  }, boost::asio::use_future);
+
+  io_context.run();
+  future.get();
+}
+
+TEST(WebSocketTransportTest, PassiveServerExposesBoundLocalEndpoint) {
+  boost::asio::io_context io_context;
+  const auto port = std::string{"0"};
+  auto log = MakeTestLog();
+
+  auto future = boost::asio::co_spawn(io_context, [&]() -> awaitable<void> {
+    WebSocketTransport server{
+        io_context.get_executor(), log.with_channel("Server"), "127.0.0.1",
+        port, /*active=*/false};
+
+    NET_EXPECT_OK(co_await server.open());
+
+    const auto endpoint = server.local_endpoint();
+    EXPECT_EQ(endpoint.address(), boost::asio::ip::make_address("127.0.0.1"));
+    EXPECT_NE(endpoint.port(), 0);
 
     NET_EXPECT_OK(co_await server.close());
   }, boost::asio::use_future);

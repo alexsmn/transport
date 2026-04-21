@@ -66,6 +66,8 @@ struct WebSocketServerOptions {
       handshake_callback;
   bool enable_permessage_deflate = false;
   std::vector<std::pair<std::string, std::string>> response_headers;
+  std::function<void(boost::beast::websocket::response_type&)>
+      response_callback;
 };
 
 class WebSocketTransport final : public Transport {
@@ -93,6 +95,7 @@ class WebSocketTransport final : public Transport {
   [[nodiscard]] awaitable<expected<size_t>> read(std::span<char> data) override;
   [[nodiscard]] awaitable<expected<size_t>> write(
       std::span<const char> data) override;
+  [[nodiscard]] boost::asio::ip::tcp::endpoint local_endpoint() const;
 
   [[nodiscard]] std::string name() const override;
   [[nodiscard]] bool message_oriented() const override { return true; }
@@ -339,11 +342,18 @@ awaitable<std::optional<any_transport>> WebSocketTransport::AcceptUpgradedStream
   }
   if (!server_options_.response_headers.empty()) {
     websocket.set_option(websocket_ns::stream_base::decorator(
-        [headers = server_options_.response_headers](
+        [headers = server_options_.response_headers,
+         callback = server_options_.response_callback](
             websocket_ns::response_type& response) {
           for (const auto& [name, value] : headers)
             response.set(name, value);
+          if (callback)
+            callback(response);
         }));
+  } else if (server_options_.response_callback) {
+    websocket.set_option(websocket_ns::stream_base::decorator(
+        [callback = server_options_.response_callback](
+            websocket_ns::response_type& response) { callback(response); }));
   }
 
   auto [accept_ec] = co_await websocket.async_accept(

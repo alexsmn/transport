@@ -313,6 +313,11 @@ awaitable<expected<size_t>> WebSocketTransport::write(std::span<const char> data
   co_return co_await core_->write(data);
 }
 
+boost::asio::ip::tcp::endpoint WebSocketTransport::local_endpoint() const {
+  boost::system::error_code ec;
+  return acceptor_.local_endpoint(ec);
+}
+
 std::string WebSocketTransport::name() const {
   switch (mode_) {
     case Mode::ACTIVE:
