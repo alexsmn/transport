@@ -6,6 +6,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 #include <limits>
+#include <openssl/ssl.h>
 
 namespace transport {
 namespace {
@@ -47,6 +48,34 @@ error_code ConfigureServerTlsContext(
   return OK;
 }
 
+error_code ConfigureClientTlsContext(
+    boost::asio::ssl::context& context,
+    const WebSocketClientTlsConfig& config) {
+  boost::system::error_code ec;
+
+  context.set_options(boost::asio::ssl::context::default_workarounds |
+                          boost::asio::ssl::context::no_sslv2 |
+                          boost::asio::ssl::context::no_sslv3,
+                      ec);
+  if (ec)
+    return ec;
+
+  context.set_verify_mode(config.verify_peer ? boost::asio::ssl::verify_peer
+                                             : boost::asio::ssl::verify_none,
+                          ec);
+  if (ec)
+    return ec;
+
+  if (!config.ca_certificate_pem.empty()) {
+    context.add_certificate_authority(
+        boost::asio::buffer(config.ca_certificate_pem), ec);
+    if (ec)
+      return ec;
+  }
+
+  return OK;
+}
+
 }  // namespace
 
 WebSocketTransport::WebSocketTransport(const executor& executor,
@@ -54,12 +83,14 @@ WebSocketTransport::WebSocketTransport(const executor& executor,
                                        std::string host,
                                        std::string service,
                                        bool active,
-                                       WebSocketServerOptions server_options)
+                                       WebSocketServerOptions server_options,
+                                       WebSocketClientOptions client_options)
     : executor_{executor},
       log_{log},
       host_{std::move(host)},
       service_{std::move(service)},
       server_options_{std::move(server_options)},
+      client_options_{std::move(client_options)},
       mode_{active ? Mode::ACTIVE : Mode::PASSIVE},
       resolver_{executor},
       acceptor_{executor},
@@ -82,28 +113,49 @@ awaitable<error_code> WebSocketTransport::OpenActive() {
     co_return resolve_error;
   }
 
+  std::string handshake_host = host_ + ":" + service_;
+  if (client_options_.tls.has_value()) {
+    ssl_context_.emplace(boost::asio::ssl::context::tls_client);
+    const auto tls_error =
+        ConfigureClientTlsContext(*ssl_context_, *client_options_.tls);
+    if (tls_error != OK)
+      co_return tls_error;
+
+    websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>
+        websocket{executor_, *ssl_context_};
+    auto [connect_error, endpoint] = co_await boost::asio::async_connect(
+        websocket.next_layer().next_layer(), results,
+        boost::asio::as_tuple(boost::asio::use_awaitable));
+    if (connect_error)
+      co_return connect_error;
+
+    const auto& server_name = client_options_.tls->server_name.empty()
+                                  ? host_
+                                  : client_options_.tls->server_name;
+    if (!SSL_set_tlsext_host_name(websocket.next_layer().native_handle(),
+                                  server_name.c_str())) {
+      co_return ERR_FAILED;
+    }
+
+    auto [client_handshake_error] = co_await websocket.next_layer().async_handshake(
+        boost::asio::ssl::stream_base::client,
+        boost::asio::as_tuple(boost::asio::use_awaitable));
+    if (client_handshake_error)
+      co_return client_handshake_error;
+
+    handshake_host = endpoint.address().to_string() + ":" + std::to_string(endpoint.port());
+    co_return co_await OpenConnectedClient(std::move(websocket), handshake_host);
+  }
+
   websocket::stream<boost::asio::ip::tcp::socket> websocket{executor_};
   auto [connect_error, endpoint] = co_await boost::asio::async_connect(
       websocket.next_layer(), results,
       boost::asio::as_tuple(boost::asio::use_awaitable));
-  if (connect_error) {
+  if (connect_error)
     co_return connect_error;
-  }
 
-  auto [handshake_error] = co_await websocket.async_handshake(
-      endpoint.address().to_string() + ":" + std::to_string(endpoint.port()),
-      "/",
-      boost::asio::as_tuple(boost::asio::use_awaitable));
-  if (handshake_error) {
-    co_return handshake_error;
-  }
-
-  core_ = std::make_unique<
-      CoreImpl<websocket::stream<boost::asio::ip::tcp::socket>>>(
-      std::move(websocket));
-  connected_ = true;
-  closed_ = false;
-  co_return OK;
+  handshake_host = endpoint.address().to_string() + ":" + std::to_string(endpoint.port());
+  co_return co_await OpenConnectedClient(std::move(websocket), handshake_host);
 }
 
 awaitable<error_code> WebSocketTransport::OpenPassive() {

@@ -28,13 +28,31 @@
 
 namespace transport {
 
+using WebSocketClientRequest = boost::beast::websocket::request_type;
+using WebSocketClientResponse = boost::beast::websocket::response_type;
+using WebSocketServerRequest =
+    boost::beast::http::request<boost::beast::http::string_body>;
+
 struct WebSocketServerTlsConfig {
   std::string certificate_chain_pem;
   std::string private_key_pem;
   std::string private_key_passphrase;
 };
 
-using WebSocketServerRequest = boost::beast::http::request<boost::beast::http::string_body>;
+struct WebSocketClientTlsConfig {
+  bool verify_peer = false;
+  std::string server_name;
+  std::string ca_certificate_pem;
+};
+
+struct WebSocketClientOptions {
+  std::optional<WebSocketClientTlsConfig> tls;
+  std::string path = "/";
+  std::function<void(WebSocketClientRequest&)> request_callback;
+  std::function<std::optional<error_code>(const WebSocketClientResponse&)>
+      response_validator;
+  bool enable_permessage_deflate = false;
+};
 
 struct WebSocketServerReject {
   boost::beast::http::status status = boost::beast::http::status::bad_request;
@@ -57,7 +75,8 @@ class WebSocketTransport final : public Transport {
                      std::string host,
                      std::string service,
                      bool active,
-                     WebSocketServerOptions server_options = {});
+                     WebSocketServerOptions server_options = {},
+                     WebSocketClientOptions client_options = {});
   template <typename WebSocketStream>
   explicit WebSocketTransport(WebSocketStream websocket)
       : executor_{websocket.get_executor()},
@@ -117,6 +136,12 @@ class WebSocketTransport final : public Transport {
   [[nodiscard]] awaitable<error_code> OpenActive();
   [[nodiscard]] awaitable<error_code> OpenPassive();
   [[nodiscard]] awaitable<void> AcceptLoop();
+  template <typename WebSocketStream>
+  void ApplyClientOptions(WebSocketStream& websocket);
+  template <typename NextLayer>
+  [[nodiscard]] awaitable<error_code> OpenConnectedClient(
+      boost::beast::websocket::stream<NextLayer> websocket,
+      const std::string& handshake_host);
   template <typename Stream>
   [[nodiscard]] awaitable<void> RejectRequest(
       Stream& stream,
@@ -132,6 +157,7 @@ class WebSocketTransport final : public Transport {
   std::string host_;
   std::string service_;
   WebSocketServerOptions server_options_;
+  WebSocketClientOptions client_options_;
   Mode mode_ = Mode::PASSIVE;
   bool connected_ = false;
   bool closed_ = false;
@@ -186,6 +212,58 @@ awaitable<expected<size_t>> WebSocketTransport::CoreImpl<WebSocketStream>::write
   if (ec)
     co_return ec;
   co_return written;
+}
+
+template <typename WebSocketStream>
+void WebSocketTransport::ApplyClientOptions(WebSocketStream& websocket) {
+  namespace websocket_ns = boost::beast::websocket;
+
+  if (client_options_.enable_permessage_deflate) {
+    websocket_ns::permessage_deflate options;
+    options.client_enable = true;
+    options.server_enable = true;
+    websocket.set_option(options);
+  }
+  if (client_options_.request_callback) {
+    websocket.set_option(websocket_ns::stream_base::decorator(
+        [callback = client_options_.request_callback](
+            WebSocketClientRequest& request) { callback(request); }));
+  }
+}
+
+template <typename NextLayer>
+awaitable<error_code> WebSocketTransport::OpenConnectedClient(
+    boost::beast::websocket::stream<NextLayer> websocket,
+    const std::string& handshake_host) {
+  ApplyClientOptions(websocket);
+
+  WebSocketClientResponse response;
+  auto [handshake_error] = co_await websocket.async_handshake(
+      response,
+      handshake_host,
+      client_options_.path,
+      boost::asio::as_tuple(boost::asio::use_awaitable));
+  if (handshake_error)
+    co_return handshake_error;
+
+  if (client_options_.response_validator) {
+    auto validation_error = client_options_.response_validator(response);
+    if (validation_error.has_value()) {
+      boost::system::error_code ignored;
+      if constexpr (std::is_same_v<NextLayer, boost::asio::ip::tcp::socket>) {
+        websocket.next_layer().close(ignored);
+      } else {
+        websocket.next_layer().next_layer().close(ignored);
+      }
+      co_return *validation_error;
+    }
+  }
+
+  core_ = std::make_unique<CoreImpl<boost::beast::websocket::stream<NextLayer>>>(
+      std::move(websocket));
+  connected_ = true;
+  closed_ = false;
+  co_return OK;
 }
 
 template <typename Stream>

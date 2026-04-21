@@ -14,7 +14,9 @@
 #include <boost/beast/websocket/stream.hpp>
 #include <gmock/gmock.h>
 #include <array>
+#include <cctype>
 #include <random>
+#include <string_view>
 #include <thread>
 #include <unordered_set>
 
@@ -23,6 +25,23 @@ namespace {
 
 namespace http = boost::beast::http;
 namespace websocket = boost::beast::websocket;
+
+bool HeaderContainsToken(std::string_view header, std::string_view token) {
+  while (!header.empty()) {
+    const auto comma = header.find(',');
+    auto part = comma == std::string_view::npos ? header : header.substr(0, comma);
+    while (!part.empty() && std::isspace(static_cast<unsigned char>(part.front())))
+      part.remove_prefix(1);
+    while (!part.empty() && std::isspace(static_cast<unsigned char>(part.back())))
+      part.remove_suffix(1);
+    if (part == token)
+      return true;
+    if (comma == std::string_view::npos)
+      break;
+    header.remove_prefix(comma + 1);
+  }
+  return false;
+}
 
 constexpr auto kTestCertificatePem = R"(-----BEGIN CERTIFICATE-----
 MIIDCTCCAfGgAwIBAgIUQWAR+40WE34MoTuKigrGeiGT5ycwDQYJKoZIhvcNAQEL
@@ -460,6 +479,176 @@ TEST(WebSocketTransportTest, PassiveServerSupportsTlsConnections) {
   work.reset();
   io_context.stop();
   thread.join();
+}
+
+TEST(WebSocketTransportTest, ActiveClientSupportsTlsConnections) {
+  boost::asio::io_context io_context;
+  const auto port = std::to_string(GenerateTestNetworkPort());
+  auto log = MakeTestLog();
+
+  auto future = boost::asio::co_spawn(io_context, [&]() -> awaitable<void> {
+    WebSocketTransport server{
+        io_context.get_executor(),
+        log.with_channel("Server"),
+        "127.0.0.1",
+        port,
+        /*active=*/false,
+        {.tls =
+             WebSocketServerTlsConfig{
+                 .certificate_chain_pem = kTestCertificatePem,
+                 .private_key_pem = kTestPrivateKeyPem,
+             }}};
+    WebSocketTransport client{
+        io_context.get_executor(),
+        log.with_channel("Client"),
+        "127.0.0.1",
+        port,
+        /*active=*/true,
+        {},
+        {.tls = WebSocketClientTlsConfig{.verify_peer = false}}};
+
+    NET_EXPECT_OK(co_await server.open());
+    NET_EXPECT_OK(co_await client.open());
+
+    auto accepted_result = co_await server.accept();
+    EXPECT_TRUE(accepted_result.ok());
+    if (!accepted_result.ok())
+      co_return;
+    auto accepted = std::move(*accepted_result);
+
+    constexpr std::array<char, 5> kRequest = {'h', 'e', 'l', 'l', 'o'};
+    auto written_result = co_await client.write(kRequest);
+    EXPECT_TRUE(written_result.ok());
+    if (!written_result.ok())
+      co_return;
+
+    std::array<char, 16> read_buffer{};
+    auto accepted_read_result = co_await accepted.read(read_buffer);
+    EXPECT_TRUE(accepted_read_result.ok());
+    if (!accepted_read_result.ok())
+      co_return;
+    EXPECT_EQ(*accepted_read_result, kRequest.size());
+
+    NET_EXPECT_OK(co_await server.close());
+  }, boost::asio::use_future);
+
+  io_context.run();
+  future.get();
+}
+
+TEST(WebSocketTransportTest,
+     ActiveClientCustomizesHandshakeAndValidatesResponse) {
+  boost::asio::io_context io_context;
+  const auto port = std::to_string(GenerateTestNetworkPort());
+  auto log = MakeTestLog();
+  bool response_validated = false;
+
+  auto future = boost::asio::co_spawn(io_context, [&]() -> awaitable<void> {
+    WebSocketTransport server{
+        io_context.get_executor(),
+        log.with_channel("Server"),
+        "127.0.0.1",
+        port,
+        /*active=*/false,
+        {.handshake_callback =
+             [](const WebSocketServerRequest& request)
+                 -> std::optional<WebSocketServerReject> {
+               const auto client_header = request.find("X-Client-Header");
+               if (request.target() != "/custom" ||
+                   client_header == request.end() ||
+                   client_header->value() != "enabled") {
+                 return WebSocketServerReject{
+                     .status = http::status::bad_request,
+                     .body = "Invalid handshake",
+                 };
+               }
+               return std::nullopt;
+             },
+         .response_headers = {{"X-Server-Header", "accepted"}}}};
+    WebSocketTransport client{
+        io_context.get_executor(),
+        log.with_channel("Client"),
+        "127.0.0.1",
+        port,
+        /*active=*/true,
+        {},
+        {.path = "/custom",
+         .request_callback =
+             [](WebSocketClientRequest& request) {
+               request.set("X-Client-Header", "enabled");
+             },
+         .response_validator =
+             [&](const WebSocketClientResponse& response)
+                 -> std::optional<error_code> {
+               response_validated = true;
+               const auto server_header = response.find("X-Server-Header");
+               if (server_header == response.end() ||
+                   server_header->value() != "accepted") {
+                 return ERR_ACCESS_DENIED;
+               }
+               return std::nullopt;
+             }}};
+
+    NET_EXPECT_OK(co_await server.open());
+    NET_EXPECT_OK(co_await client.open());
+    EXPECT_TRUE(response_validated);
+
+    auto accepted_result = co_await server.accept();
+    EXPECT_TRUE(accepted_result.ok());
+    if (!accepted_result.ok())
+      co_return;
+    auto accepted = std::move(*accepted_result);
+
+    constexpr std::array<char, 2> kRequest = {'o', 'k'};
+    auto written_result = co_await client.write(kRequest);
+    EXPECT_TRUE(written_result.ok());
+    if (!written_result.ok())
+      co_return;
+
+    std::array<char, 16> read_buffer{};
+    auto accepted_read_result = co_await accepted.read(read_buffer);
+    EXPECT_TRUE(accepted_read_result.ok());
+    if (!accepted_read_result.ok())
+      co_return;
+    EXPECT_EQ(*accepted_read_result, kRequest.size());
+
+    NET_EXPECT_OK(co_await server.close());
+  }, boost::asio::use_future);
+
+  io_context.run();
+  future.get();
+}
+
+TEST(WebSocketTransportTest, ActiveClientCanRejectHandshakeResponse) {
+  boost::asio::io_context io_context;
+  const auto port = std::to_string(GenerateTestNetworkPort());
+  auto log = MakeTestLog();
+
+  auto future = boost::asio::co_spawn(io_context, [&]() -> awaitable<void> {
+    WebSocketTransport server{
+        io_context.get_executor(),
+        log.with_channel("Server"),
+        "127.0.0.1",
+        port,
+        /*active=*/false};
+    WebSocketTransport client{
+        io_context.get_executor(),
+        log.with_channel("Client"),
+        "127.0.0.1",
+        port,
+        /*active=*/true,
+        {},
+        {.response_validator =
+             [](const WebSocketClientResponse&)
+                 -> std::optional<error_code> { return ERR_ACCESS_DENIED; }}};
+
+    NET_EXPECT_OK(co_await server.open());
+    EXPECT_EQ(co_await client.open(), ERR_ACCESS_DENIED);
+    NET_EXPECT_OK(co_await server.close());
+  }, boost::asio::use_future);
+
+  io_context.run();
+  future.get();
 }
 
 }  // namespace
