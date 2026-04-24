@@ -52,9 +52,6 @@ jobs:
             cmake_arch: Win32
 
     env:
-      # Force classic (non-manifest) vcpkg mode so `vcpkg install <pkgs>`
-      # and the CMake toolchain integration both ignore vcpkg.json.
-      VCPKG_FEATURE_FLAGS: -manifests
       VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
       # The runner image's vcpkg may have GHA binary caching enabled,
       # which needs ACTIONS_RUNTIME_TOKEN / ACTIONS_CACHE_URL (not
@@ -71,19 +68,13 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
 
-      - name: Install vcpkg packages
+      - name: Install vcpkg manifest dependencies
         shell: cmd
         run: |
           "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" install ^
-            boost-algorithm ^
-            boost-asio ^
-            boost-beast ^
-            boost-locale ^
-            boost-system ^
-            boost-uuid ^
-            gtest ^
-            openssl ^
-            --triplet %VCPKG_DEFAULT_TRIPLET%
+            --triplet %VCPKG_DEFAULT_TRIPLET% ^
+            --x-manifest-root=%GITHUB_WORKSPACE% ^
+            --x-install-root=%GITHUB_WORKSPACE%\vcpkg_installed
 
       - name: Configure CMake
         shell: cmd
