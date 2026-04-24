@@ -69,6 +69,10 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
 
+      - name: Align VCPKG_ROOT with runner vcpkg
+        shell: bash
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+
       - name: Expose GitHub Actions cache env
         uses: actions/github-script@v7
         with:
