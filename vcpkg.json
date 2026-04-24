@@ -1,17 +1,13 @@
 {
   "dependencies": [
+    "boost-algorithm",
     "boost-asio",
     "boost-beast",
     "boost-locale",
     "boost-system",
     "boost-uuid",
-    "gtest"
+    "gtest",
+    "openssl"
   ],
-  "vcpkg-configuration": {
-    "default-registry": {
-      "kind": "git",
-      "baseline": "2f210a9c13fcf2b0c36b1f2187366feec37e3390",
-      "repository": "https://github.com/microsoft/vcpkg"
-    }
-  }
+  "builtin-baseline": "6f29f12e82a8293156836ad81cc9bf5af41fe836"
 }

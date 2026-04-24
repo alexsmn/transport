@@ -7,78 +7,92 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            arch: x64
-            triplet: x64-windows
-            name: Windows x64
-          - os: windows-latest
-            arch: x86
-            triplet: x86-windows
-            name: Windows x86
-          - os: ubuntu-latest
-            arch: x64
-            triplet: x64-linux
-            name: Linux x64
-
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-
-    env:
-      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Setup MSVC (Windows)
-        if: runner.os == 'Windows'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libboost-all-dev \
+            libssl-dev \
+            libgtest-dev \
+            libgmock-dev
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            triplet: x64-windows
+            cmake_arch: x64
+          - arch: x86
+            triplet: x86-windows
+            cmake_arch: Win32
+
+    env:
+      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+      # Enable vcpkg's GitHub Actions binary cache. Requires
+      # ACTIONS_RUNTIME_TOKEN and ACTIONS_CACHE_URL, which GitHub only
+      # injects into JS actions; the "Expose GitHub Actions cache env"
+      # step below re-exports them so the vcpkg install step can read
+      # them.
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.arch }}
 
-      - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build
+      - name: Align VCPKG_ROOT with runner vcpkg
+        shell: bash
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
+      - name: Expose GitHub Actions cache env
+        uses: actions/github-script@v7
         with:
-          vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Install vcpkg packages
+      - name: Install vcpkg manifest dependencies
+        shell: cmd
         run: |
-          vcpkg install boost-asio boost-beast boost-algorithm boost-circular-buffer gtest --triplet ${{ matrix.triplet }}
+          "%VCPKG_INSTALLATION_ROOT%\vcpkg.exe" install ^
+            --triplet %VCPKG_DEFAULT_TRIPLET% ^
+            --x-manifest-root=%GITHUB_WORKSPACE% ^
+            --x-install-root=%GITHUB_WORKSPACE%\vcpkg_installed
 
-      - name: Configure CMake (Windows x64)
-        if: runner.os == 'Windows' && matrix.arch == 'x64'
+      - name: Configure CMake
+        shell: cmd
         run: |
-          cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
-
-      - name: Configure CMake (Windows x86)
-        if: runner.os == 'Windows' && matrix.arch == 'x86'
-        run: |
-          cmake -B build -G "Visual Studio 17 2022" -A Win32 `
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
-
-      - name: Configure CMake (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
+          cmake -B build -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} ^
+            -DCMAKE_TOOLCHAIN_FILE="%VCPKG_INSTALLATION_ROOT%\scripts\buildsystems\vcpkg.cmake"
 
       - name: Build
         run: cmake --build build --config Release
