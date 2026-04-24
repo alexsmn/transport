@@ -54,6 +54,22 @@ jobs:
         with:
           vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
 
+      - name: Show vcpkg env
+        shell: bash
+        run: |
+          echo "VCPKG_ROOT=${VCPKG_ROOT}"
+          echo "VCPKG_DEFAULT_TRIPLET=${VCPKG_DEFAULT_TRIPLET}"
+          "${VCPKG_ROOT}/vcpkg" --version || true
+          (cd "${VCPKG_ROOT}" && git log -1 --oneline) || true
+
+      - name: Install vcpkg manifest dependencies
+        shell: bash
+        run: |
+          "${VCPKG_ROOT}/vcpkg" install \
+            --triplet "${VCPKG_DEFAULT_TRIPLET}" \
+            --x-manifest-root="${GITHUB_WORKSPACE}" \
+            --x-install-root="${GITHUB_WORKSPACE}/vcpkg_installed"
+
       - name: Configure CMake (Windows x64)
         if: runner.os == 'Windows' && matrix.arch == 'x64'
         run: |
