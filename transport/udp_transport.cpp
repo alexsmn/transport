@@ -671,6 +671,10 @@ PassiveUdpTransport::PassiveUdpTransport(const executor& executor,
 }
 
 PassiveUdpTransport::~PassiveUdpTransport() {
+  if (!core_->connected()) {
+    return;
+  }
+
   boost::asio::co_spawn(
       core_->get_executor(), [core = core_] { return core->close(); },
       boost::asio::detached);

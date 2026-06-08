@@ -98,17 +98,21 @@ TEST_F(UdpTransportTest, UdpServer_AcceptedTransportImmediatelyDestroyed) {
   auto transport = OpenTransport(/*active=*/false);
   ReceiveMessage();
 
+  EXPECT_CALL(*socket, Close()).Times(AtLeast(1));
+
   CoTest([&]() -> awaitable<void> {
     auto accepted_transport = co_await transport.accept();
     EXPECT_TRUE(accepted_transport.ok());
+    EXPECT_EQ(co_await accepted_transport->close(), OK);
+    EXPECT_EQ(co_await transport.close(), OK);
   });
-
-  EXPECT_CALL(*socket, Close());
 }
 
 TEST_F(UdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
   auto transport = OpenTransport(/*active=*/false);
   ReceiveMessage();
+
+  EXPECT_CALL(*socket, Close()).Times(AtLeast(1));
 
   CoTest([&]() -> awaitable<void> {
     auto accepted_transport = co_await transport.accept();
@@ -118,23 +122,24 @@ TEST_F(UdpTransportTest, UdpServer_AcceptedTransportReceiveMessage) {
     auto received_message = co_await accepted_transport->read(buffer);
     // TODO: Compare the message with the expected one.
     EXPECT_TRUE(received_message.ok());
+    EXPECT_EQ(co_await accepted_transport->close(), OK);
+    EXPECT_EQ(co_await transport.close(), OK);
   });
-
-  EXPECT_CALL(*socket, Close());
 }
 
 TEST_F(UdpTransportTest, UdpServer_AcceptedTransportClosed) {
   auto transport = OpenTransport(/*active=*/false);
   ReceiveMessage();
 
+  EXPECT_CALL(*socket, Close()).Times(AtLeast(1));
+
   CoTest([&]() -> awaitable<void> {
     auto accepted_transport = co_await transport.accept();
     EXPECT_TRUE(accepted_transport.ok());
     EXPECT_EQ(co_await accepted_transport->close(), OK);
     EXPECT_FALSE(accepted_transport->connected());
+    EXPECT_EQ(co_await transport.close(), OK);
   });
-
-  EXPECT_CALL(*socket, Close());
 }
 
 #if 0
