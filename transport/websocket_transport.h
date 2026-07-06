@@ -10,6 +10,7 @@
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/use_awaitable.hpp>
+#include <boost/beast/core/stream_traits.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/websocket/ssl.hpp>
@@ -21,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -98,6 +100,9 @@ class WebSocketTransport final : public Transport {
   [[nodiscard]] boost::asio::ip::tcp::endpoint local_endpoint() const;
 
   [[nodiscard]] std::string name() const override;
+  [[nodiscard]] std::string peer() const override {
+    return connected_ && core_ ? core_->peer() : std::string{};
+  }
   [[nodiscard]] bool message_oriented() const override { return true; }
   [[nodiscard]] bool connected() const override { return connected_; }
   [[nodiscard]] bool active() const override { return mode_ == Mode::ACTIVE; }
@@ -118,6 +123,8 @@ class WebSocketTransport final : public Transport {
         std::span<char> data) = 0;
     [[nodiscard]] virtual awaitable<expected<size_t>> write(
         std::span<const char> data) = 0;
+    // Remote peer as "address:port"; see TransportMetadata::peer().
+    [[nodiscard]] virtual std::string peer() const = 0;
   };
 
   template <typename WebSocketStream>
@@ -131,6 +138,7 @@ class WebSocketTransport final : public Transport {
         std::span<char> data) override;
     [[nodiscard]] awaitable<expected<size_t>> write(
         std::span<const char> data) override;
+    [[nodiscard]] std::string peer() const override;
 
    private:
     WebSocketStream websocket_;
@@ -203,6 +211,28 @@ awaitable<expected<size_t>> WebSocketTransport::CoreImpl<WebSocketStream>::read(
   const auto buffer_data = buffer.data();
   std::memcpy(data.data(), buffer_data.data(), size);
   co_return size;
+}
+
+template <typename WebSocketStream>
+std::string WebSocketTransport::CoreImpl<WebSocketStream>::peer() const {
+  // Reaches the underlying TCP socket through the websocket/TLS layers. A
+  // stream stack without a socket at the bottom reports no peer.
+  if constexpr (requires(boost::system::error_code& ec) {
+                  boost::beast::get_lowest_layer(websocket_)
+                      .remote_endpoint(ec);
+                }) {
+    boost::system::error_code ec;
+    const auto endpoint =
+        boost::beast::get_lowest_layer(websocket_).remote_endpoint(ec);
+    if (ec) {
+      return {};
+    }
+    std::ostringstream stream;
+    stream << endpoint;
+    return std::move(stream).str();
+  } else {
+    return {};
+  }
 }
 
 template <typename WebSocketStream>

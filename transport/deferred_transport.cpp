@@ -134,6 +134,10 @@ std::string DeferredTransport::name() const {
   return core_->underlying_transport_.name();
 }
 
+std::string DeferredTransport::peer() const {
+  return core_->underlying_transport_.peer();
+}
+
 bool DeferredTransport::message_oriented() const {
   return core_->underlying_transport_.message_oriented();
 }

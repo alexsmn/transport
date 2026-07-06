@@ -199,6 +199,10 @@ std::string MessageReaderTransport::name() const {
   return "MSG:" + core_->child_transport_.name();
 }
 
+std::string MessageReaderTransport::peer() const {
+  return core_->child_transport_.peer();
+}
+
 executor MessageReaderTransport::get_executor() {
   return core_->child_transport_.get_executor();
 }

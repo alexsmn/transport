@@ -22,6 +22,10 @@ std::string any_transport::name() const {
   return transport_ ? transport_->name() : std::string{};
 }
 
+std::string any_transport::peer() const {
+  return transport_ ? transport_->peer() : std::string{};
+}
+
 bool any_transport::message_oriented() const {
   return transport_ && transport_->message_oriented();
 }

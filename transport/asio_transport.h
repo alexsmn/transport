@@ -11,6 +11,7 @@
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
 #include <memory>
+#include <sstream>
 
 namespace transport {
 
@@ -24,6 +25,8 @@ class AsioTransport : public Transport {
   }
 
   [[nodiscard]] virtual bool connected() const override { return connected_; }
+
+  [[nodiscard]] virtual std::string peer() const override;
 
   [[nodiscard]] virtual awaitable<error_code> close() override;
 
@@ -56,6 +59,31 @@ template <class IoObject>
 inline AsioTransport<IoObject>::AsioTransport(const executor& executor,
                                               const log_source& log)
     : log_{std::move(log)}, io_object_{executor} {}
+
+template <class IoObject>
+inline std::string AsioTransport<IoObject>::peer() const {
+  // Only socket-like io objects have a remote endpoint; serial ports and
+  // other stream objects report no peer.
+  if constexpr (requires(const IoObject& io, boost::system::error_code& ec) {
+                  io.remote_endpoint(ec);
+                }) {
+    if (!connected_ || closed_) {
+      return {};
+    }
+    boost::system::error_code ec;
+    const auto endpoint = io_object_.remote_endpoint(ec);
+    if (ec) {
+      return {};
+    }
+    // The asio endpoint inserter formats "address:port" and brackets IPv6
+    // addresses ("[::1]:4840").
+    std::ostringstream stream;
+    stream << endpoint;
+    return std::move(stream).str();
+  } else {
+    return {};
+  }
+}
 
 template <class IoObject>
 inline awaitable<error_code> AsioTransport<IoObject>::close() {

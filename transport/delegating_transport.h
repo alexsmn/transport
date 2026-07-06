@@ -36,6 +36,10 @@ class DelegatingTransport : public Transport {
     return delegate_.name();
   }
 
+  [[nodiscard]] virtual std::string peer() const override {
+    return delegate_.peer();
+  }
+
   [[nodiscard]] virtual bool message_oriented() const override {
     return delegate_.message_oriented();
   }

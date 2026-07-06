@@ -40,6 +40,7 @@ class MessageReaderTransport final : public Transport {
       std::span<const char> data) override;
 
   virtual std::string name() const override;
+  virtual std::string peer() const override;
   virtual bool message_oriented() const override;
   virtual bool connected() const override;
   virtual bool active() const override;

@@ -15,6 +15,15 @@ class WrappedTransport final : public Transport {
 
   std::string name() const override { return impl_.name(); }
 
+  std::string peer() const override {
+    // Duck-typed wrapped transports predate peer(); default to no peer.
+    if constexpr (requires { impl_.peer(); }) {
+      return impl_.peer();
+    } else {
+      return {};
+    }
+  }
+
   bool message_oriented() const override { return impl_.message_oriented(); }
 
   bool active() const override { return impl_.active(); }

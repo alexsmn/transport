@@ -36,6 +36,8 @@ class any_transport {
 
   [[nodiscard]] executor get_executor();
   [[nodiscard]] std::string name() const;
+  // Remote peer as "address:port"; see TransportMetadata::peer().
+  [[nodiscard]] std::string peer() const;
   [[nodiscard]] bool message_oriented() const;
   [[nodiscard]] bool active() const;
   [[nodiscard]] bool connected() const;

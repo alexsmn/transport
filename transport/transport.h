@@ -48,6 +48,11 @@ class TransportMetadata {
 
   [[nodiscard]] virtual std::string name() const = 0;
 
+  // Remote peer of a connected network transport, formatted as "address:port"
+  // (e.g. "203.0.113.7:49152"). Empty when the transport has no network peer
+  // (serial, pipe, in-process) or is not connected yet.
+  [[nodiscard]] virtual std::string peer() const { return {}; }
+
   // Transport supports messages by itself without using of MessageReader.
   // If returns false, Read has to be implemented.
   [[nodiscard]] virtual bool message_oriented() const = 0;
