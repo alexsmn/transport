@@ -59,8 +59,9 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(TestParams{.transport_string = "TCP;Port=4321"},
                     TestParams{.transport_string = "TCP;Port=4322"},
                     TestParams{.transport_string = "UDP;Port=4323"},
-                    TestParams{.transport_string = "WS;Host=127.0.0.1;Port=4324",
-                               .thread_count = 4}));
+                    TestParams{
+                        .transport_string = "WS;Host=127.0.0.1;Port=4324",
+                        .thread_count = 4}));
 
 namespace {
 
@@ -173,6 +174,53 @@ any_transport TransportTest::CreateTransport(const executor& executor,
 
   return BindMessageReader(std::move(*transport),
                            std::make_unique<TestMessageReader>(), log);
+}
+
+// TCP transports report the remote endpoint via peer(): the client sees the
+// server's listen address, the accepted transport sees the client's ephemeral
+// endpoint. Transports without a network peer keep the default empty peer().
+TEST(TcpTransportPeerTest, ReportsRemoteEndpoint) {
+  boost::asio::io_context io_context;
+  TransportFactoryImpl transport_factory;
+  log_source log{std::make_shared<TestLogSink>()};
+
+  auto server = transport_factory.CreateTransport(
+      TransportString{"TCP;Passive;Host=127.0.0.1;Port=4335"},
+      io_context.get_executor(), log);
+  ASSERT_TRUE(server.ok());
+  auto client = transport_factory.CreateTransport(
+      TransportString{"TCP;Active;Host=127.0.0.1;Port=4335"},
+      io_context.get_executor(), log);
+  ASSERT_TRUE(client.ok());
+
+  bool completed = false;
+  boost::asio::co_spawn(
+      io_context,
+      [&]() -> awaitable<void> {
+        NET_EXPECT_OK(co_await server->open());
+        EXPECT_EQ(server->peer(), "");
+
+        // The listen backlog completes the client connect without a pending
+        // accept, so the sequential open-then-accept is race-free.
+        NET_EXPECT_OK(co_await client->open());
+        auto accepted = co_await server->accept();
+        EXPECT_TRUE(accepted.ok());
+        if (accepted.ok()) {
+          EXPECT_EQ(client->peer(), "127.0.0.1:4335");
+          EXPECT_THAT(accepted->peer(), StartsWith("127.0.0.1:"));
+          EXPECT_NE(accepted->peer(), "127.0.0.1:4335");
+          NET_EXPECT_OK(co_await accepted->close());
+        }
+
+        NET_EXPECT_OK(co_await client->close());
+        NET_EXPECT_OK(co_await server->close());
+        completed = true;
+        io_context.stop();
+      },
+      boost::asio::detached);
+
+  io_context.run();
+  EXPECT_TRUE(completed);
 }
 
 TEST_P(TransportTest, StressTest) {

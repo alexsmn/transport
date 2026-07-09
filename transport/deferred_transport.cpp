@@ -43,7 +43,8 @@ DeferredTransport ::~DeferredTransport() {
   auto executor = core_->executor_;
   boost::asio::dispatch(std::move(executor), [core = std::move(core_)] {
     // Notify the close handler before the core is destroyed.
-    auto close_handler = std::exchange(core->additional_close_handler_, nullptr);
+    auto close_handler =
+        std::exchange(core->additional_close_handler_, nullptr);
     if (close_handler) {
       close_handler(ERR_ABORTED);
     }

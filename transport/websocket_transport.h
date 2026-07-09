@@ -64,7 +64,8 @@ struct WebSocketServerReject {
 
 struct WebSocketServerOptions {
   std::optional<WebSocketServerTlsConfig> tls;
-  std::function<std::optional<WebSocketServerReject>(const WebSocketServerRequest&)>
+  std::function<std::optional<WebSocketServerReject>(
+      const WebSocketServerRequest&)>
       handshake_callback;
   bool enable_permessage_deflate = false;
   std::vector<std::pair<std::string, std::string>> response_headers;
@@ -89,7 +90,9 @@ class WebSocketTransport final : public Transport {
         accept_channel_{executor_, std::numeric_limits<size_t>::max()},
         mode_{Mode::CONNECTED},
         connected_{true},
-        core_{std::make_unique<CoreImpl<WebSocketStream>>(std::move(websocket))} {}
+        core_{
+            std::make_unique<CoreImpl<WebSocketStream>>(std::move(websocket))} {
+  }
 
   [[nodiscard]] awaitable<error_code> open() override;
   [[nodiscard]] awaitable<error_code> close() override;
@@ -236,7 +239,8 @@ std::string WebSocketTransport::CoreImpl<WebSocketStream>::peer() const {
 }
 
 template <typename WebSocketStream>
-awaitable<expected<size_t>> WebSocketTransport::CoreImpl<WebSocketStream>::write(
+awaitable<expected<size_t>>
+WebSocketTransport::CoreImpl<WebSocketStream>::write(
     std::span<const char> data) {
   websocket_.text(true);
   auto [ec, written] = co_await websocket_.async_write(
@@ -272,9 +276,7 @@ awaitable<error_code> WebSocketTransport::OpenConnectedClient(
 
   WebSocketClientResponse response;
   auto [handshake_error] = co_await websocket.async_handshake(
-      response,
-      handshake_host,
-      client_options_.path,
+      response, handshake_host, client_options_.path,
       boost::asio::as_tuple(boost::asio::use_awaitable));
   if (handshake_error)
     co_return handshake_error;
@@ -292,8 +294,9 @@ awaitable<error_code> WebSocketTransport::OpenConnectedClient(
     }
   }
 
-  core_ = std::make_unique<CoreImpl<boost::beast::websocket::stream<NextLayer>>>(
-      std::move(websocket));
+  core_ =
+      std::make_unique<CoreImpl<boost::beast::websocket::stream<NextLayer>>>(
+          std::move(websocket));
   connected_ = true;
   closed_ = false;
   co_return OK;
@@ -305,8 +308,8 @@ awaitable<void> WebSocketTransport::RejectRequest(
     boost::beast::http::status status,
     std::string body,
     const std::vector<std::pair<std::string, std::string>>& headers) {
-  boost::beast::http::response<boost::beast::http::string_body> response{
-      status, 11};
+  boost::beast::http::response<boost::beast::http::string_body> response{status,
+                                                                         11};
   response.set(boost::beast::http::field::content_type, "text/plain");
   for (const auto& [name, value] : headers)
     response.set(name, value);
@@ -320,14 +323,15 @@ awaitable<void> WebSocketTransport::RejectRequest(
     if constexpr (std::is_same_v<Stream, boost::asio::ip::tcp::socket>) {
       stream.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
     } else {
-      stream.next_layer().shutdown(
-          boost::asio::ip::tcp::socket::shutdown_both, ignored);
+      stream.next_layer().shutdown(boost::asio::ip::tcp::socket::shutdown_both,
+                                   ignored);
     }
   }
 }
 
 template <typename NextLayer>
-awaitable<std::optional<any_transport>> WebSocketTransport::AcceptUpgradedStream(
+awaitable<std::optional<any_transport>>
+WebSocketTransport::AcceptUpgradedStream(
     boost::beast::websocket::stream<NextLayer> websocket) {
   namespace http = boost::beast::http;
   namespace websocket_ns = boost::beast::websocket;
@@ -343,21 +347,16 @@ awaitable<std::optional<any_transport>> WebSocketTransport::AcceptUpgradedStream
     co_return std::nullopt;
 
   if (!websocket_ns::is_upgrade(request)) {
-    co_await RejectRequest(
-        next_layer,
-        http::status::bad_request,
-        "WebSocket upgrade required",
-        {});
+    co_await RejectRequest(next_layer, http::status::bad_request,
+                           "WebSocket upgrade required", {});
     co_return std::nullopt;
   }
 
   if (server_options_.handshake_callback) {
     auto rejection = server_options_.handshake_callback(request);
     if (rejection.has_value()) {
-      co_await RejectRequest(next_layer,
-                             rejection->status,
-                             std::move(rejection->body),
-                             rejection->headers);
+      co_await RejectRequest(next_layer, rejection->status,
+                             std::move(rejection->body), rejection->headers);
       co_return std::nullopt;
     }
   }

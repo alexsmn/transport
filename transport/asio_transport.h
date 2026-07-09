@@ -5,9 +5,9 @@
 #include "transport/log.h"
 #include "transport/transport.h"
 
+#include <boost/asio/as_tuple.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/dispatch.hpp>
-#include <boost/asio/as_tuple.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
 #include <memory>
@@ -152,7 +152,7 @@ inline void AsioTransport<IoObject>::ProcessError(error_code error) {
 
   if (error != OK) {
     log_.write(LogSeverity::Warning, "error_code: {}",
-                ErrorToShortString(error));
+               ErrorToShortString(error));
   } else {
     log_.write(LogSeverity::Normal, "Graceful close");
   }
