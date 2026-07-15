@@ -47,8 +47,9 @@ awaitable<error_code> any_transport::open() {
 }
 
 awaitable<error_code> any_transport::close() {
-  assert(transport_);
-
+  // A moved-from or already-reset transport is a valid state here: teardown
+  // paths can race (e.g. a queued close coroutine running after the owner
+  // released the transport), so report it instead of asserting.
   if (!transport_) {
     co_return ERR_INVALID_HANDLE;
   }
