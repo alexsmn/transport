@@ -13,6 +13,13 @@ WriteQueue::WriteQueue(any_transport& transport)
 
 void WriteQueue::BlindWrite(std::span<const char> data) {
   auto state = state_;
+  // A moved-from or reset transport is a valid state during teardown (see
+  // any_transport::close). Its executor is empty, and co_spawn on an empty
+  // executor throws bad_executor — so drop the blind write instead, matching
+  // Write()'s ERR_INVALID_HANDLE behavior.
+  if (!*state->transport) {
+    return;
+  }
   boost::asio::co_spawn(
       state->transport->get_executor(),
       [state, data = std::vector<char>{data.begin(), data.end()},
@@ -32,8 +39,9 @@ awaitable<expected<size_t>> WriteQueue::Write(std::span<const char> data) {
 awaitable<expected<size_t>> WriteQueue::Write(
     const std::shared_ptr<State>& state,
     std::span<const char> data) {
-  auto current_write = std::make_shared<Channel>(state->transport->get_executor(),
-                                                 /*max_buffer_size =*/1);
+  auto current_write =
+      std::make_shared<Channel>(state->transport->get_executor(),
+                                /*max_buffer_size =*/1);
 
   auto cancelation = std::weak_ptr{state->cancelation};
 
