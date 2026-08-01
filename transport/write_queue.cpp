@@ -1,0 +1,70 @@
+#include "transport/write_queue.h"
+
+#include "transport/any_transport.h"
+
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/use_awaitable.hpp>
+
+namespace transport {
+
+WriteQueue::WriteQueue(any_transport& transport)
+    : state_{std::make_shared<State>(transport, cancelation_)} {}
+
+void WriteQueue::BlindWrite(std::span<const char> data) {
+  auto state = state_;
+  // A moved-from or reset transport is a valid state during teardown (see
+  // any_transport::close). Its executor is empty, and co_spawn on an empty
+  // executor throws bad_executor — so drop the blind write instead, matching
+  // Write()'s ERR_INVALID_HANDLE behavior.
+  if (!*state->transport) {
+    return;
+  }
+  boost::asio::co_spawn(
+      state->transport->get_executor(),
+      [state, data = std::vector<char>{data.begin(), data.end()},
+       cancelation = state->cancelation]() -> awaitable<void> {
+        if (cancelation.expired()) {
+          co_return;
+        }
+        auto _ = co_await Write(state, data);
+      },
+      boost::asio::detached);
+}
+
+awaitable<expected<size_t>> WriteQueue::Write(std::span<const char> data) {
+  co_return co_await Write(state_, data);
+}
+
+awaitable<expected<size_t>> WriteQueue::Write(std::shared_ptr<State> state,
+                                              std::span<const char> data) {
+  if (state->cancelation.expired()) {
+    co_return ERR_ABORTED;
+  }
+
+  auto current_write =
+      std::make_shared<Channel>(state->transport->get_executor(),
+                                /*max_buffer_size =*/1);
+
+  const auto cancelation = state->cancelation;
+
+  if (auto last_write = std::exchange(state->last_write, current_write)) {
+    co_await last_write->async_receive(boost::asio::use_awaitable);
+  }
+
+  // The queue — and with it the transport `state->transport` points at — may
+  // have been destroyed while this write waited its turn. Everything below
+  // dereferences that pointer, so this check is load-bearing, not defensive.
+  if (cancelation.expired()) {
+    co_return ERR_ABORTED;
+  }
+
+  auto write_result = co_await state->transport->write(data);
+
+  co_await current_write->async_send(boost::system::error_code{},
+                                     boost::asio::use_awaitable);
+
+  co_return write_result;
+}
+
+}  // namespace transport
