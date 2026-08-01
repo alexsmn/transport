@@ -65,8 +65,8 @@ awaitable<error_code> ActiveTcpTransport::open() {
 }
 
 awaitable<error_code> ActiveTcpTransport::ResolveAndConnect() {
-  log_.write(LogSeverity::Normal, "Start DNS resolution to {}:{}",
-              host_, service_);
+  log_.write(LogSeverity::Normal, "Start DNS resolution to {}:{}", host_,
+             service_);
 
   cancelation_state cancelation = cancelation_.get_state();
 
@@ -110,7 +110,7 @@ awaitable<error_code> ActiveTcpTransport::Connect(
   }
 
   log_.write(LogSeverity::Normal, "Connected to {}:{}",
-              endpoint.address().to_string(), endpoint.port());
+             endpoint.address().to_string(), endpoint.port());
 
   connected_ = true;
 
@@ -172,14 +172,13 @@ awaitable<error_code> PassiveTcpTransport::open() {
 }
 
 awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
-  log_.write(LogSeverity::Normal, "Start DNS resolution to {}:{}",
-              host_, service_);
+  log_.write(LogSeverity::Normal, "Start DNS resolution to {}:{}", host_,
+             service_);
 
   cancelation_state cancelation = cancelation_.get_state();
 
   auto [error, results] = co_await resolver_.async_resolve(
-      host_, service_,
-      boost::asio::as_tuple(boost::asio::use_awaitable));
+      host_, service_, boost::asio::as_tuple(boost::asio::use_awaitable));
 
   if (cancelation.canceled() || closed_) {
     co_return ERR_ABORTED;
@@ -198,7 +197,11 @@ awaitable<error_code> PassiveTcpTransport::ResolveAndBind() {
   if (auto ec = Bind(std::move(results)); ec) {
     log_.write(LogSeverity::Warning, "Bind error");
     ProcessError(ec);
-    co_return error;
+    // Report the *bind* failure. Returning `error` here reported the resolve
+    // result instead, which is success by this point, so a transport that
+    // never bound anything announced itself as open and then accepted nothing
+    // forever.
+    co_return ec;
   }
 
   log_.write(LogSeverity::Normal, "Bind completed");
@@ -214,20 +217,42 @@ boost::system::error_code PassiveTcpTransport::Bind(
 
   boost::system::error_code ec = boost::asio::error::fault;
 
+  const std::size_t candidate_count = results.size();
+
   for (const auto& entry : results) {
     acceptor_.open(entry.endpoint().protocol(), ec);
     if (ec)
       continue;
 
     acceptor_.set_option(Socket::reuse_address{true}, ec);
-    // TODO: Log endpoint.
     acceptor_.bind(entry.endpoint(), ec);
 
     if (!ec)
       acceptor_.listen(Socket::max_listen_connections, ec);
 
-    if (!ec)
+    if (!ec) {
+      // Only the first endpoint that binds is listened on. A host name that
+      // resolves to more than one family — `localhost` is both ::1 and
+      // 127.0.0.1, and RFC 6724 ordering puts ::1 first — therefore serves
+      // exactly one of them, and a peer dialling the other gets
+      // connection-refused against a listener that looks healthy from here.
+      // Name the endpoint actually bound, and say so when others were
+      // dropped, so that mismatch costs one log line to spot.
+      log_.write(LogSeverity::Normal, "Listening on {}:{}",
+                 entry.endpoint().address().to_string(),
+                 entry.endpoint().port());
+
+      if (candidate_count > 1) {
+        log_.write(LogSeverity::Warning,
+                   "{}:{} resolved to {} endpoints; only {}:{} accepts "
+                   "connections",
+                   host_, service_, candidate_count,
+                   entry.endpoint().address().to_string(),
+                   entry.endpoint().port());
+      }
+
       break;
+    }
 
     acceptor_.close();
   }
@@ -292,8 +317,7 @@ void PassiveTcpTransport::ProcessError(const boost::system::error_code& ec) {
   }
 
   if (ec != OK) {
-    log_.write(LogSeverity::Warning, "error_code: {}",
-                ErrorToShortString(ec));
+    log_.write(LogSeverity::Warning, "error_code: {}", ErrorToShortString(ec));
   } else {
     log_.write(LogSeverity::Normal, "Graceful close");
   }
