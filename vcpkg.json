@@ -1,8 +1,12 @@
 {
   "dependencies": [
+    "boost-algorithm",
     "boost-asio",
+    "boost-assert",
     "boost-beast",
     "boost-locale",
+    "boost-process",
+    "boost-random",
     "boost-system",
     "boost-uuid",
     "gtest"
