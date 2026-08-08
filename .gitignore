@@ -1,4 +1,7 @@
 /build*
+# ...except the shared CMake kit, which an export of this product carries at
+# its root and which only looks like a build directory (ADR 0011).
+!/build-support/
 /generate-*
 CMakeUserPresets.json
 nul

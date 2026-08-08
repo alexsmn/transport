@@ -8,25 +8,22 @@ This is an asynchronous transport library built on Boost.Asio, providing a unifi
 
 ## Build Commands
 
-This library is built as part of the parent SCADA project. From the parent directory:
-
-```batch
-# Windows
-build.bat             # Build
-```
+This library builds standalone — it consumes no other product. Set `VCPKG_ROOT`
+in the environment; anything else machine-specific goes in `.scada-local.cmake`
+beside `build-support/`. See `build-support/README.md`.
 
 ```shell
-# Linux
-./generate.sh
-./build.sh
+cmake --preset ninja
+cmake --build --preset release        # or: debug, relwithdebinfo
+ctest --preset test-release           # or: test-debug
 ```
 
-### Running Tests
+Output lands in `build/ninja/bin/<config>/`.
 
-```batch
-# Run all net library tests
-ctest --build-config RelWithDebInfo --tests-regex net_unittests
-```
+It is also spliced into any product that consumes it — `find_package(Transport)`
+adds this directory as a subdirectory. Built that way it keeps its own C++
+standard and its own cppcheck suppressions rather than inheriting the
+consumer's.
 
 ## Architecture
 
