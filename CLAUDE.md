@@ -79,8 +79,7 @@ Uses Chromium-style error codes (`net/base/net_errors.h`). Key patterns:
 ## Dependencies
 
 - **Boost** - Asio, Coroutine, Beast (for WebSocket)
-- **ChromiumBase** - Threading utilities, compiler macros
-- **promise.hpp** - Promise-based async
+- **OpenSSL** - TLS transports
 - **GTest** - Unit testing
 
 ## Platform-Specific Code
