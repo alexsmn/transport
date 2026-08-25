@@ -44,8 +44,8 @@ class TransportTest : public TestWithParam<TestParams> {
 
   static inline log_source kLog{std::make_shared<TestLogSink>()};
 
-  static const int kClientCount = 100;
-  static const int kClientExchangeCount = 3;
+  static inline constexpr int kClientCount = 100;
+  static inline constexpr int kClientExchangeCount = 3;
 
   // The message format must correspond to `TestMessageReader`.
   static constexpr const char kClientExchangeMessage[] = {3, 1, 2, 3};
