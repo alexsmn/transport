@@ -16,6 +16,7 @@
 #include <array>
 #include <cctype>
 #include <mutex>
+#include <set>
 #include <string_view>
 #include <thread>
 #include <unordered_set>
@@ -217,6 +218,67 @@ class TlsBeastHandshakeClient {
   websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>>
       websocket_;
 };
+
+// Binds an acceptor to `port` on the loopback the fixtures use, reporting
+// whether the caller could have taken the port for itself.
+bool CanBind(int port) {
+  boost::asio::io_context io_context;
+  boost::asio::ip::tcp::acceptor acceptor{io_context};
+  boost::system::error_code error;
+  acceptor.open(boost::asio::ip::tcp::v4(), error);
+  if (error) {
+    return false;
+  }
+  acceptor.bind({boost::asio::ip::address_v4::loopback(),
+                 static_cast<unsigned short>(port)},
+                error);
+  return !error;
+}
+
+TEST(GenerateTestNetworkPortTest, ReturnsDistinctPorts) {
+  std::set<int> ports;
+  for (int i = 0; i < 32; ++i) {
+    EXPECT_TRUE(ports.insert(GenerateTestNetworkPort()).second);
+  }
+}
+
+TEST(GenerateTestNetworkPortTest, ReturnsAPortTheCallerCanBind) {
+  for (int i = 0; i < 8; ++i) {
+    EXPECT_TRUE(CanBind(GenerateTestNetworkPort()));
+  }
+}
+
+// Holding ports open here stands in for another test binary already listening
+// on them.
+//
+// Note what this does *not* do: it does not reproduce the defect the helper was
+// rewritten for. That defect is cross-process -- two binaries drawing the same
+// port from a process-local guard -- and no in-process test can stage it. Nor
+// does this case fail against the previous implementation, which was measured
+// rather than assumed: the probes below bind port 0 and so land in the
+// ephemeral range (49152+ on macOS), while the old code drew from 30000-40000,
+// so the two could not collide even in principle. All three cases here pass
+// against both implementations. They pin the properties the fix establishes --
+// distinct, bindable, not already held -- and would catch a future rewrite that
+// broke one of them; they are not a regression test for the original bug,
+// because that bug is not reachable from a single process.
+TEST(GenerateTestNetworkPortTest, NeverReturnsAPortThatIsAlreadyBound) {
+  boost::asio::io_context io_context;
+  std::vector<boost::asio::ip::tcp::acceptor> occupied;
+  std::set<int> occupied_ports;
+  for (int i = 0; i < 16; ++i) {
+    boost::asio::ip::tcp::acceptor acceptor{io_context};
+    acceptor.open(boost::asio::ip::tcp::v4());
+    acceptor.bind({boost::asio::ip::address_v4::loopback(), 0});
+    acceptor.listen();
+    occupied_ports.insert(acceptor.local_endpoint().port());
+    occupied.push_back(std::move(acceptor));
+  }
+
+  for (int i = 0; i < 32; ++i) {
+    EXPECT_FALSE(occupied_ports.contains(GenerateTestNetworkPort()));
+  }
+}
 
 TEST(WebSocketTransportTest, ActiveAndPassiveExchangeMessages) {
   boost::asio::io_context io_context;
