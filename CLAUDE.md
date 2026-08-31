@@ -124,7 +124,8 @@ Wrappers that add behaviour to another transport rather than talking to a device
   carries the line it came from.
 
 Historical note: this section described `net_exception` and
-`make_error_promise<T>` against a Chromium-style `net/base/net_errors.h` until
+`make_error_promise<T>` against a Chromium-style `net/base/net_errors.h`
+<!-- doc-citations: absent --> until
 2026-08-26. None of those existed — the library had already moved to coroutines
 returning `expected<T>`, and there is no `base/` directory here.
 
