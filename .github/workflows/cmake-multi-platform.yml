@@ -45,10 +45,10 @@ jobs:
             c_compiler: cl
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Setup vcpkg
-      uses: lukka/run-vcpkg@v11.5
+      uses: lukka/run-vcpkg@v11
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
