@@ -2,8 +2,10 @@
 
 #include "transport/udp_socket.h"
 
+#include <cassert>
 #include <memory>
 #include <queue>
+#include <span>
 
 namespace transport {
 

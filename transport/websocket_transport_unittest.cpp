@@ -3,6 +3,7 @@
 #include "transport/test/coroutine_util.h"
 #include "transport/test/test_log.h"
 
+#include <algorithm>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>

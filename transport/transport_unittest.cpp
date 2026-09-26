@@ -15,6 +15,7 @@
 #include <boost/asio/system_executor.hpp>
 #include <gmock/gmock.h>
 #include <thread>
+#include <vector>
 
 using namespace testing;
 

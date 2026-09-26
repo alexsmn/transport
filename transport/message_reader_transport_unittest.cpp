@@ -10,6 +10,7 @@
 #include <boost/asio/detached.hpp>
 #include <cstring>
 #include <gmock/gmock.h>
+#include <vector>
 
 using namespace std::chrono_literals;
 using namespace testing;

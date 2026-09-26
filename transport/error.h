@@ -2,6 +2,8 @@
 
 #include <boost/system/errc.hpp>
 
+#include <string>
+
 namespace transport {
 
 using error_code = boost::system::error_code;

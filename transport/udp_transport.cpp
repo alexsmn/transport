@@ -4,10 +4,12 @@
 #include "transport/log.h"
 #include "transport/udp_socket_impl.h"
 
+#include <algorithm>
 #include <boost/asio/as_tuple.hpp>
 #include <boost/asio/experimental/channel.hpp>
 #include <map>
 #include <ranges>
+#include <sstream>
 
 std::string ToString(const transport::UdpSocket::Endpoint& endpoint) {
   std::stringstream stream;

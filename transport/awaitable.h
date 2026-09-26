@@ -4,6 +4,8 @@
 
 #include <boost/asio/awaitable.hpp>
 
+#include <memory>
+
 namespace transport {
 
 template <class T>

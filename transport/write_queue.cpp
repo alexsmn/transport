@@ -6,6 +6,8 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/use_awaitable.hpp>
 
+#include <vector>
+
 namespace transport {
 
 WriteQueue::WriteQueue(any_transport& transport)

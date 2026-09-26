@@ -1,6 +1,13 @@
 #pragma once
 
+#include "transport/awaitable.h"
+#include "transport/executor.h"
+#include "transport/expected.h"
+
 #include <boost/asio.hpp>
+#include <functional>
+#include <span>
+#include <string>
 #include <vector>
 
 namespace transport {
