@@ -1,87 +1,105 @@
+# CI for the published `net` product (github.com/alexsmn/transport).
+#
+# net consumes no other product, so unlike core, common or the client it needs
+# no sibling checkouts: the export carries build-support/ at its own root, the
+# product's own vcpkg.json is resolved by the toolchain during configure, and
+# the same `ninja` / `release` / `test-release` presets a developer uses are
+# all that runs here (ADR 0011).
+#
+# This replaced two workflows on 2026-09-26 that had failed on every push since
+# at least June: both predated ADR 0011, one ran `vcpkg install <packages>`,
+# which manifest mode refuses outright, and both pointed the toolchain at a
+# `./vcpkg` directory that nothing created.
+#
+# There is no `continue-on-error` anywhere in this file, on purpose. A build
+# job that is allowed to fail is the decoration superproject tasks.md 316
+# describes for core.
+
 name: CI
 
 on:
   push:
-    branches: [main, release/*]
+    branches: [ "main", "release/**" ]
   pull_request:
-    branches: [main]
+    branches: [ "main", "release/**" ]
 
 jobs:
   build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            arch: x64
-            triplet: x64-windows
-            name: Windows x64
-          - os: windows-latest
-            arch: x86
-            triplet: x86-windows
-            name: Windows x86
-          - os: ubuntu-latest
-            arch: x64
-            triplet: x64-linux
-            name: Linux x64
-
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+          - name: Windows / MSVC
+            os: windows-latest
+          - name: Ubuntu / GCC
+            os: ubuntu-latest
+          - name: macOS / AppleClang
+            os: macos-latest
 
     env:
-      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+      # A plain directory carried between runs by the restore/save steps below.
+      # Not `x-gha`: vcpkg has removed that backend (see the client's workflow,
+      # which records the tool's own message).
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-cache,readwrite"
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
+    - name: Check out
+      uses: actions/checkout@v7
 
-      - name: Setup MSVC (Windows)
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.arch }}
+    - name: Install Ninja (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
 
-      - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build
+    - name: Install Ninja (macOS)
+      if: runner.os == 'macOS'
+      run: brew install ninja
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgGitCommitId: '6f29f12e82a8293156836ad81cc9bf5af41fe836'  # 2025.01.13
+    # The presets carry no `environment` block (ADR 0011), so the MSVC
+    # toolchain has to be in the environment before cmake runs. Ninja comes
+    # with Visual Studio.
+    - name: Set up MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Install vcpkg packages
-        run: |
-          vcpkg install boost-asio boost-beast boost-algorithm boost-circular-buffer gtest --triplet ${{ matrix.triplet }}
+    # The commit the monorepo's own vcpkg is at, the same pin the client's
+    # workflow carries, so CI resolves the ports a developer does.
+    - name: Set up vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'f3e10653cc27d62a37a3763cd84b38bca07c6075'
+        runVcpkgInstall: false
 
-      - name: Configure CMake (Windows x64)
-        if: runner.os == 'Windows' && matrix.arch == 'x64'
-        run: |
-          cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
+    - name: Create the binary cache directory
+      run: cmake -E make_directory "${{ github.workspace }}/vcpkg-cache"
 
-      - name: Configure CMake (Windows x86)
-        if: runner.os == 'Windows' && matrix.arch == 'x86'
-        run: |
-          cmake -B build -G "Visual Studio 17 2022" -A Win32 `
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
+    - name: Restore the vcpkg binary cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-${{ matrix.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+        restore-keys: |
+          vcpkg-${{ matrix.os }}-${{ hashFiles('vcpkg.json') }}-
+          vcpkg-${{ matrix.os }}-
 
-      - name: Configure CMake (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-            -DCMAKE_MODULE_PATH="${{ github.workspace }}/cmake"
+    - name: Configure
+      run: cmake --preset ninja
 
-      - name: Build
-        run: cmake --build build --config Release
+    - name: Build (Release)
+      run: cmake --build --preset release
 
-      - name: Test
-        run: ctest --test-dir build --build-config Release --output-on-failure
+    # Saved even when the build fails, so the ports that did build survive.
+    - name: Save the vcpkg binary cache
+      if: always()
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-${{ matrix.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+
+    - name: Test (Release)
+      run: ctest --preset test-release --output-on-failure
