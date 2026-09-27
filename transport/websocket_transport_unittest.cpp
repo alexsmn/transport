@@ -169,6 +169,20 @@ class BeastHandshakeClient {
     return boost::beast::buffers_to_string(buffer.data());
   }
 
+  // Reads one message and reports how the read ended instead of throwing, so
+  // a test can observe the server closing the connection.
+  boost::system::error_code TryRead() {
+    boost::beast::flat_buffer buffer;
+    boost::system::error_code ec;
+    websocket_.read(buffer, ec);
+    return ec;
+  }
+
+  // The close frame the server sent, once a read has reported the close.
+  const websocket::close_reason& close_reason() const {
+    return websocket_.reason();
+  }
+
   const websocket::response_type& response() const { return response_; }
 
   void Close() {
@@ -510,6 +524,124 @@ TEST(WebSocketTransportTest, PassiveServerAddsHeadersAndCompressionOptions) {
   work.reset();
   io_context.stop();
   thread.join();
+}
+
+// Sends a `message_size`-byte message to an accepted transport that reads into
+// a `buffer_size`-byte buffer, then closes it, and reports what each end
+// observed.
+struct OversizedReadOutcome {
+  expected<size_t> server_read = ERR_FAILED;
+  boost::system::error_code client_error;
+  websocket::close_code client_close_code = websocket::close_code::none;
+};
+
+OversizedReadOutcome ReadMessageIntoBuffer(size_t message_size,
+                                           size_t buffer_size,
+                                           bool enable_permessage_deflate) {
+  boost::asio::io_context io_context;
+  auto work = boost::asio::make_work_guard(io_context);
+  std::thread thread([&] { io_context.run(); });
+
+  const auto port = std::to_string(GenerateTestNetworkPort());
+  auto log = MakeTestLog();
+  WebSocketTransport server{
+      io_context.get_executor(),
+      log.with_channel("Server"),
+      "127.0.0.1",
+      port,
+      /*active=*/false,
+      {.enable_permessage_deflate = enable_permessage_deflate}};
+
+  EXPECT_EQ(
+      boost::asio::co_spawn(io_context, server.open(), boost::asio::use_future)
+          .get(),
+      OK);
+
+  BeastHandshakeClient client;
+  if (enable_permessage_deflate)
+    client.EnablePerMessageDeflate();
+  client.Connect("127.0.0.1", port);
+
+  OversizedReadOutcome outcome;
+  any_transport accepted;
+  std::vector<char> read_buffer(buffer_size);
+  auto server_future = boost::asio::co_spawn(
+      io_context,
+      [&]() -> awaitable<void> {
+        auto accepted_result = co_await server.accept();
+        EXPECT_TRUE(accepted_result.ok());
+        if (!accepted_result.ok())
+          co_return;
+        accepted = std::move(*accepted_result);
+        outcome.server_read = co_await accepted.read(read_buffer);
+        // Close from the server side whatever the read did. After a message
+        // that fits this is an ordinary 1000 close. After an oversized one the
+        // read has already failed the connection with 1009, so this finds it
+        // closed; a server that failed the read *without* closing -- the
+        // defect this pins -- shows up as that 1000 close instead of as a
+        // client read that never returns.
+        (void)co_await accepted.close();
+      },
+      boost::asio::use_future);
+
+  const std::string message(message_size, 'x');
+  client.Write(message);
+  // The client has to be reading while the server fails the connection:
+  // Beast's failing read waits for the peer to answer its close frame, so
+  // reading only after `server_future` completes would stall it until the
+  // close-handshake timeout.
+  outcome.client_error = client.TryRead();
+  outcome.client_close_code =
+      static_cast<websocket::close_code>(client.close_reason().code);
+  server_future.get();
+
+  EXPECT_EQ(
+      boost::asio::co_spawn(io_context, server.close(), boost::asio::use_future)
+          .get(),
+      OK);
+  work.reset();
+  io_context.stop();
+  thread.join();
+  return outcome;
+}
+
+// OPC UA Part 6 §7.5 WebSockets: a receiver that meets an over-limit message
+// closes the connection with status 1009,
+// https://reference.opcfoundation.org/Core/Part6/v105/docs/7.5
+TEST(WebSocketTransportTest, OversizedMessageClosesWithMessageTooBig) {
+  const auto outcome = ReadMessageIntoBuffer(
+      /*message_size=*/64, /*buffer_size=*/16,
+      /*enable_permessage_deflate=*/false);
+
+  EXPECT_EQ(outcome.server_read.error(),
+            boost::system::error_code{websocket::error::message_too_big});
+  EXPECT_EQ(outcome.client_error,
+            boost::system::error_code{websocket::error::closed});
+  EXPECT_EQ(outcome.client_close_code, websocket::close_code::too_big);
+}
+
+// Under permessage-deflate the frame header carries the compressed size, so the
+// limit also has to hold against the inflated message. 64 KiB of one repeated
+// byte deflates to under 100 bytes, which fits the 256-byte buffer, so only the
+// check on inflated output can refuse it.
+TEST(WebSocketTransportTest, OversizedDeflatedMessageClosesWithMessageTooBig) {
+  const auto outcome = ReadMessageIntoBuffer(
+      /*message_size=*/64 * 1024, /*buffer_size=*/256,
+      /*enable_permessage_deflate=*/true);
+
+  EXPECT_EQ(outcome.server_read.error(),
+            boost::system::error_code{websocket::error::message_too_big});
+  EXPECT_EQ(outcome.client_close_code, websocket::close_code::too_big);
+}
+
+TEST(WebSocketTransportTest, MessageFillingTheBufferExactlyIsRead) {
+  const auto outcome = ReadMessageIntoBuffer(
+      /*message_size=*/16, /*buffer_size=*/16,
+      /*enable_permessage_deflate=*/false);
+
+  ASSERT_TRUE(outcome.server_read.ok());
+  EXPECT_EQ(*outcome.server_read, 16u);
+  EXPECT_EQ(outcome.client_close_code, websocket::close_code::normal);
 }
 
 TEST(WebSocketTransportTest, PassiveServerSupportsTlsConnections) {

@@ -16,6 +16,7 @@
 #include <boost/beast/websocket/ssl.hpp>
 #include <boost/beast/websocket/stream.hpp>
 
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -199,6 +200,18 @@ awaitable<error_code> WebSocketTransport::CoreImpl<WebSocketStream>::close() {
 template <typename WebSocketStream>
 awaitable<expected<size_t>> WebSocketTransport::CoreImpl<WebSocketStream>::read(
     std::span<char> data) {
+  // Bound the message by the caller's buffer before any of it is read. Beast
+  // checks `read_message_max` against each frame header (and against inflated
+  // output under permessage-deflate), so an oversized message is refused
+  // before its payload is buffered, and Beast itself fails the connection
+  // with close code 1009 (`too_big`) and reports `error::message_too_big`.
+  // That close is what OPC UA Part 6 §7.5 WebSockets asks of a receiver that
+  // meets an over-limit message,
+  // https://reference.opcfoundation.org/Core/Part6/v105/docs/7.5
+  // A zero limit means "unlimited" to Beast, so an empty buffer is given a
+  // limit of one byte; the size check below still refuses that byte.
+  websocket_.read_message_max(std::max<size_t>(data.size(), 1));
+
   boost::beast::flat_buffer buffer;
   auto [ec, _] = co_await websocket_.async_read(
       buffer, boost::asio::as_tuple(boost::asio::use_awaitable));
