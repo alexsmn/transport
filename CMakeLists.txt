@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.25)
 
-cmake_policy(SET CMP0167 NEW)
+# Guarded as in every other product: CMP0167 exists from CMake 3.30, and an
+# unguarded SET fails outright on the 3.25-3.29 this file declares it accepts.
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
 
 # The shared build-support kit (ADR 0011): at this product's root in an export,
 # at the tree root in the monorepo. Before it, net had no C++ standard and no
