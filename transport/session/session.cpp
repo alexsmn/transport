@@ -229,6 +229,14 @@ void Session::OnTransportError(error_code error) {
   }
 }
 
+// Declared as a Transport override but never implemented, so the vtable
+// named an undefined symbol and any binary pulling session.cpp.o out of
+// libtransport.a failed to link under GNU ld (scada-client run 36291938922;
+// macOS's linker let it through). Nothing accepts on a Session.
+awaitable<expected<any_transport>> Session::accept() {
+  co_return ERR_NOT_IMPLEMENTED;
+}
+
 awaitable<error_code> Session::open() {
   assert(state_ == CLOSED);
   assert(!cancelation_);
