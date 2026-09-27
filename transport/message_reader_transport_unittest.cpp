@@ -59,28 +59,34 @@ void MessageReaderTransportTest::CreateMessageReaderTransport(
 
 void MessageReaderTransportTest::ExpectChildReadSome(
     const std::vector<std::vector<char>>& fragments) {
-  // GMock clears mutable captured variables, so we need to store the fragments
-  // in a shared pointer.
+  // gmock performs a `WillRepeatedly` action on a temporary copy of it, so the
+  // fragments consumed by one call must live outside the closure to be seen by
+  // the next.
   auto shared_fragments =
       std::make_shared<std::vector<std::vector<char>>>(fragments);
 
+  // A plain lambda, not a lambda coroutine: the closure copy it runs on is
+  // destroyed when the call returns, and a lazy coroutine body would read its
+  // captures only later, from freed memory. So do the work now and hand the
+  // result to `CoValue`, which owns it by value. See CLAUDE.md, "Unit Test
+  // Guidance".
   EXPECT_CALL(*child_transport_, read(/*buffer=*/_))
       .Times(fragments.size())
       .WillRepeatedly(Invoke([shared_fragments](std::span<char> data)
                                  -> awaitable<expected<size_t>> {
         if (shared_fragments->empty()) {
-          co_return ERR_FAILED;
+          return CoValue<expected<size_t>>(ERR_FAILED);
         }
 
         auto& buffer = shared_fragments->front();
         if (data.size() < buffer.size()) {
-          co_return ERR_FAILED;
+          return CoValue<expected<size_t>>(ERR_FAILED);
         }
 
         std::ranges::copy(buffer, data.begin());
         auto bytes_read = buffer.size();
         shared_fragments->erase(shared_fragments->begin());
-        co_return bytes_read;
+        return CoValue<expected<size_t>>(bytes_read);
       }));
 }
 
