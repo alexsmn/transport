@@ -23,6 +23,7 @@ class Session final : public Transport {
 
   class SessionTransportObserver {
    public:
+    virtual ~SessionTransportObserver() = default;
     virtual void OnSessionRecovered() = 0;
     virtual void OnSessionTransportError(error_code error) = 0;
   };
