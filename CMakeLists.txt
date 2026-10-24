@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.27)
 
 # Guarded as in every other product: CMP0167 exists from CMake 3.30, and an
 # unguarded SET fails outright on the 3.25-3.29 this file declares it accepts.
