@@ -72,8 +72,8 @@ void MessageReaderTransportTest::ExpectChildReadSome(
   // Guidance".
   EXPECT_CALL(*child_transport_, read(/*buffer=*/_))
       .Times(fragments.size())
-      .WillRepeatedly(Invoke([shared_fragments](std::span<char> data)
-                                 -> awaitable<expected<size_t>> {
+      .WillRepeatedly([shared_fragments](
+                          std::span<char> data) -> awaitable<expected<size_t>> {
         if (shared_fragments->empty()) {
           return CoValue<expected<size_t>>(ERR_FAILED);
         }
@@ -87,20 +87,19 @@ void MessageReaderTransportTest::ExpectChildReadSome(
         auto bytes_read = buffer.size();
         shared_fragments->erase(shared_fragments->begin());
         return CoValue<expected<size_t>>(bytes_read);
-      }));
+      });
 }
 
 void MessageReaderTransportTest::ExpectChildReadMessage(
     const std::vector<char>& message) {
   EXPECT_CALL(*child_transport_, read(/*buffer=*/_))
-      .WillOnce(Invoke(
-          [message](std::span<char> data) -> awaitable<expected<size_t>> {
-            if (data.size() < message.size()) {
-              co_return ERR_FAILED;
-            }
-            std::ranges::copy(message, data.begin());
-            co_return message.size();
-          }));
+      .WillOnce([message](std::span<char> data) -> awaitable<expected<size_t>> {
+        if (data.size() < message.size()) {
+          co_return ERR_FAILED;
+        }
+        std::ranges::copy(message, data.begin());
+        co_return message.size();
+      });
 }
 
 awaitable<expected<std::vector<char>>>

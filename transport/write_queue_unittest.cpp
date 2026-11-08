@@ -63,10 +63,10 @@ TEST(WriteQueueTest, QueuedWriteAbortsWhenTheQueueDiesWhileItWaits) {
   ON_CALL(*mock, get_executor())
       .WillByDefault(Return(io_context.get_executor()));
   ON_CALL(*mock, write(_))
-      .WillByDefault(Invoke(
+      .WillByDefault(
           [&gate](std::span<const char> data) -> awaitable<expected<size_t>> {
             return GatedWrite(gate, data.size());
-          }));
+          });
 
   auto transport = std::make_unique<any_transport>(std::move(mock));
   auto write_queue = std::make_unique<WriteQueue>(*transport);

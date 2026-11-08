@@ -149,7 +149,7 @@ TEST_F(UdpTransportTest,
   ExpectTransportAccepted();
 
   /*EXPECT_CALL(accepted_transport_handlers_.on_message, Call(_))
-      .WillOnce(Invoke([&] { accepted_transport_.reset(); }));*/
+      .WillOnce([&] { accepted_transport_.reset(); });*/
   ReceiveMessage();
 
   EXPECT_CALL(*socket, Close());
@@ -161,7 +161,7 @@ TEST_F(UdpTransportTest,
   ExpectTransportAccepted();
 
   /*EXPECT_CALL(accepted_transport_handlers_.on_message, Call(_))
-      .WillOnce(Invoke([&] { accepted_transport_->Close(); }));*/
+      .WillOnce([&] { accepted_transport_->Close(); });*/
 
   ReceiveMessage();
 
