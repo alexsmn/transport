@@ -46,7 +46,7 @@ add_library(transport ${sources})
 add_library(Transport::transport ALIAS transport)
 
 # Uses `std::span` in API.
-target_compile_features(transport PUBLIC cxx_std_20)
+target_compile_features(transport PUBLIC cxx_std_23)
 
 if(WIN32)
   target_compile_definitions(transport PRIVATE _WIN32_WINNT=0x0601)
